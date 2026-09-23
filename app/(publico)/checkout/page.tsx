@@ -31,6 +31,7 @@ import BarraNavegacao from "@/components/BarraNavegacao";
 import { useCarrinho } from "@/lib/contextoCarrinho";
 import { usePedidos, ID_COMPRADOR_DEMO } from "@/lib/contextoPedidos";
 import type { DadosEntrega } from "@/lib/tipos";
+import { aplicarMascara, formatarCep, formatarTelefone, somenteDigitos } from "@/lib/mascaras";
 
 // Wizard curto de propósito: uma pergunta por vez, como decidido no foco de inclusão
 // digital do projeto. A etapa 3 (sucesso) fica fora do Stepper porque não é editável.
@@ -54,6 +55,16 @@ const ROTULOS: Record<keyof DadosEntrega, string> = {
   bairro: "Bairro",
   cidade: "Cidade",
   uf: "Estado",
+};
+
+// Campos com formato fixo: a máscara formata enquanto digita e a validação passa a
+// recusar valor incompleto, não só vazio. "numero" fica de fora de propósito, porque
+// aceita "S/N", "120A" etc.
+const MASCARAS: Partial<
+  Record<keyof DadosEntrega, { formatar: (valor: string) => string; inputMode: "tel" | "numeric"; digitosMinimos: number }>
+> = {
+  telefone: { formatar: formatarTelefone, inputMode: "tel", digitosMinimos: 10 },
+  cep: { formatar: formatarCep, inputMode: "numeric", digitosMinimos: 8 },
 };
 
 const ESTADOS = ["PE", "AL", "BA", "CE", "PB", "PI", "RN", "SE"];
@@ -87,9 +98,16 @@ export default function Pagina() {
     setDados((atuais) => ({ ...atuais, [campo]: valor }));
   }
 
+  function campoInvalido(campo: keyof DadosEntrega): boolean {
+    const valor = dados[campo].trim();
+    if (valor === "") return true;
+    const mascara = MASCARAS[campo];
+    return mascara ? somenteDigitos(valor).length < mascara.digitosMinimos : false;
+  }
+
   function camposFaltando(indiceDaEtapa: number): (keyof DadosEntrega)[] {
     const obrigatorios = CAMPOS_OBRIGATORIOS[indiceDaEtapa] ?? [];
-    return obrigatorios.filter((campo) => dados[campo].trim() === "");
+    return obrigatorios.filter(campoInvalido);
   }
 
   function avancar() {
@@ -129,7 +147,8 @@ export default function Pagina() {
   }
 
   function campoDeTexto(campo: keyof DadosEntrega, placeholder?: string) {
-    const invalido = errosVisiveis && dados[campo].trim() === "";
+    const invalido = errosVisiveis && campoInvalido(campo);
+    const mascara = MASCARAS[campo];
     return (
       <FormControl isInvalid={invalido} isRequired>
         <FormLabel fontSize="0.9rem">{ROTULOS[campo]}</FormLabel>
@@ -139,9 +158,14 @@ export default function Pagina() {
           borderColor="border"
           placeholder={placeholder}
           value={dados[campo]}
-          onChange={(e) => preencher(campo, e.target.value)}
+          inputMode={mascara?.inputMode}
+          onChange={(e) => preencher(campo, mascara ? aplicarMascara(e, mascara.formatar) : e.target.value)}
         />
-        <FormErrorMessage>Preencha {ROTULOS[campo].toLowerCase()}.</FormErrorMessage>
+        <FormErrorMessage>
+          {mascara && dados[campo].trim() !== ""
+            ? `${ROTULOS[campo]} incompleto.`
+            : `Preencha ${ROTULOS[campo].toLowerCase()}.`}
+        </FormErrorMessage>
       </FormControl>
     );
   }
