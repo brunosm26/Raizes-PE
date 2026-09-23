@@ -30,6 +30,7 @@ import {
 } from "@chakra-ui/react";
 import { FiImage, FiUpload } from "react-icons/fi";
 import { tecnicas } from "@/lib/apiFalsa";
+import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco } from "@/lib/mascaras";
 import type { Tecnica } from "@/lib/tipos";
 
 // Tamanho máximo de imagem aceito no upload. Como não há backend, a foto vira um
@@ -287,7 +288,10 @@ export default function ModalAdicionarProduto({
                   <InputLeftAddon>R$</InputLeftAddon>
                   <Input
                     value={campos.preco}
-                    onChange={(e) => setCampos({ ...campos, preco: e.target.value })}
+                    onChange={(e) =>
+                      setCampos({ ...campos, preco: aplicarMascara(e, formatarPreco, ehCaractereDePreco) })
+                    }
+                    onBlur={() => setCampos({ ...campos, preco: completarPreco(campos.preco) })}
                     placeholder="0,00"
                     inputMode="decimal"
                   />
