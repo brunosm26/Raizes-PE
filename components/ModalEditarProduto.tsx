@@ -28,6 +28,7 @@ import {
 } from "@chakra-ui/react";
 import { FiImage, FiUpload } from "react-icons/fi";
 import type { ProdutoComArtesao } from "@/lib/tipos";
+import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco } from "@/lib/mascaras";
 
 type DadosEditados = Pick<ProdutoComArtesao, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">;
 
@@ -56,7 +57,7 @@ export default function ModalEditarProduto({
     if (!produto) return;
     setNome(produto.nome);
     setDescricao(produto.descricao);
-    setPreco(String(produto.preco));
+    setPreco(produto.preco.toFixed(2).replace(".", ","));
     setEstoqueQtd(String(produto.estoqueQtd));
     setImagemUrl(produto.imagemUrl);
     setErroImagem("");
@@ -128,7 +129,13 @@ export default function ModalEditarProduto({
                 <FormLabel fontSize="0.86rem">Valor</FormLabel>
                 <InputGroup>
                   <InputLeftAddon>R$</InputLeftAddon>
-                  <Input value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="0,00" inputMode="decimal" />
+                  <Input
+                    value={preco}
+                    onChange={(e) => setPreco(aplicarMascara(e, formatarPreco, ehCaractereDePreco))}
+                    onBlur={() => setPreco(completarPreco(preco))}
+                    placeholder="0,00"
+                    inputMode="decimal"
+                  />
                 </InputGroup>
               </FormControl>
               <FormControl isRequired>
