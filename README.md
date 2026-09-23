@@ -168,3 +168,4 @@ Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa
 - Hilton Resende Montes Neto
 - Maria Clara Miranda Ferraz
 - Ramon Taffarel Guimarães
+- Pedro Henrique Cavalcanti e Silva
