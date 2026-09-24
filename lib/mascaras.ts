@@ -40,7 +40,10 @@ export function formatarCep(valor: string): string {
 // exatamente o que o Number(preco.replace(",", ".")) dos modais já sabe converter.
 // Durante a digitação só remove caracteres, nunca insere, para não brigar com o cursor.
 export function formatarPreco(valor: string): string {
-  const semMilhar = valor.includes(",") || (valor.match(/\./g) ?? []).length > 1;
+  // Em um valor monetário colado, "R$ 1.234" é um inteiro com separador de milhar.
+  // Sem o prefixo, o ponto continua sendo tratado como separador decimal digitado.
+  const milharMonetarioSemCentavos = /^\s*R\$\s*\d{1,3}(?:\.\d{3})+\s*$/.test(valor);
+  const semMilhar = milharMonetarioSemCentavos || valor.includes(",") || (valor.match(/\./g) ?? []).length > 1;
   const normalizado = (semMilhar ? valor.replace(/\./g, "") : valor.replace(".", ","))
     .replace(/[^\d,]/g, "");
 
