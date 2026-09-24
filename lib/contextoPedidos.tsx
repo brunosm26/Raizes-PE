@@ -1,20 +1,18 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  pedidos as pedidosIniciais,
-  itensPedido,
-  produtos,
-  usuarios,
-  artesaos,
-} from "./dadosFalsos";
+import { getArtesaos, getItensPedido, getPedidos, getProdutosBase, getUsuarios } from "./apiFalsa";
 import type {
+  Artesao,
   ItemCarrinhoComProduto,
+  ItemPedido,
   NotificacaoEnvio,
   Pedido,
   PedidoComItens,
   ItemPedidoComProduto,
+  Produto,
   StatusPedido,
+  Usuario,
 } from "./tipos";
 
 const CHAVE_ARMAZENAMENTO = "raizes-pe:pedidos";
@@ -134,48 +132,53 @@ function lerEstadoSalvo(): EstadoSalvo | null {
   }
 }
 
-function nomeDoComprador(compradorId: string): string {
-  return usuarios.find((u) => u.id === compradorId)?.nome ?? "Comprador";
-}
-
-function itensDoPedido(pedidoId: string): ItemPedidoComProduto[] {
-  return itensPedido
-    .filter((item) => item.pedidoId === pedidoId)
-    .map((item) => {
-      const produto = produtos.find((p) => p.id === item.produtoId);
-      return {
-        ...item,
-        produtoNome: produto?.nome ?? "Produto removido",
-        produtoTecnica: produto?.tecnica ?? "Cerâmica",
-      };
-    });
-}
-
-function comItens(pedido: Pedido): PedidoComItens {
-  return {
-    ...pedido,
-    compradorNome: nomeDoComprador(pedido.compradorId),
-    itens: itensDoPedido(pedido.id),
-  };
-}
-
 // Mais recentes primeiro — é a ordem que faz sentido nas duas telas.
 function porDataDecrescente(a: Pedido, b: Pedido): number {
   return b.dataPedido.localeCompare(a.dataPedido);
 }
 
 export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
-  const [pedidos, setPedidos] = useState<Pedido[]>(pedidosIniciais);
+  // Semente vinda da API fake (lib/apiFalsa.ts) — nenhum componente/contexto deve
+  // importar lib/dadosFalsos.ts diretamente, sempre passa por ela.
+  const [pedidosSemente, setPedidosSemente] = useState<Pedido[]>([]);
+  const [itensPedidoBase, setItensPedidoBase] = useState<ItemPedido[]>([]);
+  const [produtosBase, setProdutosBase] = useState<Produto[]>([]);
+  const [usuariosBase, setUsuariosBase] = useState<Usuario[]>([]);
+  const [artesaosBase, setArtesaosBase] = useState<Artesao[]>([]);
+
+  // Só o que diverge do mock: status alterados, pedidos criados no app e notificações.
+  const [statusPorPedido, setStatusPorPedido] = useState<Record<string, StatusPedido>>({});
   const [pedidosLocais, setPedidosLocais] = useState<PedidoComItens[]>([]);
   const [notificacoes, setNotificacoes] = useState<NotificacaoEnvio[]>([]);
   const [hidratado, setHidratado] = useState(false);
 
-  // Igual ao carrinho: só lemos depois da montagem, senão o HTML do servidor divergiria
-  // do cliente. O estado inicial é o mock, que é o mesmo nos dois lados.
+  useEffect(() => {
+    let ativo = true;
+    Promise.all([
+      getPedidos(),
+      getItensPedido(),
+      getProdutosBase(),
+      getUsuarios(),
+      getArtesaos(),
+    ]).then(([todosPedidos, todosItensPedido, todosProdutos, todosUsuarios, todosArtesaos]) => {
+      if (!ativo) return;
+      setPedidosSemente(todosPedidos);
+      setItensPedidoBase(todosItensPedido);
+      setProdutosBase(todosProdutos);
+      setUsuariosBase(todosUsuarios);
+      setArtesaosBase(todosArtesaos);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  // Só lemos depois da montagem, senão o HTML do servidor divergiria do cliente
+  // (mesmo cuidado do carrinho e dos produtos).
   useEffect(() => {
     const salvo = lerEstadoSalvo();
     if (salvo) {
-      setPedidos(aplicarStatusSalvos(pedidosIniciais, salvo.statusPorPedido));
+      setStatusPorPedido(salvo.statusPorPedido);
       setPedidosLocais(salvo.pedidosLocais);
       setNotificacoes(salvo.notificacoes);
     }
@@ -184,16 +187,6 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!hidratado) return;
-
-    // Só os status que divergem do mock — o resto é sempre relido de dadosFalsos.ts.
-    const statusPorPedido: Record<string, StatusPedido> = {};
-    for (const pedido of pedidos) {
-      const original = pedidosIniciais.find((p) => p.id === pedido.id);
-      if (original && original.status !== pedido.status) {
-        statusPorPedido[pedido.id] = pedido.status;
-      }
-    }
-
     try {
       window.localStorage.setItem(
         CHAVE_ARMAZENAMENTO,
@@ -202,7 +195,42 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
     } catch {
       // Sem persistência: as mudanças valem só nesta sessão.
     }
-  }, [pedidos, pedidosLocais, notificacoes, hidratado]);
+  }, [statusPorPedido, pedidosLocais, notificacoes, hidratado]);
+
+  const pedidos = useMemo(
+    () => aplicarStatusSalvos(pedidosSemente, statusPorPedido),
+    [pedidosSemente, statusPorPedido]
+  );
+
+  const nomeDoComprador = useCallback(
+    (compradorId: string): string =>
+      usuariosBase.find((u) => u.id === compradorId)?.nome ?? "Comprador",
+    [usuariosBase]
+  );
+
+  const itensDoPedido = useCallback(
+    (pedidoId: string): ItemPedidoComProduto[] =>
+      itensPedidoBase
+        .filter((item) => item.pedidoId === pedidoId)
+        .map((item) => {
+          const produto = produtosBase.find((p) => p.id === item.produtoId);
+          return {
+            ...item,
+            produtoNome: produto?.nome ?? "Produto removido",
+            produtoTecnica: produto?.tecnica ?? "Cerâmica",
+          };
+        }),
+    [itensPedidoBase, produtosBase]
+  );
+
+  const comItens = useCallback(
+    (pedido: Pedido): PedidoComItens => ({
+      ...pedido,
+      compradorNome: nomeDoComprador(pedido.compradorId),
+      itens: itensDoPedido(pedido.id),
+    }),
+    [nomeDoComprador, itensDoPedido]
+  );
 
   // Chamado ao confirmar o checkout: o pedido do comprador passa a existir de verdade no
   // histórico, em vez de o checkout inventar um número que não leva a lugar nenhum.
@@ -236,7 +264,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       setPedidosLocais((atuais) => [novo, ...atuais]);
       return novo;
     },
-    []
+    [nomeDoComprador]
   );
 
   const marcarComoEnviado = useCallback(
@@ -257,9 +285,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
           atuais.map((p) => (p.id === pedidoId ? { ...p, status: ENVIADO } : p))
         );
       } else {
-        setPedidos((atuais) =>
-          atuais.map((p) => (p.id === pedidoId ? { ...p, status: ENVIADO } : p))
-        );
+        setStatusPorPedido((atual) => ({ ...atual, [pedidoId]: ENVIADO }));
       }
 
       setNotificacoes((anteriores) => [
@@ -286,7 +312,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   // Os pedidos do mock precisam da junção; os criados no app já vêm com itens.
   const todosComItens = useCallback(
     (): PedidoComItens[] => [...pedidosLocais, ...pedidos.map(comItens)],
-    [pedidos, pedidosLocais]
+    [pedidos, pedidosLocais, comItens]
   );
 
   // Visão do administrador: todos os pedidos da plataforma (mock + criados no app), sem
@@ -307,18 +333,18 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   // Um pedido pertence ao artesão quando contém ao menos um produto dele.
   const pedidosDoArtesao = useCallback(
     (usuarioId: string) => {
-      const artesao = artesaos.find((a) => a.usuarioId === usuarioId);
+      const artesao = artesaosBase.find((a) => a.usuarioId === usuarioId);
       if (!artesao) return [];
 
       const idsDosProdutos = new Set(
-        produtos.filter((p) => p.artesaoId === artesao.id).map((p) => p.id)
+        produtosBase.filter((p) => p.artesaoId === artesao.id).map((p) => p.id)
       );
 
       return todosComItens()
         .filter((pedido) => pedido.itens.some((i) => idsDosProdutos.has(i.produtoId)))
         .sort(porDataDecrescente);
     },
-    [todosComItens]
+    [artesaosBase, produtosBase, todosComItens]
   );
 
   const pedidosPendentesDoArtesao = useCallback(
@@ -332,11 +358,11 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   // Conta pedidos em qualquer status, que é a regra que a apiFalsa já usava.
   const vendasDoArtesao = useCallback(
     (usuarioId: string) => {
-      const artesao = artesaos.find((a) => a.usuarioId === usuarioId);
+      const artesao = artesaosBase.find((a) => a.usuarioId === usuarioId);
       if (!artesao) return 0;
 
       const idsDosProdutos = new Set(
-        produtos.filter((p) => p.artesaoId === artesao.id).map((p) => p.id)
+        produtosBase.filter((p) => p.artesaoId === artesao.id).map((p) => p.id)
       );
 
       return pedidosDoArtesao(usuarioId).reduce(
@@ -348,7 +374,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
         0
       );
     },
-    [pedidosDoArtesao]
+    [artesaosBase, produtosBase, pedidosDoArtesao]
   );
 
   const notificacoesDoComprador = useCallback(
