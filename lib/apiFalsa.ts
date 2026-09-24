@@ -7,11 +7,17 @@ import {
   avaliacoes,
 } from "./dadosFalsos";
 import {
-  ProdutoComArtesao,
+  Artesao,
+  Avaliacao,
   EstatisticasPainel,
-  Tecnica,
-  ResumoAvaliacoes,
+  ItemPedido,
+  Pedido,
   PerfilArtesao,
+  Produto,
+  ProdutoComArtesao,
+  ResumoAvaliacoes,
+  Tecnica,
+  Usuario,
 } from "./tipos";
 
 // Simula latência de rede, como uma API real teria.
@@ -169,6 +175,43 @@ export async function getEstatisticasPainel(usuarioId: string): Promise<Estatist
     historicoMensal,
     vendasPorTecnica,
   });
+}
+
+// GET /artesaos — lista crua, sem juntar com usuários. Usado por telas que precisam
+// resolver nome/técnicas por conta própria (painel admin) em vez de um recorte pronto
+// como getPerfilArtesao/getProdutosDoArtesao.
+export async function getArtesaos(): Promise<Artesao[]> {
+  return atraso(artesaos);
+}
+
+// GET /usuarios — lista crua. Usado junto com getArtesaos() para resolver nome do
+// artesão fora dos recortes prontos (ex.: tabela de Gestão de Artesãos do admin).
+export async function getUsuarios(): Promise<Usuario[]> {
+  return atraso(usuarios);
+}
+
+// GET /produtos (sem filtro, sem juntar artesão) — semente usada por contextos que
+// combinam produtos do mock com os criados localmente pelo artesão.
+export async function getProdutosBase(): Promise<Produto[]> {
+  return atraso(produtos);
+}
+
+// GET /pedidos — lista crua, sem juntar comprador/itens. Usado pelo contexto de pedidos
+// pra montar o histórico (mock + criados no app) sem importar dadosFalsos diretamente.
+export async function getPedidos(): Promise<Pedido[]> {
+  return atraso(pedidos);
+}
+
+// GET /itensPedido — lista crua, usada junto com getPedidos()/getProdutosBase() pra
+// resolver os itens de cada pedido.
+export async function getItensPedido(): Promise<ItemPedido[]> {
+  return atraso(itensPedido);
+}
+
+// GET /avaliacoes — lista completa (sem filtro por produto), usada pelo motor de
+// recomendação, que precisa cruzar avaliações de todos os produtos de uma vez.
+export async function getAvaliacoesTodas(): Promise<Avaliacao[]> {
+  return atraso(avaliacoes);
 }
 
 export const tecnicas: Tecnica[] = ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"];
