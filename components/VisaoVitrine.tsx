@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Box, Grid, Heading, Text, Button, HStack, Link as ChakraLink } from "@chakra-ui/react";
+import { Box, Heading, Text, Button, HStack, Link as ChakraLink } from "@chakra-ui/react";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import FiltroTecnicas from "@/components/FiltroTecnicas";
 import SeletorFiltro from "@/components/SeletorFiltro";
@@ -69,20 +69,20 @@ export default function VisaoVitrine() {
   return (
     <>
       <BarraNavegacao valorBusca={busca} aoMudarBusca={setBusca} />
-      <Box maxW="1180px" mx="auto" px={{ base: 5, md: 10 }}>
-        <Grid
-          templateColumns={{ base: "1fr", md: "1.1fr 1fr" }}
-          gap={14}
-          alignItems="center"
-          py={{ base: 10, md: 16 }}
-        >
-          <Box>
-            <Heading fontSize={{ base: "2.2rem", md: "3rem" }} lineHeight={1.08} maxW="11ch">
+      <Box
+        backgroundColor="#251e19"
+        backgroundImage="linear-gradient(180deg, transparent 90%, var(--chakra-colors-bg) 100%), linear-gradient(90deg, rgba(24,18,15,.94) 0%, rgba(24,18,15,.82) 30%, rgba(24,18,15,.48) 58%, rgba(24,18,15,.06) 100%), url('/hero-oficina-ceramica.webp')"
+        backgroundSize="cover"
+        backgroundPosition={{ base: "60% center", md: "center 54%" }}
+      >
+        <Box maxW="1180px" minH={{ base: "500px", md: "600px" }} mx="auto" px={{ base: 5, md: 10 }} py={16} display="flex" alignItems="center">
+          <Box maxW="500px">
+            <Heading color="white" fontSize={{ base: "2.2rem", md: "3rem" }} lineHeight={1.08} maxW="11ch">
               Feito à mão.
               <br />
               Direto de quem faz.
             </Heading>
-            <Text color="mutedFg" fontSize="1.05rem" maxW="40ch" mt={5} mb={7}>
+            <Text color="whiteAlpha.900" fontSize="1.05rem" maxW="40ch" mt={5} mb={7}>
               Descubra a riqueza do artesanato pernambucano, conecte-se com os mestres e
               apoie a economia criativa local.
             </Text>
@@ -90,13 +90,10 @@ export default function VisaoVitrine() {
               Explorar peças
             </Button>
           </Box>
-          <Box
-            sx={{ aspectRatio: "4 / 3.4" }}
-            borderRadius="10px"
-            backgroundImage="radial-gradient(circle at 30% 25%, rgba(255,255,255,.35), transparent 45%), linear-gradient(135deg, #d9b48f 0%, #b75c40 65%, #8a4530 100%)"
-          />
-        </Grid>
+        </Box>
+      </Box>
 
+      <Box maxW="1180px" mx="auto" px={{ base: 5, md: 10 }} pt={{ base: 8, md: 12 }}>
         <Box borderBottom="1px solid" borderColor="border" pb={7} mb={9}>
           <FiltroTecnicas opcoes={OPCOES_TECNICA} valor={filtroTecnica} aoMudar={setFiltroTecnica} />
 
