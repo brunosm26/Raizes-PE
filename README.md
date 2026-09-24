@@ -94,8 +94,9 @@ npm run dev
 
 O aplicativo estará disponível em seu navegador acessando: [http://localhost:3000](http://localhost:3000)
 
-**Antes de abrir um Pull Request**, rode o lint e o typecheck para manter a integridade do código:
+**Antes de abrir um Pull Request**, rode os testes automatizados, o lint e o typecheck para manter a integridade do código:
 ```bash
+npm test
 npm run lint
 npx tsc --noEmit
 ```
@@ -150,7 +151,11 @@ Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa
 │   ├── tema.ts               # Design System no Chakra UI
 │   └── arteProduto.ts        # Padrões visuais no lugar das fotos
 ├── docs/                     # Documentação do projeto
-│   └── CONTRATO_API.md       # Contrato inicial da API
+│   ├── CONTRATO_API.md       # Contrato inicial da API
+│   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
+├── tests/                    # Suíte de testes automatizados (node --test)
+│   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
+│   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
 ├── eslint.config.mjs         # Regras de lint
 └── package.json              # Scripts e dependências
 ```
