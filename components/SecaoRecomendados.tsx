@@ -34,9 +34,14 @@ export default function SecaoRecomendados({
   const toast = useToast();
 
   useEffect(() => {
-    // Carrega recomendações geradas pelo motor da baseline de IA
-    const resultado = calcularRecomendacoes(compradorId, 4);
-    setRecomendados(resultado);
+    // Carrega recomendações geradas pelo motor da baseline de IA (busca os dados na API fake).
+    let ativo = true;
+    calcularRecomendacoes(compradorId, 4).then((resultado) => {
+      if (ativo) setRecomendados(resultado);
+    });
+    return () => {
+      ativo = false;
+    };
   }, [compradorId]);
 
   function handleAdicionar(produto: ProdutoRecomendado) {

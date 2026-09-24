@@ -1,12 +1,12 @@
 import {
-  produtos,
-  artesaos,
-  usuarios,
-  pedidos,
-  itensPedido,
-  avaliacoes,
-} from "./dadosFalsos";
-import type { ProdutoComArtesao, Tecnica } from "./tipos";
+  getArtesaos,
+  getAvaliacoesTodas,
+  getItensPedido,
+  getPedidos,
+  getProdutosBase,
+  getUsuarios,
+} from "./apiFalsa";
+import type { Produto, ProdutoComArtesao, Tecnica } from "./tipos";
 
 export type CriterioRecomendacao =
   | "historico_tecnica"
@@ -20,36 +20,48 @@ export interface ProdutoRecomendado extends ProdutoComArtesao {
   criterio: CriterioRecomendacao;
 }
 
-function nomeDoArtesao(artesaoId: string): string {
-  const artesao = artesaos.find((a) => a.id === artesaoId);
-  const usuario = artesao ? usuarios.find((u) => u.id === artesao.usuarioId) : undefined;
-  return usuario?.nome ?? "Artesão de Pernambuco";
-}
-
-function regiaoDoArtesao(artesaoId: string): string {
-  const artesao = artesaos.find((a) => a.id === artesaoId);
-  return artesao?.regiaoOrigem ?? "Pernambuco";
-}
-
-function paraProdutoComArtesao(p: (typeof produtos)[number]): ProdutoComArtesao {
-  return {
-    ...p,
-    artesaoNome: nomeDoArtesao(p.artesaoId),
-    artesaoRegiao: regiaoDoArtesao(p.artesaoId),
-  };
-}
-
 /**
  * Baseline de Recomendação Inteligente (PI4-20 / PI4-27):
  * 1. Filtra produtos indisponíveis (estoqueQtd <= 0).
  * 2. Personaliza com base no histórico do comprador (técnicas e regiões já adquiridas).
  * 3. Fallback / Cold Start com produtos bem avaliados e populares.
  * 4. Explicabilidade: Fornece um motivo amigável para cada item recomendado.
+ *
+ * Busca todos os dados pela API fake (lib/apiFalsa.ts) em vez de importar
+ * lib/dadosFalsos.ts diretamente — nenhum componente/módulo deve pular a API fake.
  */
-export function calcularRecomendacoes(
+export async function calcularRecomendacoes(
   compradorId?: string,
   limite = 4
-): ProdutoRecomendado[] {
+): Promise<ProdutoRecomendado[]> {
+  const [produtos, artesaos, usuarios, pedidos, itensPedido, avaliacoes] = await Promise.all([
+    getProdutosBase(),
+    getArtesaos(),
+    getUsuarios(),
+    getPedidos(),
+    getItensPedido(),
+    getAvaliacoesTodas(),
+  ]);
+
+  function nomeDoArtesao(artesaoId: string): string {
+    const artesao = artesaos.find((a) => a.id === artesaoId);
+    const usuario = artesao ? usuarios.find((u) => u.id === artesao.usuarioId) : undefined;
+    return usuario?.nome ?? "Artesão de Pernambuco";
+  }
+
+  function regiaoDoArtesao(artesaoId: string): string {
+    const artesao = artesaos.find((a) => a.id === artesaoId);
+    return artesao?.regiaoOrigem ?? "Pernambuco";
+  }
+
+  function paraProdutoComArtesao(p: Produto): ProdutoComArtesao {
+    return {
+      ...p,
+      artesaoNome: nomeDoArtesao(p.artesaoId),
+      artesaoRegiao: regiaoDoArtesao(p.artesaoId),
+    };
+  }
+
   // 1. Filtragem de indisponíveis (PI4-82)
   const disponiveis = produtos.filter((p) => p.estoqueQtd > 0);
 
