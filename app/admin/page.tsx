@@ -1,20 +1,33 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Heading, SimpleGrid } from "@chakra-ui/react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import CartaoEstatistica from "@/components/CartaoEstatistica";
-import { artesaos } from "@/lib/dadosFalsos";
+import { getArtesaos } from "@/lib/apiFalsa";
+import { Artesao } from "@/lib/tipos";
 import { usePedidos } from "@/lib/contextoPedidos";
 import { useProdutos } from "@/lib/contextoProdutos";
 
 export default function AdminDashboard() {
   const { todosOsPedidos } = usePedidos();
   const { produtosDoArtesao } = useProdutos();
+  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    getArtesaos().then((todosArtesaos) => {
+      if (ativo) setArtesaos(todosArtesaos);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
   const pedidos = useMemo(() => todosOsPedidos(), [todosOsPedidos]);
   const produtos = useMemo(
     () => artesaos.flatMap((a) => produtosDoArtesao(a.usuarioId)),
-    [produtosDoArtesao]
+    [artesaos, produtosDoArtesao]
   );
 
   const totalVendas = pedidos.reduce((soma, p) => soma + p.valorTotal, 0);

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Box, Button, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr } from "@chakra-ui/react";
-import { artesaos } from "@/lib/dadosFalsos";
+import { getArtesaos } from "@/lib/apiFalsa";
+import { Artesao } from "@/lib/tipos";
 import { useProdutos } from "@/lib/contextoProdutos";
 import DialogoConfirmacao from "@/components/DialogoConfirmacao";
 
@@ -14,6 +15,17 @@ export default function ModeracaoProdutosPage() {
   const { produtosDoArtesao } = useProdutos();
   const [moderacao, setModeracao] = useState<Record<string, AcaoModeracao> | null>(null);
   const [produtoParaRemover, setProdutoParaRemover] = useState<{ id: string; nome: string } | null>(null);
+  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    getArtesaos().then((todosArtesaos) => {
+      if (ativo) setArtesaos(todosArtesaos);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -42,8 +54,10 @@ export default function ModeracaoProdutosPage() {
   // Todos os produtos da plataforma: cada artesão contribui com os seus (mock + criados no app).
   const produtos = useMemo(
     () => artesaos.flatMap((a) => produtosDoArtesao(a.usuarioId)),
-    [produtosDoArtesao]
+    [artesaos, produtosDoArtesao]
   );
+
+  const carregando = moderacao === null || artesaos.length === 0;
 
   return (
     <Box>
@@ -64,9 +78,9 @@ export default function ModeracaoProdutosPage() {
             </Tr>
           </Thead>
           <Tbody>
-            {moderacao === null && <Tr><Td colSpan={5}>Carregando produtos...</Td></Tr>}
-            {moderacao !== null && produtos.filter((produto) => moderacao[produto.id] !== "removido").map((produto) => {
-              const emRevisao = EM_REVISAO_INICIAL.has(produto.id) && moderacao[produto.id] !== "aprovado";
+            {carregando && <Tr><Td colSpan={5}>Carregando produtos...</Td></Tr>}
+            {!carregando && produtos.filter((produto) => moderacao?.[produto.id] !== "removido").map((produto) => {
+              const emRevisao = EM_REVISAO_INICIAL.has(produto.id) && moderacao?.[produto.id] !== "aprovado";
 
               return (
                 <Tr key={produto.id}>

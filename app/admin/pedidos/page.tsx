@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Box, Heading, Table, Tbody, Td, Text, Th, Thead, Tr } from "@chakra-ui/react";
 import EtiquetaStatusPedido from "@/components/EtiquetaStatusPedido";
-import { artesaos } from "@/lib/dadosFalsos";
+import { getArtesaos } from "@/lib/apiFalsa";
+import { Artesao } from "@/lib/tipos";
 import { usePedidos } from "@/lib/contextoPedidos";
 import { useProdutos } from "@/lib/contextoProdutos";
 
@@ -17,6 +18,20 @@ function formatarData(dataISO: string): string {
 export default function PedidosGeraisPage() {
   const { todosOsPedidos } = usePedidos();
   const { produtosDoArtesao } = useProdutos();
+  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    let ativo = true;
+    getArtesaos().then((todosArtesaos) => {
+      if (!ativo) return;
+      setArtesaos(todosArtesaos);
+      setCarregando(false);
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const pedidos = useMemo(() => todosOsPedidos(), [todosOsPedidos]);
 
@@ -30,7 +45,7 @@ export default function PedidosGeraisPage() {
       }
     }
     return mapa;
-  }, [produtosDoArtesao]);
+  }, [artesaos, produtosDoArtesao]);
 
   function artesaosDoPedido(produtoIds: string[]): string {
     const nomes = Array.from(
@@ -58,7 +73,12 @@ export default function PedidosGeraisPage() {
             </Tr>
           </Thead>
           <Tbody>
-            {pedidos.map((pedido) => (
+            {carregando && (
+              <Tr>
+                <Td colSpan={6}>Carregando pedidos...</Td>
+              </Tr>
+            )}
+            {!carregando && pedidos.map((pedido) => (
               <Tr key={pedido.id}>
                 <Td fontWeight={600}>#{pedido.id}</Td>
                 <Td>{formatarData(pedido.dataPedido)}</Td>
@@ -73,7 +93,7 @@ export default function PedidosGeraisPage() {
           </Tbody>
         </Table>
 
-        {pedidos.length === 0 && (
+        {!carregando && pedidos.length === 0 && (
           <Text px={5} py={8} color="mutedFg" textAlign="center">
             Nenhum pedido registrado ainda.
           </Text>

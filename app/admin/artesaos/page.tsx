@@ -3,15 +3,32 @@
 import { useEffect, useState } from "react";
 import { Badge, Box, Button, Flex, Heading, Table, Tbody, Td, Th, Thead, Tr } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { artesaos, usuarios } from "@/lib/dadosFalsos";
+import { getArtesaos, getUsuarios } from "@/lib/apiFalsa";
+import { Artesao, Usuario } from "@/lib/tipos";
 import { useProdutos } from "@/lib/contextoProdutos";
 
 export default function GestaoArtesaosPage() {
   const { produtosDoArtesao } = useProdutos();
   const [aprovado, setAprovado] = useState<boolean | null>(null);
+  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [carregando, setCarregando] = useState(true);
 
   useEffect(() => {
     setAprovado(localStorage.getItem("raizes-pe:artesao-aprovado") === "true");
+  }, []);
+
+  useEffect(() => {
+    let ativo = true;
+    Promise.all([getArtesaos(), getUsuarios()]).then(([todosArtesaos, todosUsuarios]) => {
+      if (!ativo) return;
+      setArtesaos(todosArtesaos);
+      setUsuarios(todosUsuarios);
+      setCarregando(false);
+    });
+    return () => {
+      ativo = false;
+    };
   }, []);
 
   const aprovarArtesao = () => {
@@ -37,7 +54,12 @@ export default function GestaoArtesaosPage() {
             </Tr>
           </Thead>
           <Tbody>
-            {artesaos.map((artesao, indice) => {
+            {carregando && (
+              <Tr>
+                <Td colSpan={5}>Carregando artesãos...</Td>
+              </Tr>
+            )}
+            {!carregando && artesaos.map((artesao, indice) => {
               const nome = usuarios.find((u) => u.id === artesao.usuarioId)?.nome ?? "Desconhecido";
               // Técnicas que o artesão de fato trabalha = técnicas dos produtos dele.
               const tecnicas = Array.from(
