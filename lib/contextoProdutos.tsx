@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { artesaos, produtos as produtosIniciais, usuarios } from "./dadosFalsos";
-import type { Produto, ProdutoComArtesao, Tecnica } from "./tipos";
+import { getArtesaos, getProdutosBase, getUsuarios } from "./apiFalsa";
+import type { Artesao, Produto, ProdutoComArtesao, Tecnica, Usuario } from "./tipos";
 
 const CHAVE_ARMAZENAMENTO = "raizes-pe:produtos-locais";
 
@@ -73,27 +73,14 @@ function lerProdutosSalvos(): Produto[] {
   }
 }
 
-function nomeDoArtesao(artesaoId: string): string {
-  const artesao = artesaos.find((a) => a.id === artesaoId);
-  const usuario = artesao ? usuarios.find((u) => u.id === artesao.usuarioId) : undefined;
-  return usuario?.nome ?? "Artesão desconhecido";
-}
-
-function regiaoDoArtesao(artesaoId: string): string {
-  return artesaos.find((a) => a.id === artesaoId)?.regiaoOrigem ?? "";
-}
-
-function paraProdutoComArtesao(p: Produto): ProdutoComArtesao {
-  return {
-    ...p,
-    artesaoNome: nomeDoArtesao(p.artesaoId),
-    artesaoRegiao: regiaoDoArtesao(p.artesaoId),
-  };
-}
-
 export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
   const [produtosLocais, setProdutosLocais] = useState<Produto[]>([]);
   const [hidratado, setHidratado] = useState(false);
+  // Semente vinda da API fake (lib/apiFalsa.ts) — nenhum componente/contexto deve
+  // importar lib/dadosFalsos.ts diretamente, sempre passa por ela.
+  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [produtosIniciais, setProdutosIniciais] = useState<Produto[]>([]);
 
   // Só lemos depois da montagem, senão o HTML do servidor divergiria do cliente
   // (mesmo cuidado do carrinho e dos pedidos).
@@ -101,6 +88,44 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
     setProdutosLocais(lerProdutosSalvos());
     setHidratado(true);
   }, []);
+
+  useEffect(() => {
+    let ativo = true;
+    Promise.all([getArtesaos(), getUsuarios(), getProdutosBase()]).then(
+      ([todosArtesaos, todosUsuarios, todosProdutos]) => {
+        if (!ativo) return;
+        setArtesaos(todosArtesaos);
+        setUsuarios(todosUsuarios);
+        setProdutosIniciais(todosProdutos);
+      }
+    );
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const nomeDoArtesao = useCallback(
+    (artesaoId: string): string => {
+      const artesao = artesaos.find((a) => a.id === artesaoId);
+      const usuario = artesao ? usuarios.find((u) => u.id === artesao.usuarioId) : undefined;
+      return usuario?.nome ?? "Artesão desconhecido";
+    },
+    [artesaos, usuarios]
+  );
+
+  const regiaoDoArtesao = useCallback(
+    (artesaoId: string): string => artesaos.find((a) => a.id === artesaoId)?.regiaoOrigem ?? "",
+    [artesaos]
+  );
+
+  const paraProdutoComArtesao = useCallback(
+    (p: Produto): ProdutoComArtesao => ({
+      ...p,
+      artesaoNome: nomeDoArtesao(p.artesaoId),
+      artesaoRegiao: regiaoDoArtesao(p.artesaoId),
+    }),
+    [nomeDoArtesao, regiaoDoArtesao]
+  );
 
   useEffect(() => {
     if (!hidratado) return;
@@ -133,7 +158,7 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
       setProdutosLocais((atuais) => [novo, ...atuais]);
       return paraProdutoComArtesao(novo);
     },
-    []
+    [artesaos, paraProdutoComArtesao]
   );
 
   const editarProduto = useCallback(
@@ -146,7 +171,7 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
         return [...atuais, { ...produtoMock, ...dados }];
       });
     },
-    []
+    [produtosIniciais]
   );
 
   // Produtos do mock + os criados no app, na ordem certa pro painel (mais novo primeiro).
@@ -163,7 +188,7 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
 
       return [...doApp, ...doMock].map(paraProdutoComArtesao);
     },
-    [produtosLocais]
+    [artesaos, produtosIniciais, produtosLocais, paraProdutoComArtesao]
   );
 
   const valor = useMemo<ValorContextoProdutos>(

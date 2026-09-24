@@ -86,7 +86,7 @@ export default function VisaoVitrine() {
               Descubra a riqueza do artesanato pernambucano, conecte-se com os mestres e
               apoie a economia criativa local.
             </Text>
-            <Button variant="solid" size="lg">
+            <Button as="a" href="#pecas" variant="solid" size="lg">
               Explorar peças
             </Button>
           </Box>
@@ -127,7 +127,7 @@ export default function VisaoVitrine() {
           </Text>
         )}
 
-        <Box pb={16}>
+        <Box id="pecas" pb={16}>
           {erro ? (
             <MensagemErro aoTentarNovamente={() => setTentativa((atual) => atual + 1)} />
           ) : (

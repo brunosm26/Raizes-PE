@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const limite = limiteStr ? parseInt(limiteStr, 10) : 4;
 
   try {
-    const recomendacoes = calcularRecomendacoes(compradorId, isNaN(limite) ? 4 : limite);
+    const recomendacoes = await calcularRecomendacoes(compradorId, isNaN(limite) ? 4 : limite);
     return NextResponse.json({
       sucesso: true,
       origem: "baseline_ia_v1",
