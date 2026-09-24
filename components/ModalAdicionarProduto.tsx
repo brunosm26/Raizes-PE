@@ -30,7 +30,7 @@ import {
 } from "@chakra-ui/react";
 import { FiImage, FiUpload } from "react-icons/fi";
 import { tecnicas } from "@/lib/apiFalsa";
-import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco } from "@/lib/mascaras";
+import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco, formatarPrecoAoRetomar } from "@/lib/mascaras";
 import type { Tecnica } from "@/lib/tipos";
 
 // Tamanho máximo de imagem aceito no upload. Como não há backend, a foto vira um
@@ -89,6 +89,7 @@ export default function ModalAdicionarProduto({
   const [erroImagem, setErroImagem] = useState<string | undefined>(undefined);
   const [erros, setErros] = useState<Partial<Record<keyof CamposFormulario, string>>>({});
   const inputArquivoRef = useRef<HTMLInputElement>(null);
+  const precoRecemFocado = useRef(false);
 
   function limparEFechar() {
     setCampos(CAMPOS_VAZIOS);
@@ -288,9 +289,21 @@ export default function ModalAdicionarProduto({
                   <InputLeftAddon>R$</InputLeftAddon>
                   <Input
                     value={campos.preco}
-                    onChange={(e) =>
-                      setCampos({ ...campos, preco: aplicarMascara(e, formatarPreco, ehCaractereDePreco) })
-                    }
+                    onFocus={() => {
+                      precoRecemFocado.current = true;
+                    }}
+                    onChange={(e) => {
+                      const valor = aplicarMascara(
+                        e,
+                        (digitado) =>
+                          precoRecemFocado.current
+                            ? formatarPrecoAoRetomar(campos.preco, digitado)
+                            : formatarPreco(digitado),
+                        ehCaractereDePreco,
+                      );
+                      precoRecemFocado.current = false;
+                      setCampos({ ...campos, preco: valor });
+                    }}
                     onBlur={() => setCampos({ ...campos, preco: completarPreco(campos.preco) })}
                     placeholder="0,00"
                     inputMode="decimal"
