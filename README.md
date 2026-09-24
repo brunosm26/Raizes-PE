@@ -149,6 +149,8 @@ Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa
 │   ├── contextoPedidos.tsx   # Estado dos pedidos e avisos de envio (Context API)
 │   ├── tema.ts               # Design System no Chakra UI
 │   └── arteProduto.ts        # Padrões visuais no lugar das fotos
+├── docs/                     # Documentação do projeto
+│   └── CONTRATO_API.md       # Contrato inicial da API
 ├── eslint.config.mjs         # Regras de lint
 └── package.json              # Scripts e dependências
 ```
