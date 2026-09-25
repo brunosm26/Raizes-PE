@@ -14,7 +14,7 @@ const modulo = new Module(arquivo);
 modulo.filename = arquivo;
 modulo.paths = Module._nodeModulePaths(path.dirname(arquivo));
 modulo._compile(codigo, arquivo);
-const { completarPreco, formatarPreco } = modulo.exports;
+const { completarPreco, formatarPreco, formatarPrecoAoRetomar } = modulo.exports;
 
 test("cola preço em reais com milhar e sem centavos sem reduzir o valor", () => {
   assert.equal(formatarPreco("R$ 1.234"), "1234");
@@ -29,4 +29,12 @@ test("mantém a colagem com milhar e centavos", () => {
 test("mantém o ponto digitado como separador decimal", () => {
   assert.equal(formatarPreco("12.34"), "12,34");
   assert.equal(formatarPreco("1.234"), "1,23");
+});
+
+test("permite substituir centavos ao voltar a um preço completo", () => {
+  assert.equal(formatarPrecoAoRetomar("12,00", "12,003"), "12,3");
+  assert.equal(formatarPreco("12,34"), "12,34");
+  assert.equal(formatarPrecoAoRetomar("12,00", "12,0034"), "12,34");
+  assert.equal(formatarPrecoAoRetomar("12,00", "12,00,"), "12,");
+  assert.equal(formatarPreco("12,345"), "12,34");
 });
