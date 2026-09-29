@@ -152,7 +152,8 @@ Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa
 │   └── arteProduto.ts        # Padrões visuais no lugar das fotos
 ├── docs/                     # Documentação do projeto
 │   ├── CONTRATO_API.md       # Contrato inicial da API
-│   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
+│   ├── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
+│   └── AUDITORIA_INPUTS.md   # Auditoria de tipagem e validação de inputs (PI4-91)
 ├── tests/                    # Suíte de testes automatizados (node --test)
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
 │   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
