@@ -1,0 +1,7 @@
+{
+  "chamadas_simuladas": 12,
+  "itens_recomendados": 60,
+  "taxa_cold_start": 0.6667,
+  "cobertura_catalogo": 0.9091,
+  "taxa_diversificacao_efetiva": 0.4
+}
