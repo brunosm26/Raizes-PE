@@ -54,6 +54,17 @@ export function formatarPreco(valor: string): string {
   return `${inteirosSemZeroAEsquerda},${partesDecimais.join("").slice(0, 2)}`;
 }
 
+// Ao voltar a um preço já completo e digitar no fim, substitui os centavos.
+// Durante a digitação inicial, formatarPreco continua limitando a duas casas.
+export function formatarPrecoAoRetomar(anterior: string, digitado: string): string {
+  if (/^\d+,\d{2}$/.test(anterior) && digitado.startsWith(anterior)) {
+    const acrescentado = digitado.slice(anterior.length);
+    if (/^\d{1,2}$/.test(acrescentado)) return `${anterior.slice(0, -2)}${acrescentado}`;
+    if (acrescentado === "," || acrescentado === ".") return anterior.slice(0, -2);
+  }
+  return formatarPreco(digitado);
+}
+
 // Chamado no blur: "12" vira "12,00", ",5" vira "0,50".
 export function completarPreco(valor: string): string {
   if (valor === "") return "";

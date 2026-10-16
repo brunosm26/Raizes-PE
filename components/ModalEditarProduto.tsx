@@ -28,7 +28,7 @@ import {
 } from "@chakra-ui/react";
 import { FiImage, FiUpload } from "react-icons/fi";
 import type { ProdutoComArtesao } from "@/lib/tipos";
-import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco } from "@/lib/mascaras";
+import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco, formatarPrecoAoRetomar } from "@/lib/mascaras";
 
 type DadosEditados = Pick<ProdutoComArtesao, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">;
 
@@ -52,6 +52,7 @@ export default function ModalEditarProduto({
   const [imagemUrl, setImagemUrl] = useState<string | undefined>();
   const [erroImagem, setErroImagem] = useState("");
   const inputArquivoRef = useRef<HTMLInputElement>(null);
+  const precoRecemFocado = useRef(false);
 
   useEffect(() => {
     if (!produto) return;
@@ -131,7 +132,21 @@ export default function ModalEditarProduto({
                   <InputLeftAddon>R$</InputLeftAddon>
                   <Input
                     value={preco}
-                    onChange={(e) => setPreco(aplicarMascara(e, formatarPreco, ehCaractereDePreco))}
+                    onFocus={() => {
+                      precoRecemFocado.current = true;
+                    }}
+                    onChange={(e) => {
+                      const valor = aplicarMascara(
+                        e,
+                        (digitado) =>
+                          precoRecemFocado.current
+                            ? formatarPrecoAoRetomar(preco, digitado)
+                            : formatarPreco(digitado),
+                        ehCaractereDePreco,
+                      );
+                      precoRecemFocado.current = false;
+                      setPreco(valor);
+                    }}
                     onBlur={() => setPreco(completarPreco(preco))}
                     placeholder="0,00"
                     inputMode="decimal"
