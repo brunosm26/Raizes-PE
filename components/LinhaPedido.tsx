@@ -3,6 +3,7 @@
 import { Box, Button, Flex, HStack, Text, VStack } from "@chakra-ui/react";
 import { FiTruck } from "react-icons/fi";
 import EtiquetaStatusPedido from "@/components/EtiquetaStatusPedido";
+import { numeroPedido } from "@/lib/idsLegados";
 import type { PedidoComItens } from "@/lib/tipos";
 
 // "2025-07-02" -> "02/07/2025". Feito na mão de propósito: passar a string por new Date()
@@ -30,7 +31,7 @@ export default function LinhaPedido({
         <Box>
           <HStack spacing={3} mb={1}>
             <Text fontFamily="heading" fontWeight={500}>
-              Pedido {pedido.id}
+              Pedido {numeroPedido(pedido.id)}
             </Text>
             <EtiquetaStatusPedido status={pedido.status} />
           </HStack>

@@ -25,14 +25,6 @@ function atraso<T>(valor: T, ms = 250): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(valor), ms));
 }
 
-// Remove acentos para permitir busca sem diferenciar "ceramica" de "cerâmica".
-function normalizar(texto: string): string {
-  return texto
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
 function nomeDoArtesao(artesaoId: string): string {
   const artesao = artesaos.find((a) => a.id === artesaoId);
   const usuario = artesao ? usuarios.find((u) => u.id === artesao.usuarioId) : undefined;
@@ -52,81 +44,61 @@ function paraProdutoComArtesao(p: (typeof produtos)[number]): ProdutoComArtesao 
   };
 }
 
-// GET /produtos?tecnica=...&regiao=...&categoria=...&q=...
+// --- Catálogo da vitrine: lido do PostgreSQL pelas rotas /api (app/api/...) -------------
+// As telas continuam chamando estas mesmas funções; só a origem dos dados mudou.
+
+// Lê JSON de uma rota interna. 404 vira undefined (a tela mostra "não encontrado");
+// qualquer outro erro é lançado, e a tela mostra a mensagem de erro com "tentar de novo".
+async function buscarJson<T>(url: string): Promise<T | undefined> {
+  const resposta = await fetch(url, { cache: "no-store" });
+  if (resposta.status === 404) return undefined;
+  if (!resposta.ok) throw new Error(`Falha ao consultar ${url} (${resposta.status})`);
+  return (await resposta.json()) as T;
+}
+
+// GET /api/produtos?tecnica=...&regiao=...&categoria=...&busca=...
 export async function getProdutos(
   tecnica?: Tecnica,
   busca?: string,
   regiao?: string,
   categoria?: string
 ): Promise<ProdutoComArtesao[]> {
-  let filtrados = tecnica ? produtos.filter((p) => p.tecnica === tecnica) : produtos;
-
-  if (categoria) {
-    filtrados = filtrados.filter((p) => p.categoria === categoria);
-  }
-
-  if (regiao) {
-    filtrados = filtrados.filter((p) => regiaoDoArtesao(p.artesaoId) === regiao);
-  }
-
-  const termo = busca?.trim();
-  if (termo) {
-    const q = normalizar(termo);
-    filtrados = filtrados.filter((p) => {
-      const artesaoNome = nomeDoArtesao(p.artesaoId);
-      const regiaoDoProduto = regiaoDoArtesao(p.artesaoId);
-      return (
-        normalizar(p.nome).includes(q) ||
-        normalizar(p.tecnica).includes(q) ||
-        normalizar(p.categoria).includes(q) ||
-        normalizar(artesaoNome).includes(q) ||
-        normalizar(regiaoDoProduto).includes(q)
-      );
-    });
-  }
-
-  return atraso(filtrados.map(paraProdutoComArtesao));
+  const parametros = new URLSearchParams();
+  if (tecnica) parametros.set("tecnica", tecnica);
+  if (busca?.trim()) parametros.set("busca", busca.trim());
+  if (regiao) parametros.set("regiao", regiao);
+  if (categoria) parametros.set("categoria", categoria);
+  const texto = parametros.toString();
+  return (await buscarJson<ProdutoComArtesao[]>(`/api/produtos${texto ? `?${texto}` : ""}`)) ?? [];
 }
 
-// GET /produtos/:id
+// GET /api/produtos/:id
 export async function getProdutoPorId(id: string): Promise<ProdutoComArtesao | undefined> {
-  const produto = produtos.find((p) => p.id === id);
-  return atraso(produto ? paraProdutoComArtesao(produto) : undefined);
+  return buscarJson<ProdutoComArtesao>(`/api/produtos/${encodeURIComponent(id)}`);
 }
 
-// GET /produtos/:id/relacionados — mesma técnica, excluindo o próprio produto
+// GET /api/produtos/:id/relacionados — mesma técnica, excluindo o próprio produto
 export async function getProdutosRelacionados(produtoId: string, limite = 3): Promise<ProdutoComArtesao[]> {
-  const produto = produtos.find((p) => p.id === produtoId);
-  if (!produto) return atraso([]);
-  const relacionados = produtos
-    .filter((p) => p.id !== produtoId && p.tecnica === produto.tecnica)
-    .slice(0, limite)
-    .map(paraProdutoComArtesao);
-  return atraso(relacionados);
+  return (
+    (await buscarJson<ProdutoComArtesao[]>(
+      `/api/produtos/${encodeURIComponent(produtoId)}/relacionados?limite=${limite}`
+    )) ?? []
+  );
 }
 
-// GET /produtos/:id/avaliacoes/resumo
+// GET /api/produtos/:id/avaliacoes
 export async function getResumoAvaliacoes(produtoId: string): Promise<ResumoAvaliacoes> {
-  const doProduto = avaliacoes.filter((a) => a.produtoId === produtoId);
-  if (doProduto.length === 0) return atraso({ media: 0, quantidade: 0 });
-  const soma = doProduto.reduce((acc, a) => acc + a.nota, 0);
-  return atraso({ media: soma / doProduto.length, quantidade: doProduto.length });
+  return (
+    (await buscarJson<ResumoAvaliacoes>(`/api/produtos/${encodeURIComponent(produtoId)}/avaliacoes`)) ?? {
+      media: 0,
+      quantidade: 0,
+    }
+  );
 }
 
-// GET /artesaos/:id — perfil público
+// GET /api/artesaos/:id — perfil público
 export async function getPerfilArtesao(artesaoId: string): Promise<PerfilArtesao | undefined> {
-  const artesao = artesaos.find((a) => a.id === artesaoId);
-  if (!artesao) return atraso(undefined);
-  const usuario = usuarios.find((u) => u.id === artesao.usuarioId);
-  const produtosDoArtesao = produtos.filter((p) => p.artesaoId === artesaoId).map(paraProdutoComArtesao);
-
-  return atraso({
-    id: artesao.id,
-    nome: usuario?.nome ?? "Artesão desconhecido",
-    regiaoOrigem: artesao.regiaoOrigem,
-    biografia: artesao.biografia,
-    produtos: produtosDoArtesao,
-  });
+  return buscarJson<PerfilArtesao>(`/api/artesaos/${encodeURIComponent(artesaoId)}`);
 }
 
 // GET /artesaos/:usuarioId/produtos — usado pelo painel do próprio artesão logado

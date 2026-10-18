@@ -16,6 +16,8 @@ import NextLink from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FiSearch, FiSun, FiMoon, FiShoppingBag } from "react-icons/fi";
 import { useCarrinho } from "@/lib/contextoCarrinho";
+import { useSessao } from "@/lib/contextoSessao";
+import { PERFIS_POR_AREA } from "@/lib/sessao";
 
 interface PropsBarraNavegacao {
   valorBusca?: string;
@@ -27,10 +29,19 @@ export default function BarraNavegacao({ valorBusca, aoMudarBusca }: PropsBarraN
   const roteador = useRouter();
   const { colorMode, toggleColorMode } = useColorMode();
   const { quantidadeTotal, abrirGaveta } = useCarrinho();
+  const { usuario, carregando, sair } = useSessao();
+
+  // Cada perfil só vê os links das áreas que pode abrir: comprador → Meus Pedidos,
+  // artesão → Painel do Artesão, admin → tudo. Visitante só vê a vitrine.
+  const tipo = usuario?.tipo;
+  const veMeusPedidos = !!tipo && (PERFIS_POR_AREA.pedidos as readonly string[]).includes(tipo);
+  const vePainel = !!tipo && (PERFIS_POR_AREA.painel as readonly string[]).includes(tipo);
+  const veAdmin = tipo === "admin";
 
   const naVitrine = caminho === "/";
   const noPainel = caminho === "/painel";
   const nosPedidos = caminho === "/meus-pedidos";
+  const naAdmin = caminho.startsWith("/admin");
   const controlado = valorBusca !== undefined && aoMudarBusca !== undefined;
 
   const [termoLocal, setTermoLocal] = useState("");
@@ -83,6 +94,7 @@ export default function BarraNavegacao({ valorBusca, aoMudarBusca }: PropsBarraN
       >
         Vitrine
       </ChakraLink>
+      {veMeusPedidos && (
       <ChakraLink
         as={NextLink}
         href="/meus-pedidos"
@@ -96,6 +108,8 @@ export default function BarraNavegacao({ valorBusca, aoMudarBusca }: PropsBarraN
       >
         Meus Pedidos
       </ChakraLink>
+      )}
+      {vePainel && (
       <ChakraLink
         as={NextLink}
         href="/painel"
@@ -109,6 +123,22 @@ export default function BarraNavegacao({ valorBusca, aoMudarBusca }: PropsBarraN
       >
         Painel do Artesão
       </ChakraLink>
+      )}
+      {veAdmin && (
+        <ChakraLink
+          as={NextLink}
+          href="/admin"
+          color={naAdmin ? "fg" : "mutedFg"}
+          borderBottom="2px solid"
+          borderColor={naAdmin ? "primary" : "transparent"}
+          pb={1}
+          fontWeight={naAdmin ? 500 : 400}
+          _hover={{ textDecoration: "none" }}
+          whiteSpace="nowrap"
+        >
+          Administração
+        </ChakraLink>
+      )}
     </HStack>
   );
 
@@ -138,18 +168,43 @@ export default function BarraNavegacao({ valorBusca, aoMudarBusca }: PropsBarraN
         </Box>
 
         <HStack spacing={1} ml={{ base: "auto", md: 0 }}>
-          <ChakraLink
-            as={NextLink}
-            href="/login"
-            fontSize="sm"
-            color="mutedFg"
-            fontWeight={500}
-            px={2}
-            display={{ base: "none", sm: "block" }}
-            _hover={{ color: "primary", textDecoration: "none" }}
-          >
-            Entrar
-          </ChakraLink>
+          {!carregando && usuario && (
+            <HStack spacing={1} display={{ base: "none", sm: "flex" }}>
+              <Text fontSize="sm" color="mutedFg" px={2} noOfLines={1} maxW="140px">
+                Olá, {usuario.nome.split(" ")[0]}
+              </Text>
+              <ChakraLink
+                as="button"
+                type="button"
+                fontSize="sm"
+                color="mutedFg"
+                fontWeight={500}
+                px={2}
+                onClick={async () => {
+                  await sair();
+                  roteador.push("/");
+                  roteador.refresh();
+                }}
+                _hover={{ color: "primary", textDecoration: "none" }}
+              >
+                Sair
+              </ChakraLink>
+            </HStack>
+          )}
+          {!carregando && !usuario && (
+            <ChakraLink
+              as={NextLink}
+              href="/login"
+              fontSize="sm"
+              color="mutedFg"
+              fontWeight={500}
+              px={2}
+              display={{ base: "none", sm: "block" }}
+              _hover={{ color: "primary", textDecoration: "none" }}
+            >
+              Entrar
+            </ChakraLink>
+          )}
           <IconButton
             aria-label="Alternar tema"
             icon={colorMode === "dark" ? <FiSun /> : <FiMoon />}

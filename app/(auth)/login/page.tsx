@@ -23,55 +23,61 @@ import {
 } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
+import { useSessao } from "@/lib/contextoSessao";
+import type { TipoUsuario } from "@/lib/tipos";
 
-// Logins fixos de demonstração — pedidos pra que o professor consiga testar o fluxo
-// sem precisar de um cadastro persistido de verdade (o projeto ainda não tem backend).
-// Os e-mails são os mesmos usuários mock já usados como "usuário demo" em outras telas
-// (u2 no /painel, u7 no carrinho/pedidos), pra o que aparece depois do login bater com
-// quem "logou". O admin (u9) existe só pra isso — não tem outra tela que dependa dele.
+// Contas de demonstração, gravadas no banco pelo script db/07_autenticacao.sql (senha demo123).
+// Ficam à mostra para o professor conseguir testar cada perfil.
 const CREDENCIAL_COMPRADOR = { email: "ana.beatriz@raizespe.dev", senha: "demo123" };
 const CREDENCIAL_ARTESAO = { email: "tacaratu@raizespe.dev", senha: "demo123" };
 const CREDENCIAL_ADMIN = { email: "admin@raizespe.dev", senha: "demo123" };
 
-interface CredencialLogin {
-  email: string;
-  senha: string;
+// Só aceita caminhos do próprio site como destino pós-login (evita redirecionar para fora).
+function destinoSeguro(proxima: string | null, padrao: string): string {
+  if (proxima && proxima.startsWith("/") && !proxima.startsWith("//") && !proxima.includes("\\")) {
+    return proxima;
+  }
+  return padrao;
 }
 
-function conferir(informado: CredencialLogin, esperado: CredencialLogin): boolean {
-  return (
-    informado.email.trim().toLowerCase() === esperado.email && informado.senha === esperado.senha
-  );
-}
-
-// Um form de login por perfil (Comprador/Artesão/Admin): mesmos campos e mesmo
-// comportamento de erro, só muda a credencial esperada, o texto do botão e pra onde vai.
+// Um form de login por aba (Comprador/Artesão/Admin): mesmos campos e erro, muda o perfil
+// esperado, o texto do botão e a página padrão de destino. Quem confere e-mail, senha e
+// perfil é o servidor (/api/auth/login).
 function FormularioLogin({
   rotuloEmail,
   textoBotao,
-  credencialEsperada,
+  perfil,
   destino,
 }: {
   rotuloEmail: string;
   textoBotao: string;
-  credencialEsperada: CredencialLogin;
+  perfil: TipoUsuario;
   destino: string;
 }) {
   const router = useRouter();
   const toast = useToast();
+  const { entrar } = useSessao();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
-  const [erro, setErro] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!conferir({ email, senha }, credencialEsperada)) {
-      setErro(true);
-      return;
+    if (enviando) return;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await entrar(email, senha, perfil);
+      toast({ title: "Login realizado", status: "success", duration: 2000, isClosable: true, position: "top" });
+      const proxima = new URLSearchParams(window.location.search).get("proxima");
+      router.push(destinoSeguro(proxima, destino));
+      router.refresh();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível entrar. Tente novamente.");
+    } finally {
+      setEnviando(false);
     }
-    setErro(false);
-    toast({ title: "Login realizado", status: "success", duration: 2000, isClosable: true, position: "top" });
-    router.push(destino);
   }
 
   return (
@@ -80,7 +86,7 @@ function FormularioLogin({
         {erro && (
           <Alert status="error" borderRadius="8px" fontSize="0.86rem">
             <AlertIcon />
-            E-mail ou senha incorretos.
+            {erro}
           </Alert>
         )}
         <FormControl>
@@ -101,7 +107,7 @@ function FormularioLogin({
             onChange={(e) => setSenha(e.target.value)}
           />
         </FormControl>
-        <Button type="submit" variant="solid" w="full">
+        <Button type="submit" variant="solid" w="full" isLoading={enviando} loadingText="Entrando...">
           {textoBotao}
         </Button>
       </VStack>
@@ -117,12 +123,12 @@ export default function LoginPage() {
           Acesse sua conta
         </Heading>
         <Text textAlign="center" color="mutedFg" mb={6}>
-          Simulação de Login
+          Entre com o perfil da sua conta
         </Text>
 
         <Box bg="muted" border="1px solid" borderColor="border" borderRadius="8px" p={3} mb={6} fontSize="0.82rem">
           <Text fontWeight={600} mb={1}>
-            Login de demonstração
+            Contas de demonstração
           </Text>
           <Text color="mutedFg">
             Comprador: <Code fontSize="0.8em">{CREDENCIAL_COMPRADOR.email}</Code> /{" "}
@@ -149,7 +155,7 @@ export default function LoginPage() {
               <FormularioLogin
                 rotuloEmail="E-mail"
                 textoBotao="Entrar"
-                credencialEsperada={CREDENCIAL_COMPRADOR}
+                perfil="comprador"
                 destino="/"
               />
             </TabPanel>
@@ -157,7 +163,7 @@ export default function LoginPage() {
               <FormularioLogin
                 rotuloEmail="E-mail (Artesão)"
                 textoBotao="Entrar no Painel do Artesão"
-                credencialEsperada={CREDENCIAL_ARTESAO}
+                perfil="artesao"
                 // Painel do artesão já existe em /painel — não em /painel-artesao.
                 destino="/painel"
               />
@@ -166,7 +172,7 @@ export default function LoginPage() {
               <FormularioLogin
                 rotuloEmail="E-mail (Admin)"
                 textoBotao="Entrar na Administração"
-                credencialEsperada={CREDENCIAL_ADMIN}
+                perfil="admin"
                 destino="/admin"
               />
             </TabPanel>
