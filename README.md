@@ -303,20 +303,16 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
   - Listagem do catálogo com a quantidade em estoque de cada peça.
   - Gestão dos pedidos recebidos, com a ação "marcar como enviado" que notifica o comprador em tempo real.
 
-> **Aviso:** Como se trata de um MVP voltado para validação de frontend, *não há integração com banco de dados real nem serviços de autenticação externa neste estágio.* Toda a aplicação consome dados *Mockados* de `lib/dadosFalsos.ts`, servidos por `lib/apiFalsa.ts` e pelo motor em `lib/motorRecomendacao.ts`.
+> **Aviso:** o catálogo, os pedidos, os produtos do painel, o login e as recomendações já leem e gravam no PostgreSQL (veja "Como Rodar o Projeto Localmente"). Ainda usam dados mockados de `lib/dadosFalsos.ts` apenas as telas de administração de artesãos e categorias; o plano de migração está em `docs/plano-migracao-api.md`.
 >
-> Como ainda não existe login, as áreas logadas usam usuários fixos de demonstração:
-> o artesão `u2` (Cooperativa de Tacaratu) no `/painel` e a compradora `u7` (Ana Beatriz) no
-> `/meus-pedidos` e no checkout. Os pedidos criados durante o uso e as mudanças de status
-> ficam salvos no `localStorage` do navegador (chave `raizes-pe:pedidos`), então sobrevivem a
-> um *refresh*, mas não saem da máquina.
+> Os pedidos, as mudanças de status e os produtos do painel ficam gravados no banco e dependem do usuário logado (veja "Login de Demonstração").
 
 ### 🔜 Próximos Passos
 
 - Alerta de baixo estoque no painel do artesão.
-- Cadastro e edição de produtos pelo próprio artesão.
 - Painel administrativo de moderação: aprovação e bloqueio de artesãos, edição de categorias e técnicas.
-- Autenticação real, substituindo os usuários fixos de demonstração.
+- Migrar as telas de administração de artesãos e categorias para o banco (fase 7 de `docs/plano-migracao-api.md`).
+- Tela do admin para criar contas de artesão.
 - Evolução do modelo de recomendação com técnicas colaborativas e embeddings.
 
 ## 🎨 Foco em Inclusão Digital (UX)
@@ -330,31 +326,93 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
 
 ## 💻 Como Rodar o Projeto Localmente
 
+A aplicação roda **conectada a um banco PostgreSQL**. Por padrão o time usa um Postgres local em Docker, que já sobe com as tabelas e os dados de exemplo.
+
 **Pré-requisitos:**
-- [Node.js](https://nodejs.org/en/) (Versão 18 ou superior).
-- Gerenciador de pacotes padrão: `npm`.
+- [Node.js](https://nodejs.org/en/) 18 ou superior e `npm`.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac) ou Docker Engine com Compose v2 (Linux). Confira com `docker compose version`.
 
-**Passo 1:** Clone o repositório para sua máquina local.
+**Passo 1:** Clone o repositório e entre na pasta.
 ```bash
-git clone https://github.com/brunosm26/Raizes-pe.git
+git clone https://github.com/brunosm26/Raizes-PE.git
+cd Raizes-PE
 ```
 
-**Passo 2:** Acesse o diretório do projeto.
-```bash
-cd Raizes-pe
-```
-
-**Passo 3:** Instale todas as dependências do projeto.
+**Passo 2:** Instale as dependências.
 ```bash
 npm install
 ```
 
-**Passo 4:** Inicie o servidor de desenvolvimento.
+**Passo 3:** Crie o seu `.env.local` a partir do modelo (o arquivo não vai para o GitHub).
+```bash
+# Windows (cmd)
+copy .env.example .env.local
+# Mac/Linux
+cp .env.example .env.local
+```
+Abra o `.env.local` e preencha o `SESSION_SECRET` com um valor gerado por você:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+A `DATABASE_URL` já vem apontando para o banco local do Docker; não precisa mexer.
+
+**Passo 4:** Suba o banco (um único comando).
+```bash
+npm run db:up
+```
+Na primeira vez o Docker baixa a imagem do PostgreSQL 16, cria o banco `origem` e executa os scripts da pasta `db/` na ordem. Os comandos só retornam quando o banco está pronto.
+
+**Passo 5:** Confira se o banco está correto (opcional, recomendado).
+```bash
+npm run db:validar
+```
+Deve aparecer uma tabela com as colunas `conferencia`, `esperado` e `obtido`, e em todas as linhas `esperado` igual a `obtido`.
+
+**Passo 6:** Inicie a aplicação.
 ```bash
 npm run dev
 ```
+Acesse [http://localhost:3000](http://localhost:3000). Para testar a conexão, abra [http://localhost:3000/api/saude-bd](http://localhost:3000/api/saude-bd): deve responder com sucesso. Se mudar o `.env.local` com o servidor rodando, reinicie o `npm run dev`.
 
-O aplicativo estará disponível em seu navegador acessando: [http://localhost:3000](http://localhost:3000)
+### Comandos do banco
+
+| Comando | O que faz |
+|---|---|
+| `npm run db:up` | Sobe o PostgreSQL local (e carrega os scripts na primeira vez) |
+| `npm run db:down` | Para o banco, **mantendo** os dados |
+| `npm run db:reset` | Apaga o banco e recarrega tudo do zero (use se algo ficar bagunçado ou depois de alterar um script em `db/`) |
+| `npm run db:validar` | Roda as conferências de integridade (`db/validacao_resumo.sql`) |
+| `npm run db:psql` | Abre o terminal `psql` dentro do banco |
+| `npm run db:logs` | Mostra o log do PostgreSQL |
+
+### Scripts da pasta `db/`
+
+Executados nesta ordem, só quando o volume do banco está vazio:
+
+| Ordem | Arquivo | O que faz |
+|---|---|---|
+| 1 | `01_ddl_origem.sql` | Cria o esquema `origem`: 8 tabelas, gatilhos, índices, view de popularidade e perfis de acesso |
+| 2 | `02_dados_exemplo_origem.sql` | Dados de exemplo do modelo físico |
+| 3 | `04_migracao_front.sql` | Acrescenta `descricao` e `imagem_url` em `produto` |
+| 4 | `05_dados_raizes_pe.sql` | Troca os dados de exemplo pelo catálogo do front (9 usuários, 6 artesãos, 7 produtos, 3 pedidos, 6 avaliações) |
+| 5 | `06_imagem_produto.sql` | `imagem_url` passa a aceitar foto enviada pelo artesão (até ~2 MB) |
+| 6 | `07_autenticacao.sql` | Acrescenta `senha_hash` em `usuario` e define a senha dos 3 logins de demonstração |
+
+`03_consultas_validacao_origem.sql` não entra na carga: são as consultas de recomendação e de conferência do modelo físico, para rodar à mão (`npm run db:psql`, ou o SQL Editor do Neon).
+
+> O `docker-compose.yml` usa usuário e senha `postgres`/`postgres`. Valem apenas para o banco na sua máquina; **nunca** reaproveite essas credenciais em um ambiente real.
+
+### Problemas comuns
+
+- **`port is already allocated` / porta 5432 em uso:** você já tem um PostgreSQL local. Crie um arquivo `.env` na raiz com `DB_PORT=5433`, rode `npm run db:up` de novo e troque `5432` por `5433` na `DATABASE_URL` do `.env.local`.
+- **`Cannot connect to the Docker daemon`:** abra o Docker Desktop e espere ele ficar "running".
+- **Alterei um script em `db/` e nada mudou:** os scripts só rodam na criação do banco. Use `npm run db:reset`.
+- **Login falha com erro de servidor:** confira se o `SESSION_SECRET` está preenchido no `.env.local` (mínimo de 32 caracteres) e reinicie o `npm run dev`.
+- **Erro de conexão no `npm run dev`:** confira se o banco está de pé (`docker compose ps`) e se a `DATABASE_URL` do `.env.local` bate com a porta usada.
+
+### Alternativa: banco na nuvem (Neon)
+
+Sem Docker, crie um projeto no [Neon](https://neon.tech), abra o **SQL Editor** e execute os scripts de `db/` na ordem da tabela acima (um por vez). Depois troque a `DATABASE_URL` do `.env.local` pela connection string do Neon (a linha de exemplo está comentada no `.env.example`).
 
 **Antes de abrir um Pull Request**, rode os testes automatizados, o lint e o typecheck para manter a integridade do código:
 ```bash
@@ -365,7 +423,7 @@ npx tsc --noEmit
 
 ## 🔐 Login de Demonstração
 
-Como o projeto ainda não tem backend/autenticação real, o login em `/login` usa três credenciais fixas para simular os perfis de uso da plataforma:
+O login em `/login` é real: a senha é conferida contra o hash guardado em `usuario.senha_hash` (scrypt) e a sessão vai em um cookie `httpOnly` assinado com o `SESSION_SECRET`. Os scripts do banco já criam três contas de demonstração:
 
 | Perfil | E-mail | Senha | Destino após login |
 |---|---|---|---|
@@ -373,7 +431,7 @@ Como o projeto ainda não tem backend/autenticação real, o login em `/login` u
 | Artesão | `tacaratu@raizespe.dev` | `demo123` | `/painel` |
 | Admin | `admin@raizespe.dev` | `demo123` | `/admin` |
 
-Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa — os dados preenchidos não são persistidos. Para testar de verdade, use uma das credenciais acima.
+Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkout`; o artesão, o `/painel`; o admin, `/admin` e as demais áreas. A tela de cadastro (`/cadastro`) cria uma conta de **comprador** de verdade no banco. Os demais artesãos do catálogo ainda não têm senha (não conseguem entrar até receberem um `senha_hash`).
 
 ### Painel Administrativo (`/admin`)
 
@@ -390,8 +448,7 @@ Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa
 ```text
 ├── app/                      # Roteamento do Next.js App Router
 │   ├── page.tsx              # Vitrine pública (inclui recomendações de IA)
-│   ├── api/
-│   │   └── recomendacoes/    # API Route HTTP para recomendações inteligentes
+│   ├── api/                  # Rotas de API (produtos, pedidos, auth, painel, recomendações, saude-bd)
 │   ├── produto/[id]/         # Detalhe do produto
 │   ├── artesao/[id]/         # Perfil público do artesão
 │   ├── checkout/             # Wizard de finalização de compra
@@ -404,20 +461,26 @@ Também existe uma tela de cadastro (`/cadastro`), mas ela é apenas ilustrativa
 │   ├── GraficoVendas.tsx     # Visualização analítica com Recharts
 │   └── ...
 ├── lib/
-│   ├── motorRecomendacao.ts  # Baseline de IA para recomendação de produtos
+│   ├── db.ts                 # Conexão com o PostgreSQL (lê DATABASE_URL)
+│   ├── servidor/             # Consultas SQL e regras que rodam só no servidor
+│   ├── motorRecomendacao.ts  # Baseline de IA para recomendação (lê o banco; só servidor)
 │   ├── tipos.ts              # Interfaces TypeScript (espelham o Modelo Lógico)
-│   ├── dadosFalsos.ts        # Dados mockados
-│   ├── apiFalsa.ts           # Funções que simulam chamadas de API
+│   ├── dadosFalsos.ts        # Dados mockados (restam só nas telas de admin; ver docs/plano-migracao-api.md)
+│   ├── apiFalsa.ts           # Funções de acesso a dados usadas pelas telas (a maioria já chama /api)
 │   ├── contextoCarrinho.tsx  # Estado do carrinho (Context API)
 │   ├── contextoPedidos.tsx   # Estado dos pedidos e avisos de envio (Context API)
 │   ├── tema.ts               # Design System no Chakra UI
 │   └── arteProduto.ts        # Padrões visuais no lugar das fotos
 ├── docs/                     # Documentação do projeto
 │   ├── CONTRATO_API.md       # Contrato inicial da API
+│   ├── plano-migracao-api.md # Plano de migração do apiFalsa.ts para a API real
 │   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
 ├── tests/                    # Suíte de testes automatizados (node --test)
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
 │   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
+├── db/                       # Scripts SQL do banco (carga inicial do Docker, validação)
+├── docker-compose.yml        # PostgreSQL local (npm run db:up)
+├── .env.example              # Modelo das variáveis de ambiente (copiar para .env.local)
 ├── ia/                       # Módulo de IA (AV2): serviço BentoML de recomendação e catálogo sintético
 ├── eslint.config.mjs         # Regras de lint
 └── package.json              # Scripts e dependências
