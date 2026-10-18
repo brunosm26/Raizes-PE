@@ -11,62 +11,110 @@ import ModalAdicionarProduto, { DadosProdutoSubmetido } from "@/components/Modal
 import ModalEditarProduto from "@/components/ModalEditarProduto";
 import MensagemErro from "@/components/MensagemErro";
 import type { ProdutoComArtesao } from "@/lib/tipos";
-import { getEstatisticasPainel } from "@/lib/apiFalsa";
 import { usePedidos } from "@/lib/contextoPedidos";
 import { useProdutos } from "@/lib/contextoProdutos";
+import { useSessao } from "@/lib/contextoSessao";
 import type { EstatisticasPainel } from "@/lib/tipos";
 
-// Usuário de demonstração — Cooperativa de Tacaratu.
-// Quando houver autenticação de verdade, isso vem da sessão logada.
-const ID_USUARIO_DEMO = "u2";
-
 export default function Pagina() {
+  const { usuario } = useSessao();
+  const usuarioId = usuario?.id ?? "";
   const [estatisticas, setEstatisticas] = useState<EstatisticasPainel | null>(null);
   const [produtoEmEdicao, setProdutoEmEdicao] = useState<ProdutoComArtesao | null>(null);
   const [erroEstatisticas, setErroEstatisticas] = useState(false);
   const [tentativaEstatisticas, setTentativaEstatisticas] = useState(0);
-  const { pedidosDoArtesao, pedidosPendentesDoArtesao, vendasDoArtesao, marcarComoEnviado } =
+  const { pedidosDoArtesao, pedidosPendentesDoArtesao, marcarComoEnviado } =
     usePedidos();
   const { produtosDoArtesao, criarProduto, editarProduto } = useProdutos();
   const { isOpen: modalAberto, onOpen: abrirModal, onClose: fecharModal } = useDisclosure();
   const toast = useToast();
 
-  const pedidos = pedidosDoArtesao(ID_USUARIO_DEMO);
-  const pendentes = pedidosPendentesDoArtesao(ID_USUARIO_DEMO);
-  const vendas = vendasDoArtesao(ID_USUARIO_DEMO);
-  // Produtos do mock + os cadastrados pelo próprio artesão nesta sessão.
-  const produtos = produtosDoArtesao(ID_USUARIO_DEMO);
+  const pedidos = pedidosDoArtesao(usuarioId);
+  const pendentes = pedidosPendentesDoArtesao(usuarioId);
+  // Produtos da loja do artesão, direto do banco.
+  const produtos = produtosDoArtesao(usuarioId);
 
+  // Estatísticas calculadas no banco a partir dos pedidos reais do artesão logado.
   useEffect(() => {
+    if (!usuarioId) return;
+    let ativo = true;
     setErroEstatisticas(false);
-    getEstatisticasPainel(ID_USUARIO_DEMO)
-      .then(setEstatisticas)
-      .catch(() => setErroEstatisticas(true));
-  }, [tentativaEstatisticas]);
+    fetch("/api/painel/estatisticas")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((dados: EstatisticasPainel) => {
+        if (ativo) setEstatisticas(dados);
+      })
+      .catch(() => {
+        if (ativo) setErroEstatisticas(true);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [tentativaEstatisticas, usuarioId]);
 
-  function enviarPedido(pedidoId: string) {
-    marcarComoEnviado(pedidoId);
+  async function enviarPedido(pedidoId: string) {
+    try {
+      await marcarComoEnviado(pedidoId);
+      toast({
+        title: "Pedido marcado como enviado",
+        description: "O comprador foi avisado de que o pedido está a caminho.",
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+        position: "top",
+      });
+    } catch (erro) {
+      toast({
+        title: "Não foi possível atualizar o pedido",
+        description: erro instanceof Error ? erro.message : "Tente novamente.",
+        status: "error",
+        duration: 6000,
+        isClosable: true,
+        position: "top",
+      });
+    }
+  }
+
+  function avisarErro(titulo: string, erro: unknown) {
     toast({
-      title: "Pedido marcado como enviado",
-      description: `O comprador foi avisado de que o pedido ${pedidoId} está a caminho.`,
-      status: "success",
-      duration: 5000,
+      title: titulo,
+      description: erro instanceof Error ? erro.message : "Tente novamente.",
+      status: "error",
+      duration: 6000,
       isClosable: true,
       position: "top",
     });
   }
 
-  function salvarNovoProduto(dados: DadosProdutoSubmetido) {
-    const criado = criarProduto(ID_USUARIO_DEMO, dados);
-    if (!criado) return;
-    toast({
-      title: "Produto adicionado",
-      description: `"${criado.nome}" já está disponível na sua loja.`,
-      status: "success",
-      duration: 5000,
-      isClosable: true,
-      position: "top",
-    });
+  async function salvarNovoProduto(dados: DadosProdutoSubmetido) {
+    try {
+      const criado = await criarProduto(usuarioId, dados);
+      toast({
+        title: "Produto adicionado",
+        description: `"${criado.nome}" já está disponível na sua loja.`,
+        status: "success",
+        duration: 5000,
+        isClosable: true,
+        position: "top",
+      });
+    } catch (erro) {
+      avisarErro("Não foi possível adicionar o produto", erro);
+    }
+  }
+
+  async function salvarEdicaoProduto(id: string, dados: Parameters<typeof editarProduto>[1]) {
+    try {
+      await editarProduto(id, dados);
+      toast({
+        title: "Produto atualizado",
+        status: "success",
+        duration: 4000,
+        isClosable: true,
+        position: "top",
+      });
+    } catch (erro) {
+      avisarErro("Não foi possível atualizar o produto", erro);
+    }
   }
 
   return (
@@ -96,13 +144,12 @@ export default function Pagina() {
         <SimpleGrid columns={{ base: 1, md: 3 }} spacing={5} mb={10}>
           {estatisticas && (
             <>
-              {/* Também do contexto: ficava parado quando um pedido novo entrava,
-                  contradizendo o card de pendentes aqui do lado. */}
+              {/* Mês mais recente com vendas, somando só os itens deste artesão. */}
               <CartaoEstatistica
                 rotulo="Vendas do Mês"
-                valor={`R$ ${vendas.toFixed(2).replace(".", ",")}`}
-                variacao={`+${estatisticas.vendasDeltaPct}% em relação ao mês passado`}
-                tom="bom"
+                valor={`R$ ${estatisticas.vendasDoMes.toFixed(2).replace(".", ",")}`}
+                variacao={`${estatisticas.vendasDeltaPct >= 0 ? "+" : ""}${estatisticas.vendasDeltaPct}% em relação ao mês anterior`}
+                tom={estatisticas.vendasDeltaPct >= 0 ? "bom" : "atencao"}
               />
               {/* Vem do contexto, não da apiFalsa: precisa cair na hora em que o
                   artesão marca um pedido como enviado, logo abaixo nesta mesma tela. */}
@@ -113,9 +160,9 @@ export default function Pagina() {
                 tom={pendentes > 0 ? "atencao" : "bom"}
               />
               <CartaoEstatistica
-                rotulo="Visitas no Perfil"
-                valor={String(estatisticas.visitasNoPerfil)}
-                variacao={`+${estatisticas.visitasDeltaPct}% em relação ao mês passado`}
+                rotulo="Peças em Estoque"
+                valor={String(produtos.reduce((soma, p) => soma + p.estoqueQtd, 0))}
+                variacao={`${produtos.length} ${produtos.length === 1 ? "produto cadastrado" : "produtos cadastrados"}`}
                 tom="bom"
               />
             </>
@@ -191,7 +238,7 @@ export default function Pagina() {
         produto={produtoEmEdicao}
         aberto={!!produtoEmEdicao}
         aoFechar={() => setProdutoEmEdicao(null)}
-        aoSalvar={editarProduto}
+        aoSalvar={salvarEdicaoProduto}
       />
     </>
   );
