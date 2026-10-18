@@ -326,11 +326,11 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
 
 ## 💻 Como Rodar o Projeto Localmente
 
-A aplicação roda **conectada a um banco PostgreSQL**. Por padrão o time usa um Postgres local em Docker, que já sobe com as tabelas e os dados de exemplo.
+A aplicação roda **conectada a um banco PostgreSQL hospedado no [Neon](https://neon.tech)**, o banco oficial do projeto. O banco já está criado e carregado; para rodar o app você só precisa da connection string.
 
 **Pré-requisitos:**
 - [Node.js](https://nodejs.org/en/) 18 ou superior e `npm`.
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/Mac) ou Docker Engine com Compose v2 (Linux). Confira com `docker compose version`.
+- A connection string do banco no Neon (peça ao responsável pelo banco, por um canal privado).
 
 **Passo 1:** Clone o repositório e entre na pasta.
 ```bash
@@ -350,44 +350,22 @@ copy .env.example .env.local
 # Mac/Linux
 cp .env.example .env.local
 ```
-Abra o `.env.local` e preencha o `SESSION_SECRET` com um valor gerado por você:
+Abra o `.env.local` e preencha:
+- `DATABASE_URL`: a connection string do Neon.
+- `SESSION_SECRET`: um valor gerado por você, com
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
-A `DATABASE_URL` já vem apontando para o banco local do Docker; não precisa mexer.
 
-**Passo 4:** Suba o banco (um único comando).
-```bash
-npm run db:up
-```
-Na primeira vez o Docker baixa a imagem do PostgreSQL 16, cria o banco `origem` e executa os scripts da pasta `db/` na ordem. Os comandos só retornam quando o banco está pronto.
-
-**Passo 5:** Confira se o banco está correto (opcional, recomendado).
-```bash
-npm run db:validar
-```
-Deve aparecer uma tabela com as colunas `conferencia`, `esperado` e `obtido`, e em todas as linhas `esperado` igual a `obtido`.
-
-**Passo 6:** Inicie a aplicação.
+**Passo 4:** Inicie a aplicação.
 ```bash
 npm run dev
 ```
-Acesse [http://localhost:3000](http://localhost:3000). Para testar a conexão, abra [http://localhost:3000/api/saude-bd](http://localhost:3000/api/saude-bd): deve responder com sucesso. Se mudar o `.env.local` com o servidor rodando, reinicie o `npm run dev`.
+Acesse [http://localhost:3000](http://localhost:3000). Para testar a conexão com o banco, abra [http://localhost:3000/api/saude-bd](http://localhost:3000/api/saude-bd): deve responder com sucesso. Se mudar o `.env.local` com o servidor rodando, reinicie o `npm run dev`.
 
-### Comandos do banco
+### Banco de dados (Neon)
 
-| Comando | O que faz |
-|---|---|
-| `npm run db:up` | Sobe o PostgreSQL local (e carrega os scripts na primeira vez) |
-| `npm run db:down` | Para o banco, **mantendo** os dados |
-| `npm run db:reset` | Apaga o banco e recarrega tudo do zero (use se algo ficar bagunçado ou depois de alterar um script em `db/`) |
-| `npm run db:validar` | Roda as conferências de integridade (`db/validacao_resumo.sql`) |
-| `npm run db:psql` | Abre o terminal `psql` dentro do banco |
-| `npm run db:logs` | Mostra o log do PostgreSQL |
-
-### Scripts da pasta `db/`
-
-Executados nesta ordem, só quando o volume do banco está vazio:
+Os scripts SQL ficam na pasta `db/`. Para montar um banco do zero (por exemplo, um projeto novo no Neon), abra o **SQL Editor** do Neon e execute os arquivos **um por vez, nesta ordem**:
 
 | Ordem | Arquivo | O que faz |
 |---|---|---|
@@ -398,21 +376,15 @@ Executados nesta ordem, só quando o volume do banco está vazio:
 | 5 | `06_imagem_produto.sql` | `imagem_url` passa a aceitar foto enviada pelo artesão (até ~2 MB) |
 | 6 | `07_autenticacao.sql` | Acrescenta `senha_hash` em `usuario` e define a senha dos 3 logins de demonstração |
 
-`03_consultas_validacao_origem.sql` não entra na carga: são as consultas de recomendação e de conferência do modelo físico, para rodar à mão (`npm run db:psql`, ou o SQL Editor do Neon).
+Para conferir se ficou correto, cole o conteúdo de `db/validacao_resumo.sql` no SQL Editor e execute: o resultado é uma tabela de 8 linhas em que `esperado` deve ser igual a `obtido` em todas. O `03_consultas_validacao_origem.sql` traz as consultas de recomendação e de conferência do modelo físico, para rodar à mão.
 
-> O `docker-compose.yml` usa usuário e senha `postgres`/`postgres`. Valem apenas para o banco na sua máquina; **nunca** reaproveite essas credenciais em um ambiente real.
+> **Cuidado, o banco é compartilhado.** O `05_dados_raizes_pe.sql` **apaga** os dados existentes antes de carregar o catálogo, e o `01_ddl_origem.sql` tem uma linha de `DROP SCHEMA` comentada. Não execute esses scripts no banco oficial sem combinar com o time.
 
 ### Problemas comuns
 
-- **`port is already allocated` / porta 5432 em uso:** você já tem um PostgreSQL local. Crie um arquivo `.env` na raiz com `DB_PORT=5433`, rode `npm run db:up` de novo e troque `5432` por `5433` na `DATABASE_URL` do `.env.local`.
-- **`Cannot connect to the Docker daemon`:** abra o Docker Desktop e espere ele ficar "running".
-- **Alterei um script em `db/` e nada mudou:** os scripts só rodam na criação do banco. Use `npm run db:reset`.
+- **Erro de conexão no `npm run dev` ou em `/api/saude-bd`:** confira a `DATABASE_URL` do `.env.local` (a string deve terminar com `?sslmode=require`) e reinicie o servidor. O Neon pode levar alguns segundos para "acordar" na primeira consulta; tente de novo.
 - **Login falha com erro de servidor:** confira se o `SESSION_SECRET` está preenchido no `.env.local` (mínimo de 32 caracteres) e reinicie o `npm run dev`.
-- **Erro de conexão no `npm run dev`:** confira se o banco está de pé (`docker compose ps`) e se a `DATABASE_URL` do `.env.local` bate com a porta usada.
-
-### Alternativa: banco na nuvem (Neon)
-
-Sem Docker, crie um projeto no [Neon](https://neon.tech), abra o **SQL Editor** e execute os scripts de `db/` na ordem da tabela acima (um por vez). Depois troque a `DATABASE_URL` do `.env.local` pela connection string do Neon (a linha de exemplo está comentada no `.env.example`).
+- **`relation "produto" does not exist` no SQL Editor:** o esquema não foi selecionado. Execute `SET search_path TO origem;` junto com a consulta.
 
 **Antes de abrir um Pull Request**, rode os testes automatizados, o lint e o typecheck para manter a integridade do código:
 ```bash
@@ -478,8 +450,7 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 ├── tests/                    # Suíte de testes automatizados (node --test)
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
 │   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
-├── db/                       # Scripts SQL do banco (carga inicial do Docker, validação)
-├── docker-compose.yml        # PostgreSQL local (npm run db:up)
+├── db/                       # Scripts SQL do banco (Neon) e consulta de validação
 ├── .env.example              # Modelo das variáveis de ambiente (copiar para .env.local)
 ├── ia/                       # Módulo de IA (AV2): serviço BentoML de recomendação e catálogo sintético
 ├── eslint.config.mjs         # Regras de lint

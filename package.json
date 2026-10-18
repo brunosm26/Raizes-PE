@@ -7,13 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "node --test tests/*.test.mjs",
-    "db:up": "docker compose up -d --wait",
-    "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && docker compose up -d --wait",
-    "db:validar": "docker compose exec -T db psql -U postgres -d origem -f /db/validacao_resumo.sql",
-    "db:psql": "docker compose exec db psql -U postgres -d origem",
-    "db:logs": "docker compose logs -f db"
+    "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@chakra-ui/react": "^2.8.2",
