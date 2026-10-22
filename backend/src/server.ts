@@ -13,5 +13,7 @@ const servidor = app.listen(env.PORT, (erro?: Error) => {
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.on(sinal, () => {
     servidor.close(() => process.exit(0));
+    // No Node 18 o close() espera as conexões keep-alive ociosas expirarem.
+    servidor.closeIdleConnections();
   });
 }
