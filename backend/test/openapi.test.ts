@@ -69,3 +69,21 @@ describe("openapi.yaml", () => {
     }
   });
 });
+
+describe("Swagger UI", () => {
+  it("serve a página em /api-docs e a spec em /api-docs.json", async () => {
+    const { subirApi } = await import("./ajudantes");
+    const api = await subirApi();
+    try {
+      const raiz = api.url.replace(/\/api$/, "");
+      const pagina = await fetch(`${raiz}/api-docs/`);
+      assert.equal(pagina.status, 200);
+      assert.match(await pagina.text(), /<title>API Raízes PE<\/title>/);
+
+      const servida = await (await fetch(`${raiz}/api-docs.json`)).json();
+      assert.deepEqual(Object.keys(servida.paths).sort(), Object.keys(spec.paths).sort());
+    } finally {
+      await api.fechar();
+    }
+  });
+});
