@@ -113,3 +113,54 @@ export async function travarParaCompra(ids: string[], tx: Executor): Promise<Pro
 export async function baixarEstoque(id: string, quantidade: number, tx: Executor): Promise<void> {
   await tx.query(`UPDATE origem.produto SET estoque_qtd = estoque_qtd - $2 WHERE id = $1`, [id, quantidade]);
 }
+
+export interface FiltrosProduto {
+  tecnica?: string;
+  regiao?: string;
+  categoria?: string;
+}
+
+export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao[]> {
+  const condicoes: string[] = [];
+  const valores: string[] = [];
+  if (filtros.tecnica) {
+    valores.push(filtros.tecnica);
+    condicoes.push(`p.tecnica = $${valores.length}`);
+  }
+  if (filtros.categoria) {
+    valores.push(filtros.categoria);
+    condicoes.push(`p.categoria = $${valores.length}`);
+  }
+  if (filtros.regiao) {
+    valores.push(filtros.regiao);
+    condicoes.push(`a.regiao_origem = $${valores.length}`);
+  }
+  const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
+
+  const { rows } = await executorPadrao().query<LinhaProduto>(
+    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    valores
+  );
+  return rows.map(paraProduto);
+}
+
+// Mesma técnica do produto, excluindo ele mesmo (RF-01).
+export async function listarRelacionados(id: string, limite: number): Promise<ProdutoComArtesao[]> {
+  const { rows } = await executorPadrao().query<LinhaProduto>(
+    `${SELECT_PRODUTO}
+      WHERE p.id <> $1
+        AND p.tecnica = (SELECT tecnica FROM origem.produto WHERE id = $1)
+      ORDER BY p.data_cadastro DESC, p.nome
+      LIMIT $2`,
+    [id, limite]
+  );
+  return rows.map(paraProduto);
+}
+
+export async function listarDoArtesao(artesaoId: string): Promise<ProdutoComArtesao[]> {
+  const { rows } = await executorPadrao().query<LinhaProduto>(
+    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 ORDER BY p.data_cadastro DESC, p.nome`,
+    [artesaoId]
+  );
+  return rows.map(paraProduto);
+}

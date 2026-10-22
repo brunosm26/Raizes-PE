@@ -132,3 +132,18 @@ export async function atualizarStatus(id: string, status: StatusPedido): Promise
   ]);
   return Boolean(rowCount);
 }
+
+// Quanto o comprador já levou de cada produto (histórico usado na recomendação).
+export async function somarCompradosPorProduto(
+  compradorId: string
+): Promise<{ produtoId: string; quantidade: number }[]> {
+  const { rows } = await executorPadrao().query<{ produtoId: string; quantidade: number }>(
+    `SELECT ip.produto_id AS "produtoId", SUM(ip.quantidade)::int AS quantidade
+       FROM origem.pedido pe
+       JOIN origem.item_pedido ip ON ip.pedido_id = pe.id
+      WHERE pe.comprador_id = $1
+      GROUP BY ip.produto_id`,
+    [compradorId]
+  );
+  return rows;
+}

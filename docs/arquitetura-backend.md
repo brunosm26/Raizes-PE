@@ -105,7 +105,31 @@ Os caminhos à esquerda são os da branch `feat/PI4-114-postgres-local` (onde a 
 | `lib/apiFalsa.ts`, `lib/contexto*.tsx` | Clientes da API. Passam a apontar para a URL do Express na PI4-132 (URL base, CORS e cookie) |
 | `app/api/*`, `lib/servidor/*`, `lib/db.ts` | Ficam até a PI4-132 ligar o front ao Express; depois são removidos |
 
-## 4. Contrato
+## 4. Estado da migração (22/10/2026)
+
+| Grupo de rotas | Subtarefa | Situação no Express |
+|---|---|---|
+| `GET/POST /api/pedidos`, `PATCH /api/pedidos/:id` | PI4-123 | Migrada, com testes |
+| `POST /api/produtos`, `PATCH /api/produtos/:id` | PI4-123 | Migrada, com testes |
+| `POST /api/auth/login`, `/cadastro`, `/logout`, `GET /api/auth/me` | PI4-124 | Migrada, com testes |
+| `GET /api/produtos`, `/:id`, `/:id/relacionados`, `/:id/avaliacoes`, `GET /api/artesaos/:id` | PI4-124 | Migrada, com testes |
+| `GET /api/recomendacoes` | PI4-124 | Migrada, com testes |
+| `GET /api/painel/estatisticas` | PI4-124 | Migrada, com testes |
+| `GET /api/saude-bd` | PI4-124 | Migrada, com teste |
+
+Middlewares reaproveitáveis: `exigirSessao(perfis?)` (401/403), `carregarSessao` (sessão opcional, usada nas recomendações), `naoEncontrado` e `tratadorDeErros` (corpo JSON inválido vira 400, corpo acima de 4 MB vira 413).
+
+Pendências, todas fora do escopo da PI4-119:
+
+- **Prisma (PI4-128)** e **JWT (PI4-130)**: entram trocando só `repositories/` e `utils/tokenSessao.ts`, respectivamente.
+- **Front apontando para o Express (PI4-132)**: até lá o front continua usando os route handlers do Next, que respondem igual.
+- **`GET /api/artesaos` (lista) e `GET /api/filtros`**: nunca existiram no Next (fase 7 do `plano-migracao-api.md`), então não são migração; entram como rotas novas.
+
+### Testes
+
+`cd backend && npm test` sobe o app numa porta livre e chama as rotas com `fetch` (`node:test`). Os testes que não tocam o banco (401, 400, 404, logout) rodam sempre. Os que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável**, carregado com `db/01`, `04`, `05`, `06` e `07`; nunca use o Neon do time.
+
+## 5. Contrato
 
 Nenhuma rota muda de método, caminho, corpo de entrada, corpo de sucesso ou status. A única padronização é o **corpo de erro**: as rotas de leitura do catálogo respondiam `{ "mensagem": ... }` e as de escrita `{ "erro": ... }`; agora todas respondem `{ "ok": false, "erro": ... }` (formato do middleware da PI4-127). O front não lê o campo `mensagem` em nenhum lugar (confere só o status), então a mudança é compatível.
 
