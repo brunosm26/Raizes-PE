@@ -275,6 +275,8 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
 - **Framer Motion**: Utilizado (internamente pelo Chakra UI) para transições e micro-animações.
 - **React Icons**: Coleção de ícones para identificação visual clara e intuitiva.
 - **ESLint**: Padronização do código (`npm run lint`), configurado em `eslint.config.mjs`.
+- **Express 5 + TypeScript** (`backend/`): API REST em camadas (routes, controllers, services, repositories), com PostgreSQL via `pg`.
+- **OpenAPI 3 + Swagger UI**: documentação da API versionada em `backend/openapi.yaml` e navegável em `/api-docs`.
 
 ## 💡 Principais Funcionalidades
 
@@ -393,6 +395,42 @@ npm run lint
 npx tsc --noEmit
 ```
 
+## 🧱 API em camadas (backend Express) e documentação
+
+A API REST fica em `backend/`, um projeto Express separado do front (stack de referência da disciplina, decisão da PI4-121). Ela expõe as mesmas rotas de `app/api/*`, com o mesmo contrato; o front passa a chamá-la na PI4-132.
+
+```text
+requisição → routes → middlewares (sessão e perfil) → controllers → services (regras) → repositories (SQL) → PostgreSQL
+```
+
+| Camada | Pasta | Faz |
+|---|---|---|
+| Rotas | `backend/src/routes/` | Método + caminho → middlewares + controller |
+| Middlewares | `backend/src/middlewares/` | `exigirSessao(perfis)`, sessão opcional, erros em JSON |
+| Controllers | `backend/src/controllers/` | Leem a requisição, chamam o service e respondem (status, cookie, JSON) |
+| Services | `backend/src/services/` | Validação e regras de negócio (estoque, dono do produto, perfil); não importam `express` |
+| Repositories | `backend/src/repositories/` | Todo o SQL; únicos que falam com o banco |
+| Config e utils | `backend/src/config/`, `backend/src/utils/` | Variáveis de ambiente, pool do banco, ids, senha, token de sessão |
+
+O mapa completo (arquivo antigo → camada nova) e as regras estão em [`docs/arquitetura-backend.md`](docs/arquitetura-backend.md).
+
+**Rodar a API** (porta 4000, ao lado do Next na 3000):
+```bash
+cd backend
+npm install
+# crie o backend/.env a partir do .env.example, com a mesma DATABASE_URL e o mesmo SESSION_SECRET do .env.local
+npm run dev
+```
+
+**Documentação da API:** com a API rodando, abra [http://localhost:4000/api-docs](http://localhost:4000/api-docs) (Swagger UI). Para testar as rotas protegidas no próprio Swagger, execute primeiro `POST /auth/login` com um login de demonstração: o navegador guarda o cookie de sessão e o envia nas chamadas seguintes. A especificação crua fica em [`/api-docs.json`](http://localhost:4000/api-docs.json) e o arquivo-fonte é `backend/openapi.yaml`. No deploy, o caminho é o mesmo: `<url-da-api>/api-docs`.
+
+**Antes de abrir um Pull Request no backend:**
+```bash
+cd backend
+npm run typecheck
+npm test   # inclui o teste que confere se openapi.yaml cobre todas as rotas
+```
+
 ## 🔐 Login de Demonstração
 
 O login em `/login` é real: a senha é conferida contra o hash guardado em `usuario.senha_hash` (scrypt) e a sessão vai em um cookie `httpOnly` assinado com o `SESSION_SECRET`. Os scripts do banco já criam três contas de demonstração:
@@ -445,12 +483,25 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 │   └── arteProduto.ts        # Padrões visuais no lugar das fotos
 ├── docs/                     # Documentação do projeto
 │   ├── CONTRATO_API.md       # Contrato inicial da API
+│   ├── arquitetura-backend.md # Camadas do backend e mapa da migração (PI4-122)
 │   ├── plano-migracao-api.md # Plano de migração do apiFalsa.ts para a API real
 │   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
 ├── tests/                    # Suíte de testes automatizados (node --test)
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
 │   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
 ├── db/                       # Scripts SQL do banco (Neon) e consulta de validação
+├── backend/                  # API REST em Express (ver "API em camadas")
+│   ├── openapi.yaml          # Especificação OpenAPI de todas as rotas (servida em /api-docs)
+│   ├── src/
+│   │   ├── routes/           # Rotas por recurso, montadas em /api
+│   │   ├── middlewares/      # Sessão/perfil e tratamento de erros
+│   │   ├── controllers/      # Entrada e saída HTTP
+│   │   ├── services/         # Regras de negócio e validação
+│   │   ├── repositories/     # SQL (PostgreSQL via pg)
+│   │   ├── config/           # env, pool do banco e carga da spec
+│   │   ├── utils/            # ErroHttp, ids, senha, token de sessão
+│   │   └── types/            # Tipos de domínio
+│   └── test/                 # Testes de integração (node:test) e da spec
 ├── .env.example              # Modelo das variáveis de ambiente (copiar para .env.local)
 ├── ia/                       # Módulo de IA (AV2): serviço BentoML de recomendação e catálogo sintético
 ├── eslint.config.mjs         # Regras de lint
