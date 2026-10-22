@@ -7,7 +7,8 @@ import { rotas } from "./routes";
 export const app = express();
 
 app.disable("x-powered-by");
-app.use(express.json());
+// Limite de 4 MB: o cadastro de produto aceita foto como data URL de até ~2,8 MB.
+app.use(express.json({ limit: "4mb" }));
 
 app.use("/api", rotas);
 

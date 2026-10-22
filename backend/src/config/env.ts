@@ -28,7 +28,15 @@ function lerAmbiente(valor: string | undefined): Ambiente {
   return ambiente;
 }
 
+// Opcionais na subida: sem elas a API sobe (a rota /api/saude responde), mas as rotas
+// que usam o banco ou a sessão falham com uma mensagem clara no log.
+function lerOpcional(valor: string | undefined): string | undefined {
+  return valor === undefined || valor.trim() === "" ? undefined : valor.trim();
+}
+
 export const env = Object.freeze({
   PORT: lerPorta(process.env.PORT),
   NODE_ENV: lerAmbiente(process.env.NODE_ENV),
+  DATABASE_URL: lerOpcional(process.env.DATABASE_URL),
+  SESSION_SECRET: lerOpcional(process.env.SESSION_SECRET),
 });
