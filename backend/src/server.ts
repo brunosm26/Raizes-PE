@@ -1,4 +1,5 @@
 import { app } from "./app";
+import { fecharPool } from "./config/db";
 import { env } from "./config/env";
 
 const servidor = app.listen(env.PORT, (erro?: Error) => {
@@ -12,7 +13,9 @@ const servidor = app.listen(env.PORT, (erro?: Error) => {
 // Encerra com calma ao receber Ctrl+C ou o sinal de parada do host.
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.on(sinal, () => {
-    servidor.close(() => process.exit(0));
+    servidor.close(() => {
+      void fecharPool().finally(() => process.exit(0));
+    });
     // No Node 18 o close() espera as conexões keep-alive ociosas expirarem.
     servidor.closeIdleConnections();
   });
