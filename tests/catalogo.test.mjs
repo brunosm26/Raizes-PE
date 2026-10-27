@@ -21,6 +21,77 @@ require.extensions[".ts"] = function (module, filename) {
   module._compile(transpiled, filename);
 };
 
+// Desde o PR #23 as funções de lib/apiFalsa.ts chamam as rotas /api (PostgreSQL) via fetch.
+// Nestes testes unitários não há servidor nem banco, então o fetch é trocado por um
+// simulador em memória que responde como as rotas, usando os dados de lib/dadosFalsos.ts.
+// As rotas em si são cobertas pelos testes de integração com banco real.
+const dados = require(path.join(rootDir, "lib", "dadosFalsos.ts"));
+
+function normalizar(texto) {
+  return String(texto).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function comArtesao(p) {
+  const artesao = dados.artesaos.find((a) => a.id === p.artesaoId);
+  const usuario = dados.usuarios.find((u) => u.id === artesao?.usuarioId);
+  return { ...p, artesaoNome: usuario?.nome ?? "Artesão desconhecido", artesaoRegiao: artesao?.regiaoOrigem ?? "" };
+}
+
+function json(corpo, status = 200) {
+  return { ok: status >= 200 && status < 300, status, json: async () => corpo };
+}
+
+globalThis.fetch = async (entrada) => {
+  const url = new URL(String(entrada), "http://teste.local");
+  const partes = url.pathname.split("/").filter(Boolean).slice(1); // remove "api"
+  const q = url.searchParams;
+
+  if (partes[0] === "produtos" && partes.length === 1) {
+    const termo = q.get("busca") ? normalizar(q.get("busca")) : "";
+    const lista = dados.produtos.map(comArtesao).filter(
+      (p) =>
+        (!q.get("tecnica") || p.tecnica === q.get("tecnica")) &&
+        (!q.get("regiao") || p.artesaoRegiao === q.get("regiao")) &&
+        (!q.get("categoria") || p.categoria === q.get("categoria")) &&
+        (!termo ||
+          [p.nome, p.tecnica, p.categoria, p.artesaoNome, p.artesaoRegiao].some((c) => normalizar(c).includes(termo)))
+    );
+    return json(lista);
+  }
+
+  if (partes[0] === "produtos") {
+    const produto = dados.produtos.find((p) => p.id === decodeURIComponent(partes[1]));
+    if (partes[2] === "relacionados") {
+      if (!produto) return json([]);
+      const limite = Number(q.get("limite") ?? 3);
+      return json(
+        dados.produtos.filter((p) => p.id !== produto.id && p.tecnica === produto.tecnica).slice(0, limite).map(comArtesao)
+      );
+    }
+    if (partes[2] === "avaliacoes") {
+      const notas = dados.avaliacoes.filter((a) => a.produtoId === decodeURIComponent(partes[1])).map((a) => a.nota);
+      const media = notas.length ? notas.reduce((x, y) => x + y, 0) / notas.length : 0;
+      return json({ media, quantidade: notas.length });
+    }
+    return produto ? json(comArtesao(produto)) : json({ erro: "Produto não encontrado." }, 404);
+  }
+
+  if (partes[0] === "artesaos") {
+    const artesao = dados.artesaos.find((a) => a.id === decodeURIComponent(partes[1]));
+    if (!artesao) return json({ erro: "Artesão não encontrado." }, 404);
+    const usuario = dados.usuarios.find((u) => u.id === artesao.usuarioId);
+    return json({
+      id: artesao.id,
+      nome: usuario?.nome ?? "",
+      regiaoOrigem: artesao.regiaoOrigem,
+      biografia: artesao.biografia ?? "",
+      produtos: dados.produtos.filter((p) => p.artesaoId === artesao.id).map(comArtesao),
+    });
+  }
+
+  return json({ erro: "Rota não simulada." }, 404);
+};
+
 const {
   categorias,
   getEstatisticasPainel,
