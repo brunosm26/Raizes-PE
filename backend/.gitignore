@@ -1,0 +1,13 @@
+# dependências
+node_modules/
+
+# build (saída do tsc)
+dist/
+
+# variáveis de ambiente (só o modelo vai para o GitHub)
+.env
+.env.*
+!.env.example
+
+# logs de debug
+npm-debug.log*
