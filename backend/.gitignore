@@ -4,6 +4,9 @@ node_modules/
 # build (saída do tsc)
 dist/
 
+# client do Prisma, gerado por `npm install` / `npm run prisma:generate`
+src/generated/
+
 # variáveis de ambiente (só o modelo vai para o GitHub)
 .env
 .env.*
