@@ -84,6 +84,8 @@ export interface ItemCarrinho {
 export interface ProdutoComArtesao extends Produto {
   artesaoNome: string;
   artesaoRegiao: string;
+  // Preenchido quando o produto vem do banco: usuário dono da loja (painel do artesão).
+  artesaoUsuarioId?: string;
 }
 
 export interface ResumoAvaliacoes {
@@ -124,6 +126,9 @@ export interface DadosEntrega {
 export interface ItemPedidoComProduto extends ItemPedido {
   produtoNome: string;
   produtoTecnica: Tecnica;
+  // Preenchidos quando o pedido vem do banco: quem vende o item (usuário do artesão).
+  artesaoUsuarioId?: string;
+  artesaoNome?: string;
 }
 
 export interface PedidoComItens extends Pedido {
@@ -158,8 +163,9 @@ export interface EstatisticasPainel {
   vendasDoMes: number;
   vendasDeltaPct: number;
   pedidosPendentes: number;
-  visitasNoPerfil: number;
-  visitasDeltaPct: number;
+  // Sem tabela de visitas no modelo físico: só o mock (apiFalsa) preenche estes dois.
+  visitasNoPerfil?: number;
+  visitasDeltaPct?: number;
   historicoMensal: PontoSerieVendas[];
   vendasPorTecnica: DistribuicaoTecnica[];
 }

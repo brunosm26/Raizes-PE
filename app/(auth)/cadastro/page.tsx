@@ -1,7 +1,9 @@
 "use client";
 
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
 import {
+  Alert,
+  AlertIcon,
   Box,
   Container,
   Heading,
@@ -9,32 +11,41 @@ import {
   Button,
   VStack,
   FormControl,
+  FormHelperText,
   FormLabel,
   Input,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton,
-  useDisclosure,
+  useToast,
 } from "@chakra-ui/react";
 import NextLink from "next/link";
 import { useRouter } from "next/navigation";
+import { useSessao } from "@/lib/contextoSessao";
 
 export default function CadastroPage() {
-  const { isOpen, onOpen, onClose } = useDisclosure();
   const router = useRouter();
+  const toast = useToast();
+  const { cadastrar } = useSessao();
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
-  function handleCadastroSimulacao(e: FormEvent) {
+  // Cria uma conta de COMPRADOR no banco e já entra com ela.
+  async function handleCadastro(e: FormEvent) {
     e.preventDefault();
-    onOpen();
-  }
-
-  function handleIrParaLogin() {
-    onClose();
-    router.push("/login");
+    if (enviando) return;
+    setEnviando(true);
+    setErro(null);
+    try {
+      await cadastrar(nome, email, senha);
+      toast({ title: "Conta criada!", status: "success", duration: 3000, isClosable: true, position: "top" });
+      router.push("/");
+      router.refresh();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível criar a conta. Tente novamente.");
+    } finally {
+      setEnviando(false);
+    }
   }
 
   return (
@@ -47,24 +58,43 @@ export default function CadastroPage() {
           Junte-se à nossa rede de Economia Criativa
         </Text>
 
-        <VStack spacing={4} as="form" onSubmit={handleCadastroSimulacao}>
+        <VStack spacing={4} as="form" onSubmit={handleCadastro}>
+          {erro && (
+            <Alert status="error" borderRadius="8px" fontSize="0.86rem">
+              <AlertIcon />
+              {erro}
+            </Alert>
+          )}
+
           <FormControl isRequired>
             <FormLabel>Nome Completo</FormLabel>
-            <Input type="text" placeholder="Seu nome" />
+            <Input type="text" placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} />
           </FormControl>
 
           <FormControl isRequired>
             <FormLabel>E-mail</FormLabel>
-            <Input type="email" placeholder="email@exemplo.com" />
+            <Input
+              type="email"
+              placeholder="email@exemplo.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </FormControl>
 
           <FormControl isRequired>
             <FormLabel>Senha</FormLabel>
-            <Input type="password" placeholder="********" />
+            <Input
+              type="password"
+              placeholder="********"
+              minLength={8}
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+            />
+            <FormHelperText>Mínimo de 8 caracteres.</FormHelperText>
           </FormControl>
 
-          <Button type="submit" variant="solid" w="full" mt={4}>
-            Cadastrar (Simulação)
+          <Button type="submit" variant="solid" w="full" mt={4} isLoading={enviando} loadingText="Criando...">
+            Criar conta
           </Button>
         </VStack>
 
@@ -82,31 +112,6 @@ export default function CadastroPage() {
         </Text>
       </Box>
 
-      <Modal isOpen={isOpen} onClose={onClose} isCentered>
-        <ModalOverlay />
-        <ModalContent mx={4} bg="card" color="fg">
-          <ModalHeader textAlign="center" color="accent">
-            🎉 Conta Criada!
-          </ModalHeader>
-          <ModalCloseButton />
-
-          <ModalBody textAlign="center">
-            <Text color="mutedFg" mb={3}>
-              Sua conta de simulação foi gerada com sucesso para a rede de Economia Criativa.
-            </Text>
-            <Text color="mutedFg" fontSize="0.82rem">
-              Este cadastro é só uma demonstração visual — os dados não ficam salvos. Para
-              entrar de verdade, use um dos logins de demonstração mostrados na tela de login.
-            </Text>
-          </ModalBody>
-
-          <ModalFooter justifyContent="center">
-            <Button variant="solid" onClick={handleIrParaLogin}>
-              Ir para o Login
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
     </Container>
   );
 }
