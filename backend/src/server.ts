@@ -1,4 +1,5 @@
 import { app } from "./app";
+import { fecharPool } from "./config/db";
 import { env } from "./config/env";
 import { desconectarPrisma } from "./config/prisma";
 
@@ -14,7 +15,7 @@ const servidor = app.listen(env.PORT, (erro?: Error) => {
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.on(sinal, () => {
     servidor.close(() => {
-      desconectarPrisma().finally(() => process.exit(0));
+      void Promise.allSettled([desconectarPrisma(), fecharPool()]).finally(() => process.exit(0));
     });
     // No Node 18 o close() espera as conexões keep-alive ociosas expirarem.
     servidor.closeIdleConnections();

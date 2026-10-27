@@ -11,7 +11,7 @@ npm install
 
 O `npm install` já gera o client do Prisma (não precisa de `.env` nem de banco).
 
-Crie o `.env` a partir do modelo. Sem ele o servidor sobe com `PORT=4000` e `NODE_ENV=development`, mas nada que use o banco funciona (veja "Prisma").
+Crie o `.env` a partir do modelo e preencha `DATABASE_URL` e `SESSION_SECRET` com os **mesmos valores** do `.env.local` do front (sem eles, só a rota `/api/saude` funciona; valem `PORT=4000` e `NODE_ENV=development`).
 
 ```bash
 # Windows (cmd)
@@ -82,3 +82,21 @@ Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver
 
 - **`EPERM: operation not permitted, rmdir ...src\generated...`:** acontece quando o projeto está no OneDrive, que trava a pasta. Rode `npm run prisma:generate`, que apaga `src/generated` antes de gerar.
 - **`DATABASE_URL não configurada`:** falta o `.env` (veja acima).
+
+## Documentação da API (Swagger)
+
+Com o servidor rodando, abra <http://localhost:4000/api-docs>. Lá estão todas as rotas, com parâmetros, corpos, respostas e erros. Para chamar as rotas protegidas pelo "Try it out", execute antes `POST /auth/login` (por exemplo `ana.beatriz@raizespe.dev` / `demo123`): o navegador guarda o cookie de sessão.
+
+A especificação fica em `openapi.yaml` (versionada) e também é servida crua em <http://localhost:4000/api-docs.json>. Ao criar ou mudar uma rota, atualize o `openapi.yaml`: o `npm test` falha se uma rota do Express não estiver documentada (ou o contrário).
+
+## Camadas
+
+`routes/` → `middlewares/` → `controllers/` → `services/` → `repositories/`. Services e repositories não importam `express`; só os repositories falam com o banco. Detalhes e o mapa da migração em [`docs/arquitetura-backend.md`](../docs/arquitetura-backend.md).
+
+## Testes
+
+```bash
+npm test
+```
+
+Sobe o app numa porta livre e chama as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 400, 404, spec x rotas). Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`. **Nunca** aponte para o Neon do time.

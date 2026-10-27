@@ -1,4 +1,6 @@
 import express from "express";
+import swaggerUi from "swagger-ui-express";
+import { especificacaoOpenApi } from "./config/openapi";
 import { naoEncontrado, tratadorDeErros } from "./middlewares/erros";
 import { rotas } from "./routes";
 
@@ -7,9 +9,24 @@ import { rotas } from "./routes";
 export const app = express();
 
 app.disable("x-powered-by");
-app.use(express.json());
+// Limite de 4 MB: o cadastro de produto aceita foto como data URL de até ~2,8 MB.
+app.use(express.json({ limit: "4mb" }));
 
 app.use("/api", rotas);
+
+// Documentação da API: Swagger UI em /api-docs e a especificação crua em /api-docs.json.
+app.get("/api-docs.json", (_req, res) => {
+  res.json(especificacaoOpenApi);
+});
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(especificacaoOpenApi, {
+    customSiteTitle: "API Raízes PE",
+    // Envia o cookie de sessão nas chamadas do "Try it out" (login primeiro, depois as rotas protegidas).
+    swaggerOptions: { withCredentials: true, persistAuthorization: true },
+  })
+);
 
 app.use(naoEncontrado);
 app.use(tratadorDeErros);
