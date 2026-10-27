@@ -1,0 +1,842 @@
+openapi: 3.0.3
+info:
+  title: API Raízes PE
+  version: 0.2.0
+  description: |
+    API REST do marketplace de artesanato pernambucano Raízes PE (Express + TypeScript + PostgreSQL).
+
+    **Autenticação:** `POST /auth/login` (ou `/auth/cadastro`) grava o cookie httpOnly `raizes_sessao`.
+    As rotas protegidas leem esse cookie; no Swagger UI basta fazer o login pelo próprio "Try it out",
+    porque o navegador guarda o cookie e o reenvia nas chamadas seguintes.
+
+    **Perfis:** `comprador`, `artesao` e `admin`. Cada rota protegida informa quem pode chamá-la.
+    Sem sessão a resposta é **401**; com sessão de outro perfil, **403**.
+
+    **Erros:** todo erro responde `{ "ok": false, "erro": "<mensagem em português>" }`.
+
+    **Ids:** onde a rota recebe `{id}`, além do UUID ela aceita os ids antigos do mock
+    (`p1` para produto, `a2` para artesão), que apontam para os UUIDs da carga de demonstração.
+  contact:
+    name: Time Raízes PE
+servers:
+  - url: /api
+    description: Mesma origem do Swagger UI (local ou deploy)
+  - url: http://localhost:4000/api
+    description: Desenvolvimento local
+tags:
+  - name: Saúde
+    description: Verificação de que a API e o banco estão no ar
+  - name: Autenticação
+    description: Login, cadastro e sessão por cookie
+  - name: Catálogo
+    description: Vitrine, página do produto e perfil do artesão (públicas)
+  - name: Produtos
+    description: Cadastro e edição de produtos pelo artesão
+  - name: Pedidos
+    description: Checkout do comprador e acompanhamento pelo artesão
+  - name: Recomendações
+    description: Baseline de recomendação (IA)
+  - name: Painel
+    description: Estatísticas de vendas do artesão
+
+paths:
+  /saude:
+    get:
+      tags: [Saúde]
+      summary: Saúde da API
+      description: Não depende do banco. Serve para o host do deploy saber se o processo está no ar.
+      operationId: saude
+      security: []
+      responses:
+        "200":
+          description: API no ar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+
+  /saude-bd:
+    get:
+      tags: [Saúde]
+      summary: Saúde do banco
+      description: |
+        Conta os produtos do schema `origem` para provar que a API alcança o PostgreSQL.
+        Rota de diagnóstico do setup: em caso de falha, devolve a mensagem real do erro do banco.
+      operationId: saudeBanco
+      security: []
+      responses:
+        "200":
+          description: Banco acessível
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, produtos]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+                  produtos: { type: integer, example: 7 }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Entrar
+      description: |
+        Valida e-mail e senha e grava o cookie de sessão (7 dias).
+        `perfil` é a aba escolhida na tela de login: precisa bater com o perfil da conta (o admin entra por qualquer aba).
+        Após 5 falhas para o mesmo e-mail e IP, novas tentativas são recusadas por 15 minutos.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, senha]
+              properties:
+                email: { type: string, format: email, example: ana.beatriz@raizespe.dev }
+                senha: { type: string, format: password, example: demo123 }
+                perfil: { $ref: "#/components/schemas/TipoUsuario" }
+      responses:
+        "200":
+          description: Login feito. O cabeçalho `Set-Cookie` traz a sessão.
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetCookieSessao"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RespostaUsuario"
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          description: E-mail ou senha incorretos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: E-mail ou senha incorretos. }
+        "403":
+          description: A conta existe, mas é de outro perfil (aba errada)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Esta conta não é de comprador. Use a aba correta. }
+        "429":
+          description: Muitas tentativas falhas para o mesmo e-mail e IP
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Muitas tentativas. Aguarde alguns minutos e tente de novo. }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /auth/cadastro:
+    post:
+      tags: [Autenticação]
+      summary: Criar conta de comprador
+      description: |
+        O cadastro público sempre cria um **comprador** e já inicia a sessão.
+        Contas de artesão e admin são criadas por quem administra a plataforma.
+      operationId: cadastro
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nome, email, senha]
+              properties:
+                nome: { type: string, maxLength: 150, example: Maria da Silva }
+                email: { type: string, format: email, maxLength: 150, example: maria@exemplo.com }
+                senha: { type: string, format: password, minLength: 8, maxLength: 200 }
+      responses:
+        "201":
+          description: Conta criada e sessão iniciada
+          headers:
+            Set-Cookie:
+              $ref: "#/components/headers/SetCookieSessao"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RespostaUsuario"
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "409":
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Este e-mail já está cadastrado. }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /auth/logout:
+    post:
+      tags: [Autenticação]
+      summary: Sair
+      description: Apaga o cookie de sessão. Funciona mesmo sem sessão.
+      operationId: logout
+      security: []
+      responses:
+        "200":
+          description: Sessão encerrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+
+  /auth/me:
+    get:
+      tags: [Autenticação]
+      summary: Usuário da sessão atual
+      description: |
+        Revalida no banco se o usuário ainda existe com o mesmo perfil.
+        Nunca responde erro: sem sessão (ou com o banco fora do ar) devolve `usuario: null`.
+      operationId: eu
+      security:
+        - {}
+        - cookieSessao: []
+      responses:
+        "200":
+          description: Usuário logado, ou null para visitante
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [usuario]
+                properties:
+                  usuario:
+                    type: object
+                    nullable: true
+                    description: null para visitante
+                    required: [id, nome, tipo]
+                    properties:
+                      id: { type: string, format: uuid }
+                      nome: { type: string, example: Ana Beatriz }
+                      tipo: { $ref: "#/components/schemas/TipoUsuario" }
+
+  /produtos:
+    get:
+      tags: [Catálogo]
+      summary: Listar produtos (vitrine)
+      description: Ordenados do mais novo para o mais antigo. Todos os filtros são opcionais e se combinam.
+      operationId: listarProdutos
+      security: []
+      parameters:
+        - name: tecnica
+          in: query
+          schema: { $ref: "#/components/schemas/Tecnica" }
+        - name: categoria
+          in: query
+          schema: { type: string, example: Vasos }
+        - name: regiao
+          in: query
+          description: Região de origem do artesão
+          schema: { type: string, example: Caruaru }
+        - name: busca
+          in: query
+          description: Texto livre em nome, técnica, categoria, artesão e região; ignora acentos e maiúsculas
+          schema: { type: string, example: ceramica }
+      responses:
+        "200":
+          description: Lista de produtos (pode ser vazia)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+    post:
+      tags: [Produtos]
+      summary: Cadastrar produto
+      description: Só **artesão**. O produto é sempre criado na loja do artesão da sessão.
+      operationId: criarProduto
+      security:
+        - cookieSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NovoProduto" }
+      responses:
+        "201":
+          description: Produto criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "404":
+          description: O usuário da sessão não tem loja de artesão
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Artesão não encontrado. }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /produtos/{id}:
+    parameters:
+      - $ref: "#/components/parameters/IdProduto"
+    get:
+      tags: [Catálogo]
+      summary: Detalhe do produto
+      operationId: buscarProduto
+      security: []
+      responses:
+        "200":
+          description: Produto encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "404":
+          description: Produto não encontrado (inclui id em formato inválido)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Produto não encontrado }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+    patch:
+      tags: [Produtos]
+      summary: Editar produto
+      description: |
+        **Artesão** dono da loja ou **admin**. Técnica e categoria não mudam na edição.
+        Todos os campos editáveis são obrigatórios (a tela envia o formulário completo).
+      operationId: editarProduto
+      security:
+        - cookieSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CamposEditaveisProduto" }
+      responses:
+        "200":
+          description: Produto atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          description: Perfil sem permissão, ou o produto é de outro artesão
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Este produto pertence a outro artesão. }
+        "404":
+          $ref: "#/components/responses/ProdutoNaoEncontrado"
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /produtos/{id}/relacionados:
+    get:
+      tags: [Catálogo]
+      summary: Produtos relacionados
+      description: Produtos da mesma técnica, sem o próprio produto (RF-01). Id inexistente devolve lista vazia.
+      operationId: listarRelacionados
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdProduto"
+        - name: limite
+          in: query
+          description: Quantidade máxima (1 a 20; fora disso é ajustado)
+          schema: { type: integer, minimum: 1, maximum: 20, default: 3 }
+      responses:
+        "200":
+          description: Lista de produtos (pode ser vazia)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /produtos/{id}/avaliacoes:
+    get:
+      tags: [Catálogo]
+      summary: Resumo das avaliações do produto
+      description: Média e quantidade. Produto sem avaliação (ou inexistente) devolve zeros.
+      operationId: resumirAvaliacoes
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdProduto"
+      responses:
+        "200":
+          description: Resumo das avaliações
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResumoAvaliacoes" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /artesaos/{id}:
+    get:
+      tags: [Catálogo]
+      summary: Perfil público do artesão
+      operationId: buscarPerfilArtesao
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do artesão (tabela `artesao`) ou id legado (`a2`)
+          schema: { type: string, example: a2 }
+      responses:
+        "200":
+          description: Perfil com os produtos do artesão
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PerfilArtesao" }
+        "404":
+          description: Artesão não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Artesão não encontrado }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /pedidos:
+    get:
+      tags: [Pedidos]
+      summary: Listar pedidos visíveis para a sessão
+      description: |
+        Qualquer perfil logado. **Comprador** vê os próprios pedidos; **artesão** vê os pedidos que contêm
+        produto dele; **admin** vê todos. Mais recentes primeiro, cada um já com seus itens.
+      operationId: listarPedidos
+      security:
+        - cookieSessao: []
+      responses:
+        "200":
+          description: Lista de pedidos (pode ser vazia)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/PedidoComItens" }
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+    post:
+      tags: [Pedidos]
+      summary: Criar pedido (checkout)
+      description: |
+        Só **comprador**; o comprador é sempre o da sessão. Itens repetidos do mesmo produto são somados.
+        Preço e total vêm do banco (o cliente não envia valores). Pedido, itens e baixa de estoque são gravados
+        na mesma transação, com o estoque travado contra compras simultâneas. O pedido nasce `pendente`.
+      operationId: criarPedido
+      security:
+        - cookieSessao: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itens]
+              properties:
+                itens:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [produtoId, quantidade]
+                    properties:
+                      produtoId: { type: string, description: UUID ou id legado, example: p4 }
+                      quantidade: { type: integer, minimum: 1, maximum: 99, example: 2 }
+      responses:
+        "201":
+          description: Pedido criado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PedidoComItens" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "404":
+          description: Produto (ou comprador) não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Produto não encontrado. }
+        "409":
+          description: Estoque insuficiente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: "Só restam 3 unidade(s) de \"Escultura em Madeira - Leão\"." }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /pedidos/{id}:
+    patch:
+      tags: [Pedidos]
+      summary: Atualizar status do pedido
+      description: |
+        **Admin** muda para qualquer status. **Artesão** só marca como `enviado`, e só pedidos que contêm produto dele.
+      operationId: atualizarStatusPedido
+      security:
+        - cookieSessao: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do pedido
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/StatusPedido" }
+      responses:
+        "200":
+          description: Pedido atualizado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PedidoComItens" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          description: Perfil sem permissão, status não permitido ao artesão, ou pedido sem produto dele
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Este pedido não contém produtos seus. }
+        "404":
+          description: Pedido não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: Pedido não encontrado. }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /recomendacoes:
+    get:
+      tags: [Recomendações]
+      summary: Produtos recomendados
+      description: |
+        Comprador logado recebe recomendações pelo próprio histórico de compras; visitante (ou outro perfil)
+        recebe o cold start (mais bem avaliados e novidades). Produtos sem estoque nunca aparecem.
+        O comprador vem da sessão, nunca da URL.
+      operationId: listarRecomendacoes
+      security:
+        - {}
+        - cookieSessao: []
+      parameters:
+        - name: limite
+          in: query
+          description: Quantidade máxima (1 a 20; fora disso é ajustado)
+          schema: { type: integer, minimum: 1, maximum: 20, default: 4 }
+      responses:
+        "200":
+          description: Recomendações ordenadas por pontuação
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sucesso, origem, compradorId, total, dados]
+                properties:
+                  sucesso: { type: boolean, enum: [true] }
+                  origem: { type: string, example: baseline_ia_v1 }
+                  compradorId:
+                    type: string
+                    format: uuid
+                    nullable: true
+                    description: null para visitante
+                  total: { type: integer, example: 4 }
+                  dados:
+                    type: array
+                    items: { $ref: "#/components/schemas/ProdutoRecomendado" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /painel/estatisticas:
+    get:
+      tags: [Painel]
+      summary: Estatísticas de vendas do artesão logado
+      description: |
+        **Artesão** ou **admin** (o admin não tem loja, então recebe tudo zerado).
+        O histórico mostra os 6 meses até a venda mais recente (ou até o mês atual, se ainda não há vendas).
+      operationId: estatisticasPainel
+      security:
+        - cookieSessao: []
+      responses:
+        "200":
+          description: Estatísticas do painel
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EstatisticasPainel" }
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+components:
+  securitySchemes:
+    cookieSessao:
+      type: apiKey
+      in: cookie
+      name: raizes_sessao
+      description: |
+        Cookie httpOnly gravado por `/auth/login` e `/auth/cadastro`, assinado com HMAC-SHA256 e válido por 7 dias.
+        A cada requisição a API confere a assinatura, a validade e se o usuário ainda existe com o mesmo perfil.
+
+  headers:
+    SetCookieSessao:
+      description: "`raizes_sessao=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800` (mais `Secure` em produção)"
+      schema: { type: string }
+
+  parameters:
+    IdProduto:
+      name: id
+      in: path
+      required: true
+      description: UUID do produto ou id legado (`p1`)
+      schema: { type: string, example: p1 }
+
+  responses:
+    RequisicaoInvalida:
+      description: Corpo que não é JSON válido, ou campo com valor inválido (a mensagem diz qual)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example: { ok: false, erro: Corpo da requisição inválido. }
+    NaoAutenticado:
+      description: Sem sessão válida (cookie ausente, adulterado, vencido, ou usuário removido)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example: { ok: false, erro: Faça login para continuar. }
+    SemPermissao:
+      description: A sessão é de um perfil que não pode usar esta rota
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example: { ok: false, erro: Seu perfil não tem permissão para esta ação. }
+    ProdutoNaoEncontrado:
+      description: Produto não encontrado
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example: { ok: false, erro: Produto não encontrado. }
+    CorpoGrandeDemais:
+      description: Corpo acima de 4 MB
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example: { ok: false, erro: Corpo da requisição grande demais. }
+    ErroInterno:
+      description: Erro inesperado (a mensagem interna não é exposta)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Erro" }
+          example: { ok: false, erro: Erro interno do servidor }
+
+  schemas:
+    Erro:
+      type: object
+      required: [ok, erro]
+      properties:
+        ok: { type: boolean, enum: [false] }
+        erro: { type: string, description: "Mensagem em português, pronta para mostrar ao usuário" }
+
+    TipoUsuario:
+      type: string
+      enum: [comprador, artesao, admin]
+
+    Tecnica:
+      type: string
+      enum: [Cerâmica, Têxtil, Madeira, Renda e Bordado, Palha]
+
+    StatusPedido:
+      type: string
+      enum: [pendente, pago, enviado, entregue]
+
+    Usuario:
+      type: object
+      required: [id, nome, tipo]
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string, example: Ana Beatriz }
+        tipo: { $ref: "#/components/schemas/TipoUsuario" }
+
+    RespostaUsuario:
+      type: object
+      required: [usuario]
+      properties:
+        usuario: { $ref: "#/components/schemas/Usuario" }
+
+    ProdutoComArtesao:
+      type: object
+      required: [id, artesaoId, nome, descricao, tecnica, categoria, preco, estoqueQtd, dataCadastro, artesaoNome, artesaoRegiao]
+      properties:
+        id: { type: string, format: uuid }
+        artesaoId: { type: string, format: uuid }
+        nome: { type: string, example: Vaso de Cerâmica Maragogi }
+        descricao: { type: string }
+        tecnica: { $ref: "#/components/schemas/Tecnica" }
+        categoria: { type: string, example: Vasos }
+        preco: { type: number, format: double, example: 185 }
+        estoqueQtd: { type: integer, minimum: 0, example: 8 }
+        dataCadastro: { type: string, format: date, example: "2025-05-10" }
+        imagemUrl:
+          type: string
+          description: URL ou data URL da foto. Ausente quando o produto não tem foto (o front mostra a arte da técnica).
+        artesaoNome: { type: string, example: Mestre Vitalino Filho }
+        artesaoRegiao: { type: string, example: Caruaru }
+        artesaoUsuarioId:
+          type: string
+          format: uuid
+          description: Usuário dono da loja (usado pelo painel para saber se pode editar)
+
+    CamposEditaveisProduto:
+      type: object
+      required: [nome, descricao, preco, estoqueQtd]
+      properties:
+        nome: { type: string, minLength: 1, maxLength: 150, example: Bolsa de Palha }
+        descricao: { type: string, minLength: 1, example: Trançada à mão em palha de ouricuri. }
+        preco:
+          type: number
+          exclusiveMinimum: true
+          minimum: 0
+          maximum: 99999999.99
+          description: Em reais; arredondado para centavos. Aceita número ou texto numérico.
+          example: 59.9
+        estoqueQtd: { type: integer, minimum: 0, maximum: 1000000, example: 4 }
+        imagemUrl:
+          type: string
+          nullable: true
+          maxLength: 2800000
+          description: "`data:image/(png|jpeg|webp|gif);base64,...` de até ~2 MB, URL `http(s)://` ou caminho `/...`. Vazio ou null remove a foto."
+
+    NovoProduto:
+      allOf:
+        - $ref: "#/components/schemas/CamposEditaveisProduto"
+        - type: object
+          required: [tecnica, categoria]
+          properties:
+            tecnica: { $ref: "#/components/schemas/Tecnica" }
+            categoria: { type: string, minLength: 1, maxLength: 100, example: Bolsas }
+
+    ResumoAvaliacoes:
+      type: object
+      required: [media, quantidade]
+      properties:
+        media: { type: number, format: double, minimum: 0, maximum: 5, example: 4.5 }
+        quantidade: { type: integer, minimum: 0, example: 2 }
+
+    PerfilArtesao:
+      type: object
+      required: [id, nome, regiaoOrigem, biografia, produtos]
+      properties:
+        id: { type: string, format: uuid }
+        nome: { type: string }
+        regiaoOrigem: { type: string, example: Tacaratu }
+        biografia: { type: string }
+        produtos:
+          type: array
+          items: { $ref: "#/components/schemas/ProdutoComArtesao" }
+
+    ItemPedidoComProduto:
+      type: object
+      required: [id, pedidoId, produtoId, quantidade, precoUnitario, produtoNome, produtoTecnica, artesaoUsuarioId, artesaoNome]
+      properties:
+        id: { type: string, format: uuid }
+        pedidoId: { type: string, format: uuid }
+        produtoId: { type: string, format: uuid }
+        quantidade: { type: integer, minimum: 1, example: 2 }
+        precoUnitario: { type: number, format: double, description: Preço do produto no momento da compra, example: 95 }
+        produtoNome: { type: string }
+        produtoTecnica: { $ref: "#/components/schemas/Tecnica" }
+        artesaoUsuarioId: { type: string, format: uuid }
+        artesaoNome: { type: string }
+
+    PedidoComItens:
+      type: object
+      required: [id, compradorId, compradorNome, dataPedido, status, valorTotal, itens]
+      properties:
+        id: { type: string, format: uuid }
+        compradorId: { type: string, format: uuid }
+        compradorNome: { type: string }
+        dataPedido: { type: string, format: date, example: "2026-10-22" }
+        status: { $ref: "#/components/schemas/StatusPedido" }
+        valorTotal: { type: number, format: double, description: Soma dos itens (conferida pelo banco), example: 190 }
+        itens:
+          type: array
+          items: { $ref: "#/components/schemas/ItemPedidoComProduto" }
+
+    ProdutoRecomendado:
+      allOf:
+        - $ref: "#/components/schemas/ProdutoComArtesao"
+        - type: object
+          required: [motivo, score, criterio]
+          properties:
+            motivo: { type: string, description: Explicação amigável da recomendação, example: Inspirado no seu apreço por Cerâmica }
+            score: { type: number, example: 105 }
+            criterio:
+              type: string
+              enum: [historico_tecnica, historico_regiao, popularidade, novidade]
+
+    EstatisticasPainel:
+      type: object
+      required: [vendasDoMes, vendasDeltaPct, pedidosPendentes, historicoMensal, vendasPorTecnica]
+      properties:
+        vendasDoMes: { type: number, format: double, description: Faturamento do mês mais recente do histórico, example: 595 }
+        vendasDeltaPct: { type: integer, description: Variação percentual em relação ao mês anterior, example: 12 }
+        pedidosPendentes: { type: integer, minimum: 0, example: 1 }
+        historicoMensal:
+          type: array
+          minItems: 6
+          maxItems: 6
+          items:
+            type: object
+            required: [mes, faturamento, pedidos]
+            properties:
+              mes: { type: string, example: Out }
+              faturamento: { type: number, format: double }
+              pedidos: { type: integer }
+        vendasPorTecnica:
+          type: array
+          items:
+            type: object
+            required: [tecnica, totalVendido, porcentagem]
+            properties:
+              tecnica: { type: string }
+              totalVendido: { type: number, format: double }
+              porcentagem: { type: integer, minimum: 0, maximum: 100 }
