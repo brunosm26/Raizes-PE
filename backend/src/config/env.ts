@@ -28,8 +28,8 @@ function lerAmbiente(valor: string | undefined): Ambiente {
   return ambiente;
 }
 
-// Opcional: ausente durante `npm install`, `prisma generate` e `npm run build`.
-// Quem precisa do banco confere na hora de usar (veja config/prisma.ts).
+// Opcionais: ausentes durante `npm install`, `prisma generate` e `npm run build`.
+// Quem precisa do banco ou da sessão confere na hora de usar (veja config/prisma.ts).
 function lerOpcional(valor: string | undefined): string | undefined {
   return valor === undefined || valor.trim() === "" ? undefined : valor.trim();
 }
@@ -41,4 +41,5 @@ export const env = Object.freeze({
   DATABASE_URL: lerOpcional(process.env.DATABASE_URL),
   // Connection string direta do Neon, usada só pela CLI do Prisma (prisma.config.ts).
   DIRECT_URL: lerOpcional(process.env.DIRECT_URL),
+  SESSION_SECRET: lerOpcional(process.env.SESSION_SECRET),
 });
