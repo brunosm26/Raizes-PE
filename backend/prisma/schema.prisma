@@ -1,0 +1,144 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["origem"]
+}
+
+model Usuario {
+  id           String      @id(map: "pk_usuario") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nome         String      @db.VarChar(150)
+  email        String      @unique(map: "uq_usuario_email") @db.VarChar(150)
+  tipo         String      @db.VarChar(20)
+  dataCadastro DateTime    @default(dbgenerated("CURRENT_DATE")) @map("data_cadastro") @db.Date
+  senhaHash    String?     @map("senha_hash") @db.VarChar(200)
+  artesao      Artesao?
+  avaliacoes   Avaliacao[]
+  carrinho     Carrinho?
+  pedidos      Pedido[]
+
+  @@map("usuario")
+  @@schema("origem")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Artesao {
+  id           String    @id(map: "pk_artesao") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId    String    @unique(map: "uq_artesao_usuario") @map("usuario_id") @db.Uuid
+  regiaoOrigem String?   @map("regiao_origem") @db.VarChar(100)
+  biografia    String?
+  usuario      Usuario   @relation(fields: [usuarioId], references: [id], map: "fk_artesao_usuario")
+  produtos     Produto[]
+
+  @@index([regiaoOrigem], map: "idx_artesao_regiao_origem")
+  @@map("artesao")
+  @@schema("origem")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Avaliacao {
+  id            String   @id(map: "pk_avaliacao") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  produtoId     String   @map("produto_id") @db.Uuid
+  compradorId   String   @map("comprador_id") @db.Uuid
+  nota          Int
+  dataAvaliacao DateTime @default(dbgenerated("CURRENT_DATE")) @map("data_avaliacao") @db.Date
+  produto       Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade, map: "fk_avaliacao_produto")
+  comprador     Usuario  @relation(fields: [compradorId], references: [id], map: "fk_avaliacao_usuario")
+
+  @@unique([produtoId, compradorId], map: "uq_avaliacao_produto_comprador")
+  @@index([compradorId], map: "idx_avaliacao_comprador_id")
+  @@map("avaliacao")
+  @@schema("origem")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Carrinho {
+  id          String         @id(map: "pk_carrinho") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  compradorId String         @unique(map: "uq_carrinho_comprador") @map("comprador_id") @db.Uuid
+  dataCriacao DateTime       @default(dbgenerated("CURRENT_DATE")) @map("data_criacao") @db.Date
+  comprador   Usuario        @relation(fields: [compradorId], references: [id], onDelete: Cascade, map: "fk_carrinho_usuario")
+  itens       ItemCarrinho[]
+
+  @@map("carrinho")
+  @@schema("origem")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ItemCarrinho {
+  id         String   @id(map: "pk_item_carrinho") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  carrinhoId String   @map("carrinho_id") @db.Uuid
+  produtoId  String   @map("produto_id") @db.Uuid
+  quantidade Int
+  carrinho   Carrinho @relation(fields: [carrinhoId], references: [id], onDelete: Cascade, map: "fk_item_carrinho_carrinho")
+  produto    Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade, map: "fk_item_carrinho_produto")
+
+  @@unique([carrinhoId, produtoId], map: "uq_item_carrinho_carrinho_produto")
+  @@index([produtoId], map: "idx_item_carrinho_produto_id")
+  @@map("item_carrinho")
+  @@schema("origem")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model ItemPedido {
+  id            String  @id(map: "pk_item_pedido") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pedidoId      String  @map("pedido_id") @db.Uuid
+  produtoId     String  @map("produto_id") @db.Uuid
+  quantidade    Int
+  precoUnitario Decimal @map("preco_unitario") @db.Decimal(10, 2)
+  pedido        Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade, map: "fk_item_pedido_pedido")
+  produto       Produto @relation(fields: [produtoId], references: [id], map: "fk_item_pedido_produto")
+
+  @@index([pedidoId], map: "idx_item_pedido_pedido_id")
+  @@index([produtoId], map: "idx_item_pedido_produto_id")
+  @@map("item_pedido")
+  @@schema("origem")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Pedido {
+  id          String       @id(map: "pk_pedido") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  compradorId String       @map("comprador_id") @db.Uuid
+  dataPedido  DateTime     @default(dbgenerated("CURRENT_DATE")) @map("data_pedido") @db.Date
+  status      String       @default("pendente") @db.VarChar(20)
+  valorTotal  Decimal      @map("valor_total") @db.Decimal(10, 2)
+  itens       ItemPedido[]
+  comprador   Usuario      @relation(fields: [compradorId], references: [id], map: "fk_pedido_usuario")
+
+  @@index([compradorId], map: "idx_pedido_comprador_id")
+  @@map("pedido")
+  @@schema("origem")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model Produto {
+  id            String         @id(map: "pk_produto") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artesaoId     String         @map("artesao_id") @db.Uuid
+  nome          String         @db.VarChar(150)
+  tecnica       String?        @db.VarChar(100)
+  categoria     String?        @db.VarChar(100)
+  preco         Decimal        @db.Decimal(10, 2)
+  estoqueQtd    Int            @default(0) @map("estoque_qtd")
+  dataCadastro  DateTime       @default(dbgenerated("CURRENT_DATE")) @map("data_cadastro") @db.Date
+  descricao     String?
+  imagemUrl     String?        @map("imagem_url")
+  avaliacoes    Avaliacao[]
+  itensCarrinho ItemCarrinho[]
+  itensPedido   ItemPedido[]
+  artesao       Artesao        @relation(fields: [artesaoId], references: [id], map: "fk_produto_artesao")
+
+  @@index([artesaoId], map: "idx_produto_artesao_id")
+  @@index([categoria], map: "idx_produto_categoria")
+  @@index([dataCadastro(sort: Desc)], map: "idx_produto_data_cadastro")
+  @@index([tecnica], map: "idx_produto_tecnica")
+  @@map("produto")
+  @@schema("origem")
+}
