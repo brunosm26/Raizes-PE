@@ -1,5 +1,6 @@
 import { app } from "./app";
 import { env } from "./config/env";
+import { desconectarPrisma } from "./config/prisma";
 
 const servidor = app.listen(env.PORT, (erro?: Error) => {
   if (erro) {
@@ -12,7 +13,9 @@ const servidor = app.listen(env.PORT, (erro?: Error) => {
 // Encerra com calma ao receber Ctrl+C ou o sinal de parada do host.
 for (const sinal of ["SIGINT", "SIGTERM"] as const) {
   process.on(sinal, () => {
-    servidor.close(() => process.exit(0));
+    servidor.close(() => {
+      desconectarPrisma().finally(() => process.exit(0));
+    });
     // No Node 18 o close() espera as conexões keep-alive ociosas expirarem.
     servidor.closeIdleConnections();
   });
