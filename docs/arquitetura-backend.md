@@ -8,7 +8,7 @@
 
 A decisão da PI4-121 adotou a stack de referência da disciplina (Node.js, Express, Prisma e JWT), com o front em Next.js. O backend é o projeto Express em `backend/`, criado na PI4-127. As rotas que hoje vivem em `app/api/*` (route handlers do Next) e as funções de `lib/servidor/*` são portadas para lá, uma camada por vez, **sem mudar o contrato** (mesmo método, caminho, corpo, resposta de sucesso e código HTTP).
 
-Enquanto o Prisma (PI4-128) não está pronto, os repositories usam o `pg` diretamente, com o mesmo SQL que já roda hoje. Quando o Prisma entrar, **só os arquivos de `repositories/` mudam**; services, controllers e rotas continuam iguais.
+Os repositories das rotas usam o `pg` diretamente (`config/db.ts`), com o mesmo SQL que já roda no Next. O Prisma (PI4-128) já está configurado (`config/prisma.ts`, `prisma/schema.prisma`), mas hoje só o `repositories/popularidadeRepository.ts` o usa, e nenhuma rota chama esse repository. Se o time decidir passar os repositories para o Prisma, **só os arquivos de `repositories/` mudam**; services, controllers e rotas continuam iguais. *(Atualizado na PI4-135, 27/10/2026.)*
 
 ## 2. As camadas
 
@@ -46,7 +46,7 @@ Erros: qualquer camada lança `ErroHttp(status, mensagem)`; o middleware `tratad
 
 ## 3. Mapa: arquivo atual → camada de destino
 
-Os caminhos à esquerda são os da branch `feat/PI4-114-postgres-local` (onde a integração com o banco foi mergeada no PR #23). À direita, tudo é relativo a `backend/src/`.
+Os caminhos à esquerda são os do app Next (a integração com o banco do PR #23 chegou à `main` pelo PR #29). À direita, tudo é relativo a `backend/src/`.
 
 ### 3.1 Infraestrutura e utilitários
 
@@ -121,7 +121,8 @@ Middlewares reaproveitáveis: `exigirSessao(perfis?)` (401/403), `carregarSessao
 
 Pendências, todas fora do escopo da PI4-119:
 
-- **Prisma (PI4-128)** e **JWT (PI4-130)**: entram trocando só `repositories/` e `utils/tokenSessao.ts`, respectivamente.
+- **Prisma (PI4-128)**: já configurado (PR #28), mas os repositories das rotas continuam em `pg`; passar para o Prisma é decisão pendente do time e troca só `repositories/`.
+- **JWT (PI4-130)**: planejado; entra trocando só `utils/tokenSessao.ts` (ver `docs/estrategia-autenticacao.md`, seção 12).
 - **Front apontando para o Express (PI4-132)**: até lá o front continua usando os route handlers do Next, que respondem igual.
 - **`GET /api/artesaos` (lista) e `GET /api/filtros`**: nunca existiram no Next (fase 7 do `plano-migracao-api.md`), então não são migração; entram como rotas novas.
 
