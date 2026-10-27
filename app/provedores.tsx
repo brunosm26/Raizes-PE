@@ -5,6 +5,7 @@ import tema from "@/lib/tema";
 import Rodape from "@/components/Rodape";
 import GavetaCarrinho from "@/components/GavetaCarrinho";
 import { ProvedorCarrinho } from "@/lib/contextoCarrinho";
+import { ProvedorSessao } from "@/lib/contextoSessao";
 import { ProvedorPedidos } from "@/lib/contextoPedidos";
 import { ProvedorProdutos } from "@/lib/contextoProdutos";
 
@@ -15,15 +16,18 @@ export default function Provedores({ children }: { children: React.ReactNode }) 
           Os pedidos também: o painel do artesão e a área do comprador leem o mesmo estado.
           Produtos entra pelo mesmo motivo: o popup "Adicionar Produto" do painel precisa
           gravar o produto num lugar que sobreviva à navegação. */}
-      <ProvedorPedidos>
-        <ProvedorProdutos>
-          <ProvedorCarrinho>
-            {children}
-            <Rodape />
-            <GavetaCarrinho />
-          </ProvedorCarrinho>
-        </ProvedorProdutos>
-      </ProvedorPedidos>
+      {/* A sessão é a mais externa: pedidos e a barra de navegação dependem de quem está logado. */}
+      <ProvedorSessao>
+        <ProvedorPedidos>
+          <ProvedorProdutos>
+            <ProvedorCarrinho>
+              {children}
+              <Rodape />
+              <GavetaCarrinho />
+            </ProvedorCarrinho>
+          </ProvedorProdutos>
+        </ProvedorPedidos>
+      </ProvedorSessao>
     </ChakraProvider>
   );
 }

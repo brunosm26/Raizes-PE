@@ -29,7 +29,9 @@ import {
 import { FiArrowLeft, FiCheck } from "react-icons/fi";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import { useCarrinho } from "@/lib/contextoCarrinho";
-import { usePedidos, ID_COMPRADOR_DEMO } from "@/lib/contextoPedidos";
+import { usePedidos } from "@/lib/contextoPedidos";
+import { useSessao } from "@/lib/contextoSessao";
+import { numeroPedido } from "@/lib/idsLegados";
 import type { DadosEntrega } from "@/lib/tipos";
 import { aplicarMascara, formatarCep, formatarTelefone, somenteDigitos } from "@/lib/mascaras";
 
@@ -89,10 +91,13 @@ interface PedidoConfirmado {
 export default function Pagina() {
   const { itens, valorTotal, quantidadeTotal, limparCarrinho } = useCarrinho();
   const { criarPedido } = usePedidos();
+  const { usuario } = useSessao();
   const [etapa, setEtapa] = useState(0);
   const [dados, setDados] = useState<DadosEntrega>(DADOS_VAZIOS);
   const [errosVisiveis, setErrosVisiveis] = useState(false);
   const [pedido, setPedido] = useState<PedidoConfirmado | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [erroPedido, setErroPedido] = useState<string | null>(null);
 
   function preencher(campo: keyof DadosEntrega, valor: string) {
     setDados((atuais) => ({ ...atuais, [campo]: valor }));
@@ -135,15 +140,27 @@ export default function Pagina() {
   // Compra simulada: nenhum pagamento é processado. Mas o pedido passa a existir no
   // histórico do comprador, senão o número mostrado aqui não levaria a lugar nenhum.
   // Guardamos um resumo antes de limpar o carrinho, que é a fonte dos itens.
-  function confirmarPedido() {
-    const novoPedido = criarPedido(ID_COMPRADOR_DEMO, itens);
-    setPedido({
-      numero: novoPedido.id,
-      total: novoPedido.valorTotal,
-      quantidadeDePecas: quantidadeTotal,
-    });
-    limparCarrinho();
-    setEtapa(3);
+  async function confirmarPedido() {
+    if (enviando) return;
+    setEnviando(true);
+    setErroPedido(null);
+    try {
+      // O servidor grava pedido e itens numa transação e confere o estoque.
+      const novoPedido = await criarPedido(usuario?.id ?? "", itens);
+      setPedido({
+        numero: numeroPedido(novoPedido.id),
+        total: novoPedido.valorTotal,
+        quantidadeDePecas: quantidadeTotal,
+      });
+      limparCarrinho();
+      setEtapa(3);
+    } catch (erro) {
+      setErroPedido(
+        erro instanceof Error ? erro.message : "Não foi possível registrar o pedido. Tente novamente."
+      );
+    } finally {
+      setEnviando(false);
+    }
   }
 
   function campoDeTexto(campo: keyof DadosEntrega, placeholder?: string) {
@@ -361,6 +378,14 @@ export default function Pagina() {
                   </Text>
                 </Flex>
 
+                {erroPedido && (
+                  <Box bg="muted" borderRadius="10px" p={4} role="alert">
+                    <Text fontSize="0.9rem" color="red.600" fontWeight={500}>
+                      {erroPedido}
+                    </Text>
+                  </Box>
+                )}
+
                 <Box bg="muted" borderRadius="10px" p={4}>
                   <Text fontSize="0.85rem" color="mutedFg">
                     Compra simulada: nada será cobrado agora. O artesão entra em contato pelo WhatsApp
@@ -389,7 +414,13 @@ export default function Pagina() {
               </Button>
             )}
 
-            <Button type="submit" variant="solid" size="lg">
+            <Button
+              type="submit"
+              variant="solid"
+              size="lg"
+              isLoading={enviando}
+              loadingText="Registrando..."
+            >
               {etapa < 2 ? "Continuar" : "Confirmar pedido"}
             </Button>
           </HStack>
