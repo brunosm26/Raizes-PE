@@ -485,7 +485,8 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 │   ├── CONTRATO_API.md       # Contrato inicial da API
 │   ├── arquitetura-backend.md # Camadas do backend e mapa da migração (PI4-122)
 │   ├── plano-migracao-api.md # Plano de migração do apiFalsa.ts para a API real
-│   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
+│   ├── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
+│   └── AUDITORIA_INPUTS.md   # Auditoria de tipagem e validação de inputs (PI4-91)
 ├── tests/                    # Suíte de testes automatizados (node --test)
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
 │   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
