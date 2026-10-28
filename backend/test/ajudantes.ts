@@ -142,9 +142,9 @@ export interface Api {
 
 // Sobe o app numa porta livre. O import é dinâmico para o env acima valer antes.
 export async function subirApi(): Promise<Api> {
-  const { app } = await import("../src/app");
-  const { fecharPool } = await import("../src/config/db");
-  const { COOKIE_SESSAO, criarToken } = await import("../src/utils/tokenSessao");
+  const { app } = await import("../src/app.js");
+  const { fecharPool } = await import("../src/config/db.js");
+  const { COOKIE_SESSAO, criarToken } = await import("../src/utils/tokenSessao.js");
   const servidor: Server = await new Promise((ok) => {
     const s = app.listen(0, () => ok(s));
   });

@@ -15,7 +15,7 @@ function b64url(texto: string): string {
 
 describe("token de sessão (JWT HS256)", () => {
   it("cria e lê o token com sub, nome, tipo, iat e exp de 7 dias", async () => {
-    const { criarToken, lerToken, DURACAO_SESSAO_SEG } = await import("../src/utils/tokenSessao");
+    const { criarToken, lerToken, DURACAO_SESSAO_SEG } = await import("../src/utils/tokenSessao.js");
     const token = await criarToken(COMPRADOR);
     assert.equal(token.split(".").length, 3);
 
@@ -30,7 +30,7 @@ describe("token de sessão (JWT HS256)", () => {
   });
 
   it("recusa token adulterado (troca do perfil sem nova assinatura)", async () => {
-    const { criarToken, lerToken } = await import("../src/utils/tokenSessao");
+    const { criarToken, lerToken } = await import("../src/utils/tokenSessao.js");
     const [cabecalho, corpo, assinatura] = (await criarToken(COMPRADOR)).split(".");
     const claims = JSON.parse(Buffer.from(corpo!, "base64url").toString());
     const adulterado = `${cabecalho}.${b64url(JSON.stringify({ ...claims, tipo: "admin" }))}.${assinatura}`;
@@ -38,12 +38,12 @@ describe("token de sessão (JWT HS256)", () => {
   });
 
   it("recusa token expirado", async () => {
-    const { criarToken, lerToken } = await import("../src/utils/tokenSessao");
+    const { criarToken, lerToken } = await import("../src/utils/tokenSessao.js");
     assert.equal(await lerToken(await criarToken(COMPRADOR, -60)), null);
   });
 
   it('recusa alg "none" e outro algoritmo (HS512), mesmo com o segredo certo', async () => {
-    const { lerToken } = await import("../src/utils/tokenSessao");
+    const { lerToken } = await import("../src/utils/tokenSessao.js");
     const agora = Math.floor(Date.now() / 1000);
     const claims = { sub: COMPRADOR.id, nome: COMPRADOR.nome, tipo: COMPRADOR.tipo, iat: agora, exp: agora + 3600 };
     const semAssinatura = `${b64url(JSON.stringify({ alg: "none", typ: "JWT" }))}.${b64url(JSON.stringify(claims))}.`;
@@ -59,7 +59,7 @@ describe("token de sessão (JWT HS256)", () => {
   });
 
   it("recusa token assinado com outro segredo", async () => {
-    const { lerToken } = await import("../src/utils/tokenSessao");
+    const { lerToken } = await import("../src/utils/tokenSessao.js");
     const agora = Math.floor(Date.now() / 1000);
     const outro = await new SignJWT({ nome: COMPRADOR.nome, tipo: COMPRADOR.tipo })
       .setProtectedHeader({ alg: "HS256" })
@@ -71,12 +71,12 @@ describe("token de sessão (JWT HS256)", () => {
   });
 
   it("recusa o cookie no formato antigo (HMAC) sem lançar erro", async () => {
-    const { lerToken } = await import("../src/utils/tokenSessao");
+    const { lerToken } = await import("../src/utils/tokenSessao.js");
     assert.equal(await lerToken(tokenFormatoAntigo()), null);
   });
 
   it("recusa perfil fora de comprador, artesao e admin", async () => {
-    const { criarToken, lerToken } = await import("../src/utils/tokenSessao");
+    const { criarToken, lerToken } = await import("../src/utils/tokenSessao.js");
     const token = await criarToken({ ...COMPRADOR, tipo: "root" as never });
     assert.equal(await lerToken(token), null);
   });
@@ -86,8 +86,8 @@ describe("token de sessão (JWT HS256)", () => {
 // Este teste carrega o lib/sessao.ts do front (precisa do `npm install` na raiz).
 describe("compatibilidade com o front (lib/sessao.ts)", () => {
   it("token do Express é aceito pelo Next e token do Next é aceito pelo Express", async () => {
-    const express = await import("../src/utils/tokenSessao");
-    const next = await import("../../lib/sessao");
+    const express = await import("../src/utils/tokenSessao.js");
+    const next = await import("../../lib/sessao.js");
 
     const doExpress = await express.criarToken(COMPRADOR);
     assert.equal((await next.lerToken(doExpress))?.id, COMPRADOR.id);
@@ -100,8 +100,8 @@ describe("compatibilidade com o front (lib/sessao.ts)", () => {
   });
 
   it("os dois lados recusam o cookie antigo e o token expirado", async () => {
-    const express = await import("../src/utils/tokenSessao");
-    const next = await import("../../lib/sessao");
+    const express = await import("../src/utils/tokenSessao.js");
+    const next = await import("../../lib/sessao.js");
     assert.equal(await next.lerToken(tokenFormatoAntigo()), null);
     assert.equal(await next.lerToken(await express.criarToken(COMPRADOR, -60)), null);
     assert.equal(await express.lerToken(await next.criarToken(COMPRADOR, -60)), null);

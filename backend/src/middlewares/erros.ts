@@ -15,6 +15,8 @@ function erroDoCorpo(erro: unknown): ErroHttp | null {
 }
 
 // Tratador final de erros. Erros inesperados (500) não expõem a mensagem interna.
+// O Express só reconhece um tratador de erros pela aridade 4, então o _next fica.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const tratadorDeErros: ErrorRequestHandler = (erro, _req, res, _next) => {
   const conhecido = erro instanceof ErroHttp ? erro : erroDoCorpo(erro);
   if (conhecido) {
