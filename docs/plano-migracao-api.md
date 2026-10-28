@@ -77,7 +77,7 @@ Estas operações nunca existiram em `apiFalsa.ts` (viviam em estado local dos c
 
 O Express tem ainda `GET /api/saude` (saúde da API, sem banco) e a documentação da API em `/api-docs` (Swagger UI) e `/api-docs.json`.
 
-**Verificação das rotas de escrita e do painel no Express (PI4-131, 28/10/2026):** `GET/POST /api/pedidos`, `PATCH /api/pedidos/:id`, `POST /api/produtos`, `PATCH /api/produtos/:id` e `GET /api/painel/estatisticas` têm as mesmas regras do Next.
+**Verificação das rotas de escrita e do painel no Express (PI4-131, 28/10/2026):** `GET/POST /api/pedidos`, `PATCH /api/pedidos/:id`, `POST /api/produtos`, `PATCH /api/produtos/:id` e `GET /api/painel/estatisticas` aplicam as regras de negócio abaixo, as mesmas do Next. O que muda é o **corpo de erro**: o Express responde `{ "ok": false, "erro": ... }` e as rotas de escrita do Next respondem só `{ "erro": ... }`. Status e mensagens são os mesmos. Hoje o front confere só o status, mas na PI4-132 qualquer código que leia `ok` ou compare o corpo inteiro precisa contar com essa diferença.
 
 - Sessão obrigatória (401) e perfil (403) no middleware `exigirSessao`.
 - Comprador e artesão vindos sempre da sessão: `compradorId`, `usuarioId`, `artesaoId`, `valorTotal` e `precoUnitario` enviados no corpo são ignorados.
@@ -90,7 +90,8 @@ O Express tem ainda `GET /api/saude` (saúde da API, sem banco) e a documentaç�
 Testes:
 
 - `backend/test/escritaSemBanco.test.ts`: 401, 403 e validação, sem banco.
-- `backend/test/pedidosProdutos.test.ts`: gravação, dono e identidade da sessão. Só roda com `TEST_DATABASE_URL` apontando para um banco **descartável**; o `test/ajudantes.ts` aborta se ela for igual ao banco do time.
+- `backend/test/pedidosProdutos.test.ts`: gravação, dono e identidade da sessão. Só roda com `TEST_DATABASE_URL` (definida no terminal) apontando para um banco **descartável**. O `test/ajudantes.ts` aborta se ela for o mesmo banco (host sem `-pooler`, porta e nome) de alguma `DATABASE_URL`/`DIRECT_URL` do ambiente, do `backend/.env` ou do `.env.local`/`.env` da raiz, e exige `TEST_DB_REMOTO_DESCARTAVEL=1` para host remoto. No fim, a suíte apaga os pedidos e produtos que criou e restaura o estoque.
+- `backend/test/travaBanco.test.ts`: testes unitários dessa trava.
 
 Na escrita, o front continua chamando o Next até a PI4-132.
 

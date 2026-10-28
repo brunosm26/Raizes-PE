@@ -99,6 +99,18 @@ A especificação fica em `openapi.yaml` (versionada) e também é servida crua 
 npm test
 ```
 
-No Windows com **Node 20**, o `npm test` falha com `Could not find '...\test\*.test.ts'` (o `cmd.exe` não expande o `*`, e o `node --test` só expande padrões a partir do Node 21). No Node 22 funciona. No Node 20, rode `npx tsx --test test/catalogoAuthPainel.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts`.
+No Windows com **Node 20**, o `npm test` falha com `Could not find '...\test\*.test.ts'` (o `cmd.exe` não expande o `*`, e o `node --test` só expande padrões a partir do Node 21). No Node 22 funciona. No Node 20, rode `npx tsx --test test/catalogoAuthPainel.test.ts test/escritaSemBanco.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts test/tokenSessao.test.ts test/travaBanco.test.ts`.
 
-Sobe o app numa porta livre e chama as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 400, 404, spec x rotas). Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`. **Nunca** aponte para o Neon do time.
+Sobe o app numa porta livre e chama as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
+
+Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`. **Nunca** aponte para o Neon do time. A variável vai **no terminal**, não no `backend/.env` (os testes não leem o `.env` para ela):
+
+```bash
+# cmd
+set TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/raizes_teste
+# PowerShell
+$env:TEST_DATABASE_URL="postgresql://postgres@127.0.0.1:5432/raizes_teste"
+npm test
+```
+
+Trava (`test/ajudantes.ts`): os testes abortam se a `TEST_DATABASE_URL` for o mesmo banco (host sem `-pooler`, porta e nome; a query é ignorada) de alguma `DATABASE_URL` ou `DIRECT_URL` do ambiente, do `backend/.env` ou do `.env.local`/`.env` da raiz. Para host que não seja `localhost`, `127.0.0.1` ou `::1` (por exemplo, uma branch do Neon criada só para testes), defina também `TEST_DB_REMOTO_DESCARTAVEL=1`. A suíte de pedidos e produtos apaga, no fim, o que criou e restaura o estoque. A de auth ainda deixa as contas de cadastro criadas.
