@@ -29,8 +29,8 @@ npm run dev
 ## Compilar e rodar a versão compilada
 
 ```bash
-npm run typecheck
-npm run build
+npm run typecheck   # o mesmo que npx tsc --noEmit: cobre src/, test/ e scripts/
+npm run build       # compila só src/ (tsconfig.build.json)
 npm start
 ```
 
@@ -93,13 +93,25 @@ A especificação fica em `openapi.yaml` (versionada) e também é servida crua 
 
 `routes/` → `middlewares/` → `controllers/` → `services/` → `repositories/`. Services e repositories não importam `express`; só os repositories falam com o banco. Detalhes e o mapa da migração em [`docs/arquitetura-backend.md`](../docs/arquitetura-backend.md).
 
+## Lint
+
+```bash
+npm run lint
+```
+
+ESLint 10 com as regras recomendadas do ESLint e do typescript-eslint (sem regras de formatação), em `src/`, `test/` e `scripts/`. O `src/generated` (client do Prisma) fica de fora. A configuração está em `eslint.config.mjs`.
+
+O backend usa TypeScript **6.0** porque o typescript-eslint precisa da API JavaScript do compilador, que o TypeScript 7 (nativo) não tem. Antes de subir para o 7, confira se o typescript-eslint já dá suporte a ele.
+
 ## Testes
 
 ```bash
 npm test
 ```
 
-No Windows com **Node 20**, o `npm test` falha com `Could not find '...\test\*.test.ts'` (o `cmd.exe` não expande o `*`, e o `node --test` só expande padrões a partir do Node 21). No Node 22 funciona. No Node 20, rode `npx tsx --test test/catalogoAuthPainel.test.ts test/escritaSemBanco.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts test/tokenSessao.test.ts test/travaBanco.test.ts`.
+O `npm test` roda `scripts/rodar-testes.ts`, que lista os `test/**/*.test.ts` e chama o `tsx --test` com eles. Assim não depende de o shell expandir `*` e funciona no Node 20.19+ e no 22, no Windows (cmd e PowerShell) e no Linux. Argumentos extras vão para o `node --test`, por exemplo `npm test -- --test-reporter=spec`. Para rodar um arquivo só, use `npx tsx --test test/tokenSessao.test.ts` (o `--test-name-pattern` aplicado a todos os arquivos trava, porque os arquivos sem teste correspondente sobem a API e não a fecham). Arquivo novo em `test/` terminado em `.test.ts` entra sozinho.
+
+Testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pontuação das recomendações) e `utilitarios.test.ts` (cookies, ids, query, limite, senha e `ErroHttp`).
 
 Sobe o app numa porta livre e chama as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
 
