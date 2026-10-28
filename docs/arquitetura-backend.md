@@ -128,7 +128,7 @@ Pendências, todas fora do escopo da PI4-119:
 
 ### Testes
 
-`cd backend && npm test` sobe o app numa porta livre e chama as rotas com `fetch` (`node:test`). Os testes que não tocam o banco (401, 400, 404, logout) rodam sempre. Os que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável**, carregado com `db/01`, `04`, `05`, `06` e `07`; nunca use o Neon do time.
+`cd backend && npm test` sobe o app numa porta livre e chama as rotas com `fetch` (`node:test`). Os testes que não tocam o banco (401, 400, 404, logout) rodam sempre. Os que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` (definida no terminal, não no `backend/.env`) apontando para um banco **descartável**, carregado com `db/01`, `04`, `05`, `06` e `07`; nunca use o Neon do time. A trava em `test/ajudantes.ts` aborta se for o mesmo banco do time e exige `TEST_DB_REMOTO_DESCARTAVEL=1` para host remoto (ver `backend/README.md`).
 
 ## 5. Contrato
 

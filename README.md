@@ -389,7 +389,9 @@ Cada projeto tem o seu arquivo, e nenhum dos dois vai para o GitHub:
 | Arquivo | Quem lê | Variáveis | Modelo |
 |---|---|---|---|
 | `.env.local` (raiz) | App Next | `DATABASE_URL`, `SESSION_SECRET` | `.env.example` |
-| `backend/.env` | API Express e CLI do Prisma | `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `PORT` (padrão 4000), `NODE_ENV`; `TEST_DATABASE_URL` só para testes | `backend/.env.example` |
+| `backend/.env` | API Express e CLI do Prisma | `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `PORT` (padrão 4000), `NODE_ENV` | `backend/.env.example` |
+
+A `TEST_DATABASE_URL` (testes do backend que gravam no banco) **não** vai em arquivo: defina no terminal (cmd: `set TEST_DATABASE_URL=...`; PowerShell: `$env:TEST_DATABASE_URL="..."`), sempre com um banco descartável. Detalhes em [`backend/README.md`](backend/README.md#testes).
 
 - O `SESSION_SECRET` deve ser **o mesmo** nos dois arquivos, para o front e a API aceitarem o mesmo cookie de sessão.
 - No painel do Neon, ambas as strings ficam em **Connect** e terminam em `?sslmode=require`:
@@ -431,7 +433,7 @@ Para conferir se ficou correto, cole o conteúdo de `db/validacao_resumo.sql` no
 - **Erro de conexão no `npm run dev` ou em `/api/saude-bd`:** confira a `DATABASE_URL` do `.env.local` (a string deve terminar com `?sslmode=require`) e reinicie o servidor. O Neon pode levar alguns segundos para "acordar" na primeira consulta; tente de novo.
 - **Login falha com erro de servidor:** confira se o `SESSION_SECRET` está preenchido no `.env.local` (mínimo de 32 caracteres) e reinicie o `npm run dev`.
 - **`relation "produto" does not exist` no SQL Editor:** o esquema não foi selecionado. Execute `SET search_path TO origem;` junto com a consulta.
-- **`npm test` falha no Windows com `Could not find '...\tests\*.test.mjs'`** (ou `...\backend\test\*.test.ts`): acontece no **Node 20**, porque o `cmd.exe` não expande o `*` e o `node --test` só passou a expandir padrões no Node 21. No Node 22 o `npm test` funciona normalmente. Se precisar ficar no Node 20, rode na raiz `node --test tests/` e, no `backend/`, `npx tsx --test test/catalogoAuthPainel.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts`.
+- **`npm test` falha no Windows com `Could not find '...\tests\*.test.mjs'`** (ou `...\backend\test\*.test.ts`): acontece no **Node 20**, porque o `cmd.exe` não expande o `*` e o `node --test` só passou a expandir padrões no Node 21. No Node 22 o `npm test` funciona normalmente. Se precisar ficar no Node 20, rode na raiz `node --test tests/` e, no `backend/`, `npx tsx --test test/catalogoAuthPainel.test.ts test/escritaSemBanco.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts test/tokenSessao.test.ts test/travaBanco.test.ts`.
 - **`EPERM: operation not permitted, rmdir ...src\generated...` no `prisma generate`:** acontece com o projeto dentro do OneDrive. Veja "Problemas comuns" em [`backend/README.md`](backend/README.md).
 
 **Antes de abrir um Pull Request**, rode os testes automatizados, o lint e o typecheck para manter a integridade do código:
