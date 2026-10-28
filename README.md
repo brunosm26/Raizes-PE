@@ -480,7 +480,7 @@ npm test   # inclui o teste que confere se openapi.yaml cobre todas as rotas
 
 ## 🔐 Login de Demonstração
 
-O login em `/login` é real: a senha é conferida contra o hash guardado em `usuario.senha_hash` (scrypt) e a sessão vai em um cookie `httpOnly` assinado com o `SESSION_SECRET`. Os scripts do banco já criam três contas de demonstração:
+O login em `/login` é real: a senha é conferida contra o hash guardado em `usuario.senha_hash` (scrypt) e a sessão vai em um cookie `httpOnly` com um JWT (HS256) assinado com o `SESSION_SECRET`. Os scripts do banco já criam três contas de demonstração:
 
 | Perfil | E-mail | Senha | Destino após login |
 |---|---|---|---|
@@ -521,7 +521,7 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 │   ├── servidor/             # Consultas SQL e regras que rodam só no servidor
 │   ├── motorRecomendacao.ts  # Baseline de IA para recomendação (lê o banco; só servidor)
 │   ├── tipos.ts              # Interfaces TypeScript (espelham o Modelo Lógico)
-│   ├── sessao.ts             # Cookie de sessão assinado (criar e ler) e perfis por área
+│   ├── sessao.ts             # Sessão em JWT no cookie (criar e ler) e perfis por área
 │   ├── dadosFalsos.ts        # Dados mockados (restam no admin e nos filtros; ver docs/plano-migracao-api.md)
 │   ├── apiFalsa.ts           # Funções de acesso a dados usadas pelas telas (a maioria já chama /api)
 │   ├── contextoSessao.tsx    # Usuário logado (Context API, via /api/auth/me)
@@ -533,7 +533,7 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 ├── docs/                     # Documentação do projeto
 │   ├── CONTRATO_API.md       # Contrato inicial da API
 │   ├── arquitetura-backend.md # Camadas do backend e mapa da migração (PI4-122)
-│   ├── estrategia-autenticacao.md # Sessão, senha, perfis e o plano do JWT (PI4-117)
+│   ├── estrategia-autenticacao.md # Sessão em JWT, senha e perfis (PI4-117, PI4-130)
 │   ├── plano-migracao-api.md # Plano de migração do apiFalsa.ts para a API real
 │   ├── RELATORIO_TESTES_W12.md # Relatório de testes e rastreabilidade (PI4-31)
 │   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
