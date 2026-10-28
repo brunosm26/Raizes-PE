@@ -48,13 +48,13 @@ Resposta esperada (status 200): `{"ok":true}`. No PowerShell, use `curl.exe`, e 
 
 ## Prisma
 
-O Prisma 7 lê o banco do Neon (esquema `origem`) pelo adapter `@prisma/adapter-pg`.
+O Prisma 7 lê o banco do Neon (esquema `origem`) pelo adapter `@prisma/adapter-pg`. **As rotas ainda não usam o Prisma:** os repositories delas falam com o banco pelo pool do `pg` (`src/config/db.ts`). Hoje só `src/repositories/popularidadeRepository.ts` usa o Prisma, exercitado pelo `npm run prisma:verificar`. Passar as rotas para o Prisma é decisão pendente do time.
 
 ### Preencher o `.env`
 
 Peça as connection strings a quem administra o banco, por um canal privado. No painel do Neon, ambas ficam em **Connect** e terminam em `?sslmode=require`:
 
-- `DATABASE_URL`: a connection string **pooled** (com *Connection pooling* ligado; o host tem `-pooler`). É a que o app usa em runtime: o pooler do Neon aguenta muitas conexões curtas.
+- `DATABASE_URL`: a connection string **pooled** (com *Connection pooling* ligado; o host tem `-pooler`). É a que a API usa em runtime (pelo pool do `pg` e pelo Prisma): o pooler do Neon aguenta muitas conexões curtas.
 - `DIRECT_URL`: a connection string **direta** (com o pooling desligado; o host não tem `-pooler`). É a que a CLI do Prisma usa (`prisma:pull`), porque a introspecção precisa de uma conexão de sessão comum.
 
 O aviso `SECURITY WARNING: The SSL modes 'prefer', 'require'...` vem do driver `pg` e é inofensivo: hoje `sslmode=require` já funciona como `verify-full`, o modo mais seguro.
@@ -75,7 +75,7 @@ Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver
 - **Relações com nomes claros:** `Pedido.comprador`, `Pedido.itens`, `Produto.itensPedido`, `Usuario.pedidos` etc.
 - **Sem enums no Prisma:** `usuario.tipo` e `pedido.status` são `VARCHAR` com `CHECK` no banco, não enums do Postgres, por isso ficam `String`.
 - **CHECKs, gatilhos e `SELECT ... FOR UPDATE` ficam no SQL**, e não são replicados no Prisma.
-- **A view `vw_popularidade_produto` não é modelo Prisma.** Ela é lida com `$queryRaw` em `src/repositories/popularidadeRepository.ts`, com o resultado tipado. Consultas pesadas (agregações, ranking, recomendação) também ficam em `$queryRaw` nos repositories.
+- **A view `vw_popularidade_produto` não é modelo Prisma.** Ela é lida com `$queryRaw` em `src/repositories/popularidadeRepository.ts`, com o resultado tipado. Hoje as consultas pesadas das rotas (agregações, ranking, recomendação) estão em SQL direto com o `pg` nos repositories; se forem para o Prisma, a orientação é usar `$queryRaw`, também nos repositories.
 - **Há um único client**, em `src/config/prisma.ts`. Ele é criado no primeiro uso (o servidor sobe sem `DATABASE_URL`) e desconectado quando o servidor é encerrado.
 
 ### Problemas comuns
@@ -98,5 +98,7 @@ A especificação fica em `openapi.yaml` (versionada) e também é servida crua 
 ```bash
 npm test
 ```
+
+No Windows com **Node 20**, o `npm test` falha com `Could not find '...\test\*.test.ts'` (o `cmd.exe` não expande o `*`, e o `node --test` só expande padrões a partir do Node 21). No Node 22 funciona. No Node 20, rode `npx tsx --test test/catalogoAuthPainel.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts`.
 
 Sobe o app numa porta livre e chama as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 400, 404, spec x rotas). Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`. **Nunca** aponte para o Neon do time.

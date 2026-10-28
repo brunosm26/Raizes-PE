@@ -275,8 +275,10 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
 - **Framer Motion**: Utilizado (internamente pelo Chakra UI) para transições e micro-animações.
 - **React Icons**: Coleção de ícones para identificação visual clara e intuitiva.
 - **ESLint**: Padronização do código (`npm run lint`), configurado em `eslint.config.mjs`.
-- **Express 5 + TypeScript** (`backend/`): API REST em camadas (routes, controllers, services, repositories), com PostgreSQL via `pg`.
+- **Express 5 + TypeScript** (`backend/`): API REST em camadas (routes, controllers, services, repositories). Os repositories das rotas acessam o PostgreSQL via `pg`.
+- **Prisma 7** (`backend/prisma/`, com `@prisma/adapter-pg`): configurado e conectado ao Neon (esquema `origem`, PI4-128). Hoje nenhuma rota usa o Prisma: as rotas continuam no `pg`, e a troca é decisão pendente do time (ver `docs/plano-migracao-api.md`).
 - **OpenAPI 3 + Swagger UI**: documentação da API versionada em `backend/openapi.yaml` e navegável em `/api-docs`.
+- **PostgreSQL no Neon**: o banco oficial do projeto (scripts em `db/`).
 
 ## 💡 Principais Funcionalidades
 
@@ -305,7 +307,11 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
   - Listagem do catálogo com a quantidade em estoque de cada peça.
   - Gestão dos pedidos recebidos, com a ação "marcar como enviado" que notifica o comprador em tempo real.
 
-> **Aviso:** o catálogo, os pedidos, os produtos do painel, o login e as recomendações já leem e gravam no PostgreSQL (veja "Como Rodar o Projeto Localmente"). Ainda usam dados mockados de `lib/dadosFalsos.ts` apenas as telas de administração de artesãos e categorias; o plano de migração está em `docs/plano-migracao-api.md`.
+> **Aviso:** o catálogo, os pedidos, os produtos do painel, o login e as recomendações já leem e gravam no PostgreSQL pelas rotas do Next (`app/api/*`), veja "Como Rodar o Projeto Localmente". Ainda usam dados mockados de `lib/dadosFalsos.ts`:
+> - a lista de artesãos do admin (`getArtesaos`/`getUsuarios`, usada em `/admin`, `/admin/artesaos` e `/admin/produtos`);
+> - as opções de região e categoria dos filtros da vitrine e de `/admin/categorias`.
+>
+> A aprovação de artesãos, a moderação de produtos e as categorias do admin ficam só no `localStorage` do navegador. O backend Express (`backend/`) já tem as mesmas rotas, mas **o front ainda não o chama** (PI4-132). O plano de migração está em `docs/plano-migracao-api.md`.
 >
 > Os pedidos, as mudanças de status e os produtos do painel ficam gravados no banco e dependem do usuário logado (veja "Login de Demonstração").
 
@@ -331,8 +337,8 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
 A aplicação roda **conectada a um banco PostgreSQL hospedado no [Neon](https://neon.tech)**, o banco oficial do projeto. O banco já está criado e carregado; para rodar o app você só precisa da connection string.
 
 **Pré-requisitos:**
-- [Node.js](https://nodejs.org/en/) 18 ou superior e `npm`.
-- A connection string do banco no Neon (peça ao responsável pelo banco, por um canal privado).
+- [Node.js](https://nodejs.org/en/) **22 LTS** (recomendado) e `npm`. O app Next aceita Node 18.18+, mas o backend exige `^20.19 || ^22.12 || >=24` por causa do Prisma 7. Com o Node 22, os dois rodam, e o `npm test` funciona também no Windows (veja "Problemas comuns").
+- As connection strings do banco no Neon (peça ao responsável pelo banco, por um canal privado; veja "Variáveis de ambiente").
 
 **Passo 1:** Clone o repositório e entre na pasta.
 ```bash
@@ -353,7 +359,7 @@ copy .env.example .env.local
 cp .env.example .env.local
 ```
 Abra o `.env.local` e preencha:
-- `DATABASE_URL`: a connection string do Neon.
+- `DATABASE_URL`: a connection string **pooled** do Neon.
 - `SESSION_SECRET`: um valor gerado por você, com
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
@@ -364,6 +370,44 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 npm run dev
 ```
 Acesse [http://localhost:3000](http://localhost:3000). Para testar a conexão com o banco, abra [http://localhost:3000/api/saude-bd](http://localhost:3000/api/saude-bd): deve responder com sucesso. Se mudar o `.env.local` com o servidor rodando, reinicie o `npm run dev`.
+
+Só isso já roda o site completo: hoje o front usa as rotas do próprio Next. O backend Express é opcional até a PI4-132 ligar o front a ele.
+
+### Front e backend juntos
+
+Use dois terminais, um para cada porta:
+
+| Terminal | Pasta | Comando | Endereço |
+|---|---|---|---|
+| 1. App Next (front + `app/api`) | raiz do projeto | `npm run dev` | <http://localhost:3000> |
+| 2. API Express | `backend/` | `npm install` (só na primeira vez) e depois `npm run dev` | <http://localhost:4000/api/saude> e <http://localhost:4000/api-docs> |
+
+### Variáveis de ambiente
+
+Cada projeto tem o seu arquivo, e nenhum dos dois vai para o GitHub:
+
+| Arquivo | Quem lê | Variáveis | Modelo |
+|---|---|---|---|
+| `.env.local` (raiz) | App Next | `DATABASE_URL`, `SESSION_SECRET` | `.env.example` |
+| `backend/.env` | API Express e CLI do Prisma | `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `PORT` (padrão 4000), `NODE_ENV`; `TEST_DATABASE_URL` só para testes | `backend/.env.example` |
+
+- O `SESSION_SECRET` deve ser **o mesmo** nos dois arquivos, para o front e a API aceitarem o mesmo cookie de sessão.
+- No painel do Neon, ambas as strings ficam em **Connect** e terminam em `?sslmode=require`:
+  - **pooled** (com *Connection pooling* ligado; o host tem `-pooler`): vai na `DATABASE_URL` dos dois arquivos. É a usada pelos apps em execução.
+  - **direta** (com o pooling desligado; o host não tem `-pooler`): vai na `DIRECT_URL` do `backend/.env`. É a usada só pela CLI do Prisma (`npm run prisma:pull`).
+
+### Scripts úteis
+
+| Onde | Comando | Faz |
+|---|---|---|
+| raiz | `npm run dev` / `npm run build` | Sobe / compila o app Next |
+| raiz | `npm test`, `npm run lint`, `npx tsc --noEmit` | Testes, lint e typecheck do front |
+| `backend/` | `npm run dev` / `npm run build` / `npm start` | Sobe a API em modo de desenvolvimento / compila / roda a versão compilada |
+| `backend/` | `npm run typecheck`, `npm test` | Typecheck e testes da API (incluem a conferência do `openapi.yaml`) |
+| `backend/` | `npm run prisma:generate` | Regera o client do Prisma (o `npm install` já faz isso) |
+| `backend/` | `npm run prisma:verificar` | **Só leitura:** conta as linhas das 8 tabelas e da view no Neon |
+
+Detalhes do Prisma, incluindo `prisma:pull`, estão em [`backend/README.md`](backend/README.md).
 
 ### Banco de dados (Neon)
 
@@ -387,6 +431,8 @@ Para conferir se ficou correto, cole o conteúdo de `db/validacao_resumo.sql` no
 - **Erro de conexão no `npm run dev` ou em `/api/saude-bd`:** confira a `DATABASE_URL` do `.env.local` (a string deve terminar com `?sslmode=require`) e reinicie o servidor. O Neon pode levar alguns segundos para "acordar" na primeira consulta; tente de novo.
 - **Login falha com erro de servidor:** confira se o `SESSION_SECRET` está preenchido no `.env.local` (mínimo de 32 caracteres) e reinicie o `npm run dev`.
 - **`relation "produto" does not exist` no SQL Editor:** o esquema não foi selecionado. Execute `SET search_path TO origem;` junto com a consulta.
+- **`npm test` falha no Windows com `Could not find '...\tests\*.test.mjs'`** (ou `...\backend\test\*.test.ts`): acontece no **Node 20**, porque o `cmd.exe` não expande o `*` e o `node --test` só passou a expandir padrões no Node 21. No Node 22 o `npm test` funciona normalmente. Se precisar ficar no Node 20, rode na raiz `node --test tests/` e, no `backend/`, `npx tsx --test test/catalogoAuthPainel.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts`.
+- **`EPERM: operation not permitted, rmdir ...src\generated...` no `prisma generate`:** acontece com o projeto dentro do OneDrive. Veja "Problemas comuns" em [`backend/README.md`](backend/README.md).
 
 **Antes de abrir um Pull Request**, rode os testes automatizados, o lint e o typecheck para manter a integridade do código:
 ```bash
@@ -418,7 +464,8 @@ O mapa completo (arquivo antigo → camada nova) e as regras estão em [`docs/ar
 ```bash
 cd backend
 npm install
-# crie o backend/.env a partir do .env.example, com a mesma DATABASE_URL e o mesmo SESSION_SECRET do .env.local
+# crie o backend/.env a partir do .env.example, com a mesma DATABASE_URL e o mesmo SESSION_SECRET
+# do .env.local, mais a DIRECT_URL (veja "Variáveis de ambiente")
 npm run dev
 ```
 
@@ -457,15 +504,14 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 
 ```text
 ├── app/                      # Roteamento do Next.js App Router
-│   ├── page.tsx              # Vitrine pública (inclui recomendações de IA)
-│   ├── api/                  # Rotas de API (produtos, pedidos, auth, painel, recomendações, saude-bd)
-│   ├── produto/[id]/         # Detalhe do produto
-│   ├── artesao/[id]/         # Perfil público do artesão
-│   ├── checkout/             # Wizard de finalização de compra
+│   ├── (publico)/            # Vitrine (page.tsx), produto/[id], artesao/[id], checkout, meus-pedidos
+│   ├── (auth)/               # login e cadastro
 │   ├── painel/               # Painel do artesão (inclui gráficos de vendas)
-│   ├── meus-pedidos/         # Área do comprador (acompanhamento de pedidos)
-│   ├── provedores.tsx        # Providers (Chakra UI, carrinho e pedidos)
+│   ├── admin/                # Painel administrativo
+│   ├── api/                  # Rotas de API do Next (produtos, pedidos, auth, artesaos, painel, recomendações, saude-bd)
+│   ├── provedores.tsx        # Providers (Chakra UI, sessão, carrinho, produtos e pedidos)
 │   └── layout.tsx            # Layout raiz
+├── middleware.ts             # Protege as páginas por perfil (lê o cookie de sessão)
 ├── components/               # Componentes reutilizáveis
 │   ├── SecaoRecomendados.tsx # Vitrine inteligente com badges explicativos de IA
 │   ├── GraficoVendas.tsx     # Visualização analítica com Recharts
@@ -475,34 +521,44 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 │   ├── servidor/             # Consultas SQL e regras que rodam só no servidor
 │   ├── motorRecomendacao.ts  # Baseline de IA para recomendação (lê o banco; só servidor)
 │   ├── tipos.ts              # Interfaces TypeScript (espelham o Modelo Lógico)
-│   ├── dadosFalsos.ts        # Dados mockados (restam só nas telas de admin; ver docs/plano-migracao-api.md)
+│   ├── sessao.ts             # Cookie de sessão assinado (criar e ler) e perfis por área
+│   ├── dadosFalsos.ts        # Dados mockados (restam no admin e nos filtros; ver docs/plano-migracao-api.md)
 │   ├── apiFalsa.ts           # Funções de acesso a dados usadas pelas telas (a maioria já chama /api)
+│   ├── contextoSessao.tsx    # Usuário logado (Context API, via /api/auth/me)
 │   ├── contextoCarrinho.tsx  # Estado do carrinho (Context API)
-│   ├── contextoPedidos.tsx   # Estado dos pedidos e avisos de envio (Context API)
+│   ├── contextoProdutos.tsx  # Produtos do painel (Context API, via /api/produtos)
+│   ├── contextoPedidos.tsx   # Estado dos pedidos e avisos de envio (Context API, via /api/pedidos)
 │   ├── tema.ts               # Design System no Chakra UI
 │   └── arteProduto.ts        # Padrões visuais no lugar das fotos
 ├── docs/                     # Documentação do projeto
 │   ├── CONTRATO_API.md       # Contrato inicial da API
 │   ├── arquitetura-backend.md # Camadas do backend e mapa da migração (PI4-122)
+│   ├── estrategia-autenticacao.md # Sessão, senha, perfis e o plano do JWT (PI4-117)
 │   ├── plano-migracao-api.md # Plano de migração do apiFalsa.ts para a API real
+│   ├── RELATORIO_TESTES_W12.md # Relatório de testes e rastreabilidade (PI4-31)
 │   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
 ├── tests/                    # Suíte de testes automatizados (node --test)
+│   ├── catalogo.test.mjs     # Testes do catálogo
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
 │   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
 ├── db/                       # Scripts SQL do banco (Neon) e consulta de validação
 ├── backend/                  # API REST em Express (ver "API em camadas")
 │   ├── openapi.yaml          # Especificação OpenAPI de todas as rotas (servida em /api-docs)
+│   ├── prisma/schema.prisma  # Modelos do Prisma, introspectados do esquema origem
+│   ├── prisma.config.ts      # Configuração da CLI do Prisma (usa a DIRECT_URL)
+│   ├── scripts/              # verificar-prisma.ts (npm run prisma:verificar, só leitura)
 │   ├── src/
 │   │   ├── routes/           # Rotas por recurso, montadas em /api
 │   │   ├── middlewares/      # Sessão/perfil e tratamento de erros
 │   │   ├── controllers/      # Entrada e saída HTTP
 │   │   ├── services/         # Regras de negócio e validação
-│   │   ├── repositories/     # SQL (PostgreSQL via pg)
-│   │   ├── config/           # env, pool do banco e carga da spec
+│   │   ├── repositories/     # SQL (pg nas rotas; Prisma só na view de popularidade)
+│   │   ├── config/           # env, pool do pg, client do Prisma e carga da spec
 │   │   ├── utils/            # ErroHttp, ids, senha, token de sessão
-│   │   └── types/            # Tipos de domínio
+│   │   ├── types/            # Tipos de domínio
+│   │   └── generated/        # Client do Prisma gerado pelo npm install (não versionado)
 │   └── test/                 # Testes de integração (node:test) e da spec
-├── .env.example              # Modelo das variáveis de ambiente (copiar para .env.local)
+├── .env.example              # Modelo das variáveis do app Next (copiar para .env.local)
 ├── ia/                       # Módulo de IA (AV2): serviço BentoML de recomendação e catálogo sintético
 ├── eslint.config.mjs         # Regras de lint
 └── package.json              # Scripts e dependências
