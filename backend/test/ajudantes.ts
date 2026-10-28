@@ -43,7 +43,7 @@ export async function subirApi(): Promise<Api> {
       await new Promise((ok) => servidor.close(ok));
       await fecharPool();
     },
-    cookie: async (usuario) => `${COOKIE_SESSAO}=${criarToken(usuario)}`,
+    cookie: async (usuario) => `${COOKIE_SESSAO}=${await criarToken(usuario)}`,
   };
 }
 

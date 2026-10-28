@@ -32,7 +32,7 @@ Passar os repositories do `pg` para o Prisma (ou manter os dois, cada um com seu
 Regras de arquitetura:
 
 - Código que usa `pg` fica **só no servidor** (`lib/servidor/*`, `app/api/*`, `lib/db.ts`, `lib/motorRecomendacao.ts`, e `backend/`). Componentes de cliente nunca importam esses arquivos (o driver precisa de `fs` e quebra o build do navegador). Quando a tela precisa do dado, ela chama a rota.
-- Toda rota de escrita pega o usuário **da sessão** (cookie assinado), nunca do corpo da requisição, e confere o perfil (`comprador`, `artesao`, `admin`) antes de tocar no banco. Vale no Next e no Express.
+- Toda rota de escrita pega o usuário **da sessão** (JWT no cookie `httpOnly`), nunca do corpo da requisição, e confere o perfil (`comprador`, `artesao`, `admin`) antes de tocar no banco. Vale no Next e no Express.
 - Pedido e itens são gravados na **mesma transação** (o gatilho do banco confere `valor_total = soma dos itens` no `COMMIT`). Estoque é travado com `SELECT ... FOR UPDATE`. No Express, a transação fica em `backend/src/repositories/transacao.ts`.
 - Erro 404 vira `undefined` na função do front (a tela mostra "não encontrado"); qualquer outro erro é lançado e a tela oferece "tentar de novo".
 
@@ -95,7 +95,7 @@ Princípio: **leitura primeiro, escrita depois, autenticação antes de qualquer
 | 9 | Backend Express em camadas com as mesmas rotas, OpenAPI e Swagger (PI4-119: PI4-122 a PI4-126; PRs #26 e #30) | Concluída |
 | 10 | Prisma no backend (PI4-128, PR #28) | **Em andamento**: Prisma configurado e conectado (lê as 8 tabelas e a view no `prisma:verificar`); os repositories das rotas continuam em `pg` (ver seção 1) |
 | 11 | Front chamando o Express em vez de `app/api/*` (URL base, CORS e cookie) e remoção de `app/api/*`, `lib/servidor/*` e `lib/db.ts` | **Planejada** (PI4-132) |
-| 12 | Sessão com JWT em cookie `httpOnly` (ver `docs/estrategia-autenticacao.md`, seção 12) | **Planejada** (PI4-130) |
+| 12 | Sessão com JWT (HS256, `jose`) em cookie `httpOnly`, no Next e no Express, com o mesmo `SESSION_SECRET` (ver `docs/estrategia-autenticacao.md`, seção 12) | Concluída (PI4-130) |
 
 Fases 1 a 6 vieram do PR #23, que só chegou à `main` pelo PR #29.
 
