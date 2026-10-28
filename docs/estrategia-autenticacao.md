@@ -204,7 +204,7 @@ O backend em `backend/` (PI4-119/PI4-124) tem as mesmas quatro rotas de autentic
 | `middlewares/sessao.ts` | `carregarSessao` e `exigirSessao(perfis?)` |
 | `controllers/authController.ts`, `routes/authRoutes.ts` | As quatro rotas de `/api/auth` |
 
-**O front ainda não usa essas rotas.** As telas chamam `/api/...` relativo, isto é, as rotas do Next na porta 3000. A ligação do front ao Express (URL base, CORS e cookie entre portas e domínios) é da **PI4-132** (planejada).
+**O front usa essas rotas quando a `BACKEND_URL` está definida** (PI4-132): as telas continuam chamando `/api/...` relativo e o Next repassa ao Express, então o cookie fica no domínio do site e o `middleware.ts` valida o mesmo JWT. Sem a variável, valem as rotas do Next na porta 3000. O modo de chamada direta em outra origem (CORS e `COOKIE_SAMESITE=none`) e seus limites estão em `docs/arquitetura-backend.md`, seção 3.5.
 
 ### Cuidados de segurança (valem para o Next e para o Express)
 

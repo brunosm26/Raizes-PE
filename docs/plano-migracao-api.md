@@ -16,7 +16,7 @@ Tela / contexto  ->  função de lib/apiFalsa.ts  ->  fetch /api/...  ->  lib/se
    (cliente)            (assinatura mantida)         (route handler)       (regras + SQL)
 ```
 
-Caminho **já implementado, mas ainda sem uso pelo front**: o backend Express em `backend/` (PI4-119) tem as mesmas rotas, com o mesmo contrato. A ligação do front a ele (URL base, CORS e cookie) é da **PI4-132** (planejada); depois dela, `app/api/*`, `lib/servidor/*` e `lib/db.ts` saem do Next.
+Caminho **opcional**: o backend Express em `backend/` (PI4-119) tem as mesmas rotas, com o mesmo contrato. O front passa a chamá-lo quando a `BACKEND_URL` está definida (PI4-132: `lib/apiUrl.ts`, `rewrites` no `next.config.mjs`, `CORS_ORIGIN` e `COOKIE_SAMESITE` no backend). `app/api/*`, `lib/servidor/*` e `lib/db.ts` continuam como alternativa e saem do Next só quando o time adotar o Express como padrão (fase 13).
 
 ```
 fetch <URL da API>/api/...  ->  routes -> middlewares -> controllers -> services -> repositories  ->  PostgreSQL (schema origem)
@@ -39,7 +39,7 @@ Regras de arquitetura:
 ## 2. Mapa completo: função de `apiFalsa.ts` → rota → tabelas
 
 Legenda de situação: **Migrada** (já lê do banco pelas rotas do Next), **Sem uso** (nenhuma tela chama mais; substituída pela rota indicada), **Pendente** (ainda lê o mock).
-Coluna **Express**: se a rota equivalente já existe em `backend/` (o front ainda não a chama; PI4-132).
+Coluna **Express**: se a rota equivalente já existe em `backend/` (o front a chama quando a `BACKEND_URL` está definida; PI4-132).
 
 ### 2.1 Leitura
 
@@ -93,7 +93,7 @@ Testes:
 - `backend/test/pedidosProdutos.test.ts`: gravação, dono e identidade da sessão. Só roda com `TEST_DATABASE_URL` (definida no terminal) apontando para um banco **descartável**. O `test/ajudantes.ts` aborta se ela for o mesmo banco (host sem `-pooler`, porta e nome) de alguma `DATABASE_URL`/`DIRECT_URL` do ambiente, do `backend/.env` ou do `.env.local`/`.env` da raiz, e exige `TEST_DB_REMOTO_DESCARTAVEL=1` para host remoto. No fim, a suíte apaga os pedidos e produtos que criou e restaura o estoque.
 - `backend/test/travaBanco.test.ts`: testes unitários dessa trava.
 
-Na escrita, o front continua chamando o Next até a PI4-132.
+Na escrita, o front chama o Next por padrão e o Express quando a `BACKEND_URL` está definida (PI4-132).
 
 ## 3. Ordem de migração e estado de cada fase
 
@@ -112,8 +112,9 @@ Princípio: **leitura primeiro, escrita depois, autenticação antes de qualquer
 | 8 | Limpeza: apagar as funções "Sem uso" de `apiFalsa.ts` e, por último, `dadosFalsos.ts` | **Pendente** (depende da fase 7 e de ajustar `tests/`) |
 | 9 | Backend Express em camadas com as mesmas rotas, OpenAPI e Swagger (PI4-119: PI4-122 a PI4-126; PRs #26 e #30) | Concluída |
 | 10 | Prisma no backend (PI4-128, PR #28) | **Em andamento**: Prisma configurado e conectado (lê as 8 tabelas e a view no `prisma:verificar`); os repositories das rotas continuam em `pg` (ver seção 1) |
-| 11 | Front chamando o Express em vez de `app/api/*` (URL base, CORS e cookie) e remoção de `app/api/*`, `lib/servidor/*` e `lib/db.ts` | **Planejada** (PI4-132) |
+| 11 | Front chamando o Express em vez de `app/api/*` (URL base, CORS e cookie): `lib/apiUrl.ts`, `rewrites` com `BACKEND_URL`, `CORS_ORIGIN` e `COOKIE_SAMESITE` | **Concluída**, opcional por variável de ambiente (PI4-132) |
 | 12 | Sessão com JWT (HS256, `jose`) em cookie `httpOnly`, no Next e no Express, com o mesmo `SESSION_SECRET` (ver `docs/estrategia-autenticacao.md`, seção 12) | Concluída (PI4-130) |
+| 13 | Remoção de `app/api/*`, `lib/servidor/*` e `lib/db.ts` | **Pendente** (depois de o time adotar o Express como padrão e validar login e escrita com o banco do time) |
 
 Fases 1 a 6 vieram do PR #23, que só chegou à `main` pelo PR #29.
 
