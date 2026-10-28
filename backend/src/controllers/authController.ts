@@ -13,8 +13,8 @@ const OPCOES_COOKIE: CookieOptions = {
   path: "/",
 };
 
-function gravarSessao(res: Response, usuario: UsuarioAutenticado): void {
-  res.cookie(COOKIE_SESSAO, criarToken(usuario), { ...OPCOES_COOKIE, maxAge: DURACAO_SESSAO_SEG * 1000 });
+async function gravarSessao(res: Response, usuario: UsuarioAutenticado): Promise<void> {
+  res.cookie(COOKIE_SESSAO, await criarToken(usuario), { ...OPCOES_COOKIE, maxAge: DURACAO_SESSAO_SEG * 1000 });
 }
 
 // Mesmo critério da versão no Next: primeiro IP do x-forwarded-for (proxy do deploy).
@@ -27,14 +27,14 @@ function ipDe(req: Request): string {
 // POST /api/auth/login  { email, senha, perfil? }
 export const login: RequestHandler = async (req, res) => {
   const usuario = await authService.entrar(req.body ?? {}, ipDe(req));
-  gravarSessao(res, usuario);
+  await gravarSessao(res, usuario);
   res.json({ usuario });
 };
 
 // POST /api/auth/cadastro  { nome, email, senha } → cria um comprador e já entra
 export const cadastro: RequestHandler = async (req, res) => {
   const usuario = await authService.cadastrarComprador(req.body ?? {});
-  gravarSessao(res, usuario);
+  await gravarSessao(res, usuario);
   res.status(201).json({ usuario });
 };
 

@@ -53,7 +53,7 @@ Os caminhos à esquerda são os do app Next (a integração com o banco do PR #2
 | Arquivo atual | Destino | Observação |
 |---|---|---|
 | `lib/db.ts` | `config/db.ts` | Pool único; `DATABASE_URL` validada em `config/env.ts` |
-| `lib/sessao.ts` (criar/ler token) | `utils/tokenSessao.ts` | Mesmo formato do cookie `raizes_sessao` (HMAC-SHA256), compatível com o `middleware.ts` do Next. A troca por JWT é da PI4-130 e fica isolada neste arquivo |
+| `lib/sessao.ts` (criar/ler token) | `utils/tokenSessao.ts` | Mesmo token do cookie `raizes_sessao`, compatível com o `middleware.ts` do Next: desde a PI4-130, um JWT HS256 (`jose`), nos dois lados |
 | `lib/sessao.ts` (`PERFIS_POR_AREA`) | Fica no front | Só o `middleware.ts` e a barra de navegação usam |
 | `lib/servidor/auth.ts` (`hashSenha`, `verificarSenha`) | `utils/senha.ts` | scrypt, sem mudança de formato |
 | `lib/servidor/auth.ts` (`obterSessao`, `exigirSessao`) | `middlewares/sessao.ts` | `carregarSessao` (opcional) e `exigirSessao(perfis?)` reaproveitáveis em qualquer rota |
@@ -122,7 +122,7 @@ Middlewares reaproveitáveis: `exigirSessao(perfis?)` (401/403), `carregarSessao
 Pendências, todas fora do escopo da PI4-119:
 
 - **Prisma (PI4-128)**: já configurado (PR #28), mas os repositories das rotas continuam em `pg`; passar para o Prisma é decisão pendente do time e troca só `repositories/`.
-- **JWT (PI4-130)**: planejado; entra trocando só `utils/tokenSessao.ts` (ver `docs/estrategia-autenticacao.md`, seção 12).
+- **JWT (PI4-130)**: concluído; no backend, a troca ficou em `utils/tokenSessao.ts`, com o `authController` e o `sessaoService` passando a aguardar o token assíncrono (ver `docs/estrategia-autenticacao.md`, seção 12).
 - **Front apontando para o Express (PI4-132)**: até lá o front continua usando os route handlers do Next, que respondem igual.
 - **`GET /api/artesaos` (lista) e `GET /api/filtros`**: nunca existiram no Next (fase 7 do `plano-migracao-api.md`), então não são migração; entram como rotas novas.
 
