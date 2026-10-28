@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import Module from "node:module";
 import { after, before, describe, it } from "node:test";
 import { cookieFormatoAntigo, json, subirApi, USUARIOS, type Api } from "./ajudantes";
+import * as usuarioRepositoryReal from "../src/repositories/usuarioRepository"; // depois do ajudantes (env de teste)
 
 // Rotas de escrita e do painel (PI4-131) SEM banco. O exigirSessao revalida o usuário no
 // banco a cada requisição; aqui só o buscarNomeETipo do usuarioRepository é trocado por um
@@ -14,12 +15,11 @@ const PERFIL_TROCADO = { id: "10000000-0000-4000-8000-0000000000fe", nome: "Ex-c
 
 function instalarDubleDeUsuarios(): void {
   const caminho = require.resolve("../src/repositories/usuarioRepository");
-  const real = require(caminho);
   const duble = new Module(caminho);
   duble.filename = caminho;
   duble.loaded = true;
   duble.exports = {
-    ...real,
+    ...usuarioRepositoryReal,
     async buscarNomeETipo(id: string) {
       if (id === PERFIL_TROCADO.id) return { nome: PERFIL_TROCADO.nome, tipo: "artesao" };
       const u = Object.values(USUARIOS).find((x) => x.id === id);
