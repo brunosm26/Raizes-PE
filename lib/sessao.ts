@@ -1,90 +1,69 @@
-// Cookie de sessão assinado (HMAC-SHA256). Usa só Web Crypto, então roda tanto nas rotas
-// da API (Node) quanto no middleware (Edge). O cookie guarda quem é o usuário e o perfil;
-// a assinatura impede o navegador de forjar ou alterar esses dados.
+// Sessão em JWT (HS256, biblioteca jose) guardado no cookie httpOnly "raizes_sessao".
+// A jose usa só Web Crypto, então roda tanto nas rotas da API (Node) quanto no middleware
+// (Edge). O token guarda quem é o usuário e o perfil; a assinatura impede o navegador de
+// forjar ou alterar esses dados. O backend Express (backend/src/utils/tokenSessao.ts)
+// emite e lê exatamente o mesmo formato, com o mesmo SESSION_SECRET.
+import { jwtVerify, SignJWT } from "jose";
 import type { TipoUsuario } from "./tipos";
 
 export const COOKIE_SESSAO = "raizes_sessao";
 export const DURACAO_SESSAO_SEG = 60 * 60 * 24 * 7; // 7 dias
 
 export interface DadosSessao {
-  id: string; // UUID do usuário
+  id: string; // UUID do usuário (claim "sub" do JWT)
   nome: string;
   tipo: TipoUsuario;
   exp: number; // epoch em segundos
 }
 
+// Só HS256: recusa "none" e qualquer outro algoritmo.
+const ALGORITMO = "HS256";
 const TIPOS: TipoUsuario[] = ["comprador", "artesao", "admin"];
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 
-function segredo(): string {
+function chave(): Uint8Array {
   const valor = process.env.SESSION_SECRET;
   if (!valor || valor.length < 32) {
     throw new Error(
       "SESSION_SECRET ausente ou curto demais. Defina no .env.local um valor aleatório de 32+ caracteres."
     );
   }
-  return valor;
+  return new TextEncoder().encode(valor);
 }
 
-async function chaveHmac(): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    "raw",
-    encoder.encode(segredo()),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"]
-  );
-}
-
-function paraBase64Url(bytes: Uint8Array): string {
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function deBase64Url(texto: string) {
-  const b64 = texto.replace(/-/g, "+").replace(/_/g, "/");
-  const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
+// Claims: sub = id do usuário, nome, tipo, iat e exp.
 export async function criarToken(
   usuario: Omit<DadosSessao, "exp">,
   duracaoSeg = DURACAO_SESSAO_SEG
 ): Promise<string> {
-  const dados: DadosSessao = { ...usuario, exp: Math.floor(Date.now() / 1000) + duracaoSeg };
-  const corpo = paraBase64Url(encoder.encode(JSON.stringify(dados)));
-  const assinatura = await crypto.subtle.sign("HMAC", await chaveHmac(), encoder.encode(corpo));
-  return `${corpo}.${paraBase64Url(new Uint8Array(assinatura))}`;
+  const agora = Math.floor(Date.now() / 1000);
+  return new SignJWT({ nome: usuario.nome, tipo: usuario.tipo })
+    .setProtectedHeader({ alg: ALGORITMO, typ: "JWT" })
+    .setSubject(usuario.id)
+    .setIssuedAt(agora)
+    .setExpirationTime(agora + duracaoSeg)
+    .sign(chave());
 }
 
-// Devolve os dados se a assinatura é válida e o token não expirou; senão null.
+// Devolve os dados se a assinatura é válida e o token não expirou; senão null (inclusive
+// para cookies no formato antigo "corpo.assinatura" e quando o SESSION_SECRET falta,
+// como antes da troca para JWT; o login, que chama criarToken, mostra esse erro).
 export async function lerToken(token: string | undefined | null): Promise<DadosSessao | null> {
   if (!token) return null;
-  const partes = token.split(".");
-  if (partes.length !== 2) return null;
   try {
-    const valido = await crypto.subtle.verify(
-      "HMAC",
-      await chaveHmac(),
-      deBase64Url(partes[1]),
-      encoder.encode(partes[0])
-    );
-    if (!valido) return null;
-    const dados = JSON.parse(decoder.decode(deBase64Url(partes[0]))) as Partial<DadosSessao>;
+    const { payload } = await jwtVerify(token, chave(), {
+      algorithms: [ALGORITMO],
+      requiredClaims: ["sub", "iat", "exp"],
+    });
+    const { sub, nome, tipo, exp } = payload;
     if (
-      typeof dados.id !== "string" ||
-      typeof dados.nome !== "string" ||
-      typeof dados.exp !== "number" ||
-      !TIPOS.includes(dados.tipo as TipoUsuario) ||
-      dados.exp < Math.floor(Date.now() / 1000)
+      typeof sub !== "string" ||
+      typeof nome !== "string" ||
+      typeof exp !== "number" ||
+      !TIPOS.includes(tipo as TipoUsuario)
     ) {
       return null;
     }
-    return dados as DadosSessao;
+    return { id: sub, nome, tipo: tipo as TipoUsuario, exp };
   } catch {
     return null;
   }
