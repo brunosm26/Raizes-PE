@@ -6,10 +6,11 @@ import type { UsuarioAutenticado } from "../types/dominio";
 import { lerCookie } from "../utils/cookies";
 import { COOKIE_SESSAO, criarToken, DURACAO_SESSAO_SEG } from "../utils/tokenSessao";
 
-const OPCOES_COOKIE: CookieOptions = {
+// SameSite=None só vale com Secure (HTTPS); por isso "none" força o Secure mesmo fora de produção.
+export const OPCOES_COOKIE: CookieOptions = {
   httpOnly: true,
-  sameSite: "lax",
-  secure: env.NODE_ENV === "production",
+  sameSite: env.COOKIE_SAMESITE,
+  secure: env.NODE_ENV === "production" || env.COOKIE_SAMESITE === "none",
   path: "/",
 };
 
@@ -40,7 +41,8 @@ export const cadastro: RequestHandler = async (req, res) => {
 
 // POST /api/auth/logout
 export const logout: RequestHandler = (_req, res) => {
-  res.cookie(COOKIE_SESSAO, "", { path: "/", maxAge: 0 });
+  // Mesmos atributos do cookie criado: com SameSite=None o navegador só aceita a limpeza se baterem.
+  res.cookie(COOKIE_SESSAO, "", { ...OPCOES_COOKIE, maxAge: 0 });
   res.json({ ok: true });
 };
 

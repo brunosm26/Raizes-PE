@@ -8,6 +8,9 @@ const AMBIENTES = ["development", "production", "test"] as const;
 
 export type Ambiente = (typeof AMBIENTES)[number];
 
+const SAMESITES = ["lax", "strict", "none"] as const;
+export type SameSite = (typeof SAMESITES)[number];
+
 function lerPorta(valor: string | undefined): number {
   if (valor === undefined || valor.trim() === "") return PORTA_PADRAO;
 
@@ -28,6 +31,26 @@ function lerAmbiente(valor: string | undefined): Ambiente {
   return ambiente;
 }
 
+function lerSameSite(valor: string | undefined): SameSite {
+  if (valor === undefined || valor.trim() === "") return "lax";
+
+  const sameSite = SAMESITES.find((v) => v === valor.trim().toLowerCase());
+  if (!sameSite) {
+    throw new Error(`COOKIE_SAMESITE inválido: "${valor}". Use ${SAMESITES.join(", ")}.`);
+  }
+  return sameSite;
+}
+
+// Origens do front liberadas por CORS: lista separada por vírgula, sem "/" no fim.
+// Vazia = sem CORS (o front fala com a API pela mesma origem, via proxy do Next).
+function lerOrigens(valor: string | undefined): readonly string[] {
+  if (valor === undefined) return [];
+  return valor
+    .split(",")
+    .map((origem) => origem.trim().replace(/\/+$/, ""))
+    .filter((origem) => origem !== "");
+}
+
 // Opcionais: ausentes durante `npm install`, `prisma generate` e `npm run build`.
 // Quem precisa do banco ou da sessão confere na hora de usar (veja config/prisma.ts).
 function lerOpcional(valor: string | undefined): string | undefined {
@@ -42,4 +65,8 @@ export const env = Object.freeze({
   // Connection string direta do Neon, usada só pela CLI do Prisma (prisma.config.ts).
   DIRECT_URL: lerOpcional(process.env.DIRECT_URL),
   SESSION_SECRET: lerOpcional(process.env.SESSION_SECRET),
+  // Origens do front aceitas por CORS (com cookies). Ex.: http://localhost:3000
+  CORS_ORIGIN: lerOrigens(process.env.CORS_ORIGIN),
+  // SameSite do cookie de sessão. "none" (só com HTTPS) é para front e API em domínios diferentes.
+  COOKIE_SAMESITE: lerSameSite(process.env.COOKIE_SAMESITE),
 });
