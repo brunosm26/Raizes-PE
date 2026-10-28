@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
 import { after, before, describe, it } from "node:test";
 import { SignJWT } from "jose";
-import { subirApi, USUARIOS, type Api } from "./ajudantes";
+import { cookieFormatoAntigo, subirApi, tokenFormatoAntigo, USUARIOS, type Api } from "./ajudantes";
 
 // Sessão em JWT (PI4-130). Nada aqui toca o banco. O ajudantes.ts já definiu um
 // SESSION_SECRET descartável antes de o código da API ser carregado.
@@ -12,13 +11,6 @@ const COMPRADOR = USUARIOS.comprador;
 
 function b64url(texto: string): string {
   return Buffer.from(texto).toString("base64url");
-}
-
-// Cookie no formato antigo (antes da PI4-130): "corpo.assinatura" com HMAC-SHA256.
-function tokenFormatoAntigo(): string {
-  const corpo = b64url(JSON.stringify({ ...COMPRADOR, exp: Math.floor(Date.now() / 1000) + 3600 }));
-  const assinatura = createHmac("sha256", SEGREDO).update(corpo).digest("base64url");
-  return `${corpo}.${assinatura}`;
 }
 
 describe("token de sessão (JWT HS256)", () => {
@@ -124,7 +116,7 @@ describe("rotas com o cookie antigo", () => {
   after(() => api.fechar());
 
   it("cookie no formato antigo conta como visitante (401 em rota protegida)", async () => {
-    const r = await fetch(`${api.url}/pedidos`, { headers: { cookie: `raizes_sessao=${tokenFormatoAntigo()}` } });
+    const r = await fetch(`${api.url}/pedidos`, { headers: { cookie: cookieFormatoAntigo() } });
     assert.equal(r.status, 401);
   });
 });

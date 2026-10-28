@@ -1,32 +1,127 @@
+import { createHmac } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
-import { join } from "node:path";
-import { parse } from "dotenv";
+import { basename, join } from "node:path";
+import { after, it } from "node:test";
 import type { Server } from "node:http";
 import type { TipoUsuario } from "../src/types/dominio";
 
 // Os testes que gravam no banco só rodam com TEST_DATABASE_URL apontando para um banco
-// DESCARTÁVEL (nunca o Neon do time): eles criam pedidos e produtos.
+// DESCARTÁVEL (nunca o Neon do time): eles criam pedidos e produtos. A variável vem só do
+// terminal; o backend/.env não é carregado aqui de propósito.
 export const bancoDeTeste = process.env.TEST_DATABASE_URL?.trim() || undefined;
-export const semBanco = bancoDeTeste ? false : "defina TEST_DATABASE_URL (banco descartável) para rodar";
+export const semBanco = bancoDeTeste ? false : "defina TEST_DATABASE_URL (banco descartável) no terminal para rodar";
 
-// Trava: aborta se a TEST_DATABASE_URL for a mesma connection string do banco do time
-// (DATABASE_URL ou DIRECT_URL, do ambiente ou do backend/.env). Nenhum valor é impresso.
-if (bancoDeTeste) {
-  const arquivoEnv = join(__dirname, "..", ".env");
-  const doArquivo = existsSync(arquivoEnv) ? parse(readFileSync(arquivoEnv)) : {};
-  const doTime = [process.env.DATABASE_URL, process.env.DIRECT_URL, doArquivo.DATABASE_URL, doArquivo.DIRECT_URL];
-  if (doTime.some((url) => url?.trim() === bancoDeTeste)) {
+export interface UrlDoTime {
+  fonte: string; // de onde veio (process.env, backend/.env...), para a mensagem de erro
+  variavel: string;
+  valor: string | undefined;
+}
+
+interface BancoNormalizado {
+  host: string;
+  porta: string;
+  banco: string;
+}
+
+const HOSTS_LOCAIS = new Set(["localhost", "127.0.0.1", "::1"]);
+
+// host em minúsculas e sem o "-pooler" do primeiro rótulo (pooled e direta do Neon são o
+// mesmo banco), porta (padrão 5432) e nome do banco. A query (sslmode etc.) é ignorada.
+function normalizarUrlBanco(url: string): BancoNormalizado | null {
+  let u: URL;
+  try {
+    u = new URL(url.trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "postgres:" && u.protocol !== "postgresql:") return null;
+  const host = u.hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1");
+  if (!host) return null;
+  const [primeiro, ...resto] = host.split(".");
+  return {
+    host: [primeiro!.replace(/-pooler$/, ""), ...resto].join("."),
+    porta: u.port || "5432",
+    banco: decodeURIComponent(u.pathname.replace(/^\//, "")) || decodeURIComponent(u.username),
+  };
+}
+
+// Trava pura: lança erro se a URL de teste não puder ser analisada, se for o mesmo banco de
+// alguma URL do time ou se for remota sem a confirmação explícita. Nenhum valor é impresso.
+export function conferirBancoDeTeste(urlTeste: string, doTime: UrlDoTime[], remotoDescartavel: boolean): void {
+  const teste = normalizarUrlBanco(urlTeste);
+  if (!teste) {
+    throw new Error("Não foi possível analisar a TEST_DATABASE_URL (esperado postgresql://usuario:senha@host:porta/banco).");
+  }
+  for (const { fonte, variavel, valor } of doTime) {
+    if (!valor?.trim()) continue;
+    const time = normalizarUrlBanco(valor);
+    if (!time) {
+      throw new Error(`Não foi possível analisar a ${variavel} de ${fonte} para comparar com a TEST_DATABASE_URL.`);
+    }
+    if (time.host === teste.host && time.porta === teste.porta && time.banco === teste.banco) {
+      throw new Error(
+        `TEST_DATABASE_URL aponta para o mesmo banco da ${variavel} de ${fonte} (o banco do time). ` +
+          "Use um banco DESCARTÁVEL (por exemplo, uma branch do Neon)."
+      );
+    }
+  }
+  if (!HOSTS_LOCAIS.has(teste.host) && !remotoDescartavel) {
     throw new Error(
-      "TEST_DATABASE_URL aponta para o mesmo banco do DATABASE_URL/DIRECT_URL (o banco do time). " +
-        "Use um banco DESCARTÁVEL (por exemplo, uma branch do Neon)."
+      "TEST_DATABASE_URL aponta para um host remoto. Se for um banco DESCARTÁVEL (por exemplo, uma branch do Neon " +
+        "só para testes), defina também TEST_DB_REMOTO_DESCARTAVEL=1 no terminal."
     );
   }
+}
+
+// Leitor mínimo de arquivo .env (CHAVE=valor, com ou sem aspas). Só devolve os pares:
+// não grava nada em process.env.
+export function lerArquivoEnv(caminho: string): Record<string, string> {
+  if (!existsSync(caminho)) return {};
+  const vars: Record<string, string> = {};
+  for (const linha of readFileSync(caminho, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(linha);
+    if (!m) continue;
+    const aspas = /^(["'])(.*)\1$/.exec(m[2]!);
+    vars[m[1]!] = aspas ? aspas[2]! : m[2]!.replace(/\s+#.*$/, "");
+  }
+  return vars;
+}
+
+if (bancoDeTeste) {
+  const raiz = join(__dirname, "..", "..");
+  const fontes: [string, Record<string, string | undefined>][] = [
+    ["process.env", process.env],
+    ["backend/.env", lerArquivoEnv(join(__dirname, "..", ".env"))],
+    [".env.local (raiz)", lerArquivoEnv(join(raiz, ".env.local"))],
+    [".env (raiz)", lerArquivoEnv(join(raiz, ".env"))],
+  ];
+  const doTime = fontes.flatMap(([fonte, vars]) =>
+    ["DATABASE_URL", "DIRECT_URL"].map((variavel) => ({ fonte, variavel, valor: vars[variavel] }))
+  );
+  conferirBancoDeTeste(bancoDeTeste, doTime, process.env.TEST_DB_REMOTO_DESCARTAVEL === "1");
 }
 
 process.env.DATABASE_URL = bancoDeTeste ?? "";
 process.env.SESSION_SECRET ??= "segredo-de-teste-com-mais-de-32-caracteres";
 process.env.NODE_ENV = "test";
+
+// Teste que precisa do banco: pulado sem TEST_DATABASE_URL, com um aviso no fim do arquivo
+// dizendo quantos foram pulados e como habilitar.
+let puladosSemBanco = 0;
+export function itComBanco(nome: string, fn: () => Promise<void>): void {
+  if (semBanco && puladosSemBanco++ === 0) {
+    after(() => {
+      console.warn(
+        `\n[aviso] ${puladosSemBanco} teste(s) com banco PULADOS em ${basename(process.argv[1] ?? "")}. ` +
+          "Para rodar, defina TEST_DATABASE_URL no terminal com um banco DESCARTÁVEL " +
+          '(cmd: set TEST_DATABASE_URL=...; PowerShell: $env:TEST_DATABASE_URL="..."). ' +
+          "Host remoto exige também TEST_DB_REMOTO_DESCARTAVEL=1.\n"
+      );
+    });
+  }
+  it(nome, { skip: semBanco }, fn);
+}
 
 // Usuários e produtos fixos da carga db/05_dados_raizes_pe.sql.
 export const USUARIOS = {
@@ -69,4 +164,17 @@ export function json(corpo: unknown, cookie?: string): RequestInit {
     headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
     body: JSON.stringify(corpo),
   };
+}
+
+// Token e cookie no formato antigo (antes da PI4-130): "corpo.assinatura" com HMAC-SHA256.
+export function tokenFormatoAntigo(): string {
+  const corpo = Buffer.from(JSON.stringify({ ...USUARIOS.comprador, exp: Math.floor(Date.now() / 1000) + 3600 })).toString(
+    "base64url"
+  );
+  const assinatura = createHmac("sha256", process.env.SESSION_SECRET as string).update(corpo).digest("base64url");
+  return `${corpo}.${assinatura}`;
+}
+
+export function cookieFormatoAntigo(): string {
+  return `raizes_sessao=${tokenFormatoAntigo()}`;
 }

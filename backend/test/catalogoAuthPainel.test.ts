@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import { json, semBanco, subirApi, USUARIOS, type Api } from "./ajudantes";
+import { itComBanco, json, subirApi, USUARIOS, type Api } from "./ajudantes";
 
 let api: Api;
 before(async () => {
@@ -45,8 +45,8 @@ describe("auth, catálogo, recomendações e painel: sem banco", () => {
   });
 });
 
-describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanco }, () => {
-  it("login de demonstração grava o cookie e /auth/me reconhece a sessão", async () => {
+describe("auth, catálogo, recomendações e painel: com banco", () => {
+  itComBanco("login de demonstração grava o cookie e /auth/me reconhece a sessão", async () => {
     const r = await fetch(`${api.url}/auth/login`, {
       method: "POST",
       ...json({ email: "ANA.BEATRIZ@raizespe.dev", senha: "demo123", perfil: "comprador" }),
@@ -60,7 +60,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.deepEqual(me, { usuario: { id: usuario.id, nome: usuario.nome, tipo: "comprador" } });
   });
 
-  it("login na aba errada responde 403 e senha errada responde 401, com freio após 5 falhas", async () => {
+  itComBanco("login na aba errada responde 403 e senha errada responde 401, com freio após 5 falhas", async () => {
     const aba = await fetch(`${api.url}/auth/login`, {
       method: "POST",
       ...json({ email: "tacaratu@raizespe.dev", senha: "demo123", perfil: "comprador" }),
@@ -77,7 +77,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.equal((await tentativa()).status, 429);
   });
 
-  it("cadastro cria comprador (201) e e-mail repetido dá 409", async () => {
+  itComBanco("cadastro cria comprador (201) e e-mail repetido dá 409", async () => {
     const corpo = { nome: "Comprador Teste", email: `teste.${Date.now()}@exemplo.com`, senha: "senha-segura" };
     const r = await fetch(`${api.url}/auth/cadastro`, { method: "POST", ...json(corpo) });
     assert.equal(r.status, 201);
@@ -85,7 +85,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.equal((await fetch(`${api.url}/auth/cadastro`, { method: "POST", ...json(corpo) })).status, 409);
   });
 
-  it("vitrine filtra por técnica e busca sem acento", async () => {
+  itComBanco("vitrine filtra por técnica e busca sem acento", async () => {
     const todos = await (await fetch(`${api.url}/produtos`)).json();
     assert.ok(todos.length >= 7);
 
@@ -96,7 +96,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.equal(busca.length, ceramica.length);
   });
 
-  it("produto aceita id legado, 404 para inexistente, relacionados e avaliações", async () => {
+  itComBanco("produto aceita id legado, 404 para inexistente, relacionados e avaliações", async () => {
     const p1 = await fetch(`${api.url}/produtos/p1`);
     assert.equal(p1.status, 200);
     const produto = await p1.json();
@@ -114,7 +114,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.equal(typeof av.quantidade, "number");
   });
 
-  it("perfil do artesão traz os produtos dele", async () => {
+  itComBanco("perfil do artesão traz os produtos dele", async () => {
     const r = await fetch(`${api.url}/artesaos/a2`);
     assert.equal(r.status, 200);
     const perfil = await r.json();
@@ -123,7 +123,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.equal((await fetch(`${api.url}/artesaos/a999`)).status, 404);
   });
 
-  it("recomendações: visitante recebe cold start, comprador recebe pela sessão", async () => {
+  itComBanco("recomendações: visitante recebe cold start, comprador recebe pela sessão", async () => {
     const visitante = await (await fetch(`${api.url}/recomendacoes?limite=2`)).json();
     assert.equal(visitante.sucesso, true);
     assert.equal(visitante.compradorId, null);
@@ -135,7 +135,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.ok(comprador.dados.length <= 4);
   });
 
-  it("painel: comprador 403, artesão recebe 6 meses de histórico", async () => {
+  itComBanco("painel: comprador 403, artesão recebe 6 meses de histórico", async () => {
     const comprador = await fetch(`${api.url}/painel/estatisticas`, {
       headers: { cookie: await api.cookie(USUARIOS.comprador) },
     });
@@ -148,7 +148,7 @@ describe("auth, catálogo, recomendações e painel: com banco", { skip: semBanc
     assert.equal(typeof est.pedidosPendentes, "number");
   });
 
-  it("saúde do banco conta os produtos", async () => {
+  itComBanco("saúde do banco conta os produtos", async () => {
     const r = await (await fetch(`${api.url}/saude-bd`)).json();
     assert.equal(r.ok, true);
     assert.equal(typeof r.produtos, "number");
