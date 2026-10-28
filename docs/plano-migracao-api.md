@@ -51,7 +51,7 @@ Coluna **Express**: se a rota equivalente já existe em `backend/` (o front aind
 | `getResumoAvaliacoes(produtoId)` | `GET /api/produtos/:id/avaliacoes` (média e quantidade) | `avaliacao` | **Migrada** | Existe |
 | `getPerfilArtesao(artesaoId)` | `GET /api/artesaos/:id` | `artesao`, `usuario`, `produto` | **Migrada** (perfil público) | Existe |
 | `getProdutosDoArtesao(usuarioId)` | `GET /api/produtos` filtrado por `artesaoUsuarioId` em `contextoProdutos` | `produto`, `artesao` | **Sem uso** (ainda é mock; remover) | — |
-| `getEstatisticasPainel(usuarioId)` | `GET /api/painel/estatisticas` (usa a sessão; artesão vê o próprio, admin vê o consolidado) | `pedido`, `item_pedido`, `produto`, `artesao` | **Sem uso** (a tela chama a rota; remover) | Existe |
+| `getEstatisticasPainel(usuarioId)` | `GET /api/painel/estatisticas` (usa a sessão; artesão vê o próprio; o admin não tem loja e recebe tudo zerado) | `pedido`, `item_pedido`, `produto`, `artesao` | **Sem uso** (a tela chama a rota; remover) | Existe |
 | `getProdutosBase()` | `GET /api/produtos` | `produto` | **Sem uso** (remover) | Existe |
 | `getPedidos()` e `getItensPedido()` | `GET /api/pedidos` (já devolve o pedido com seus itens; comprador vê os dele, artesão vê os que contêm produtos dele, admin vê todos) | `pedido`, `item_pedido`, `produto`, `usuario` | **Sem uso** (`contextoPedidos` usa a rota; remover) | Existe |
 | `getAvaliacoesTodas()` | Lida direto pelo servidor em `lib/motorRecomendacao.ts`; o front consome `GET /api/recomendacoes?limite=` | `avaliacao`, `produto`, `item_pedido` | **Sem uso** (remover) | Existe (`GET /api/recomendacoes`) |
@@ -76,6 +76,23 @@ Estas operações nunca existiram em `apiFalsa.ts` (viviam em estado local dos c
 | Teste de conexão | `GET /api/saude-bd` | público | conta os produtos (`SELECT count(*) FROM origem.produto`); usado na validação do setup | Existe |
 
 O Express tem ainda `GET /api/saude` (saúde da API, sem banco) e a documentação da API em `/api-docs` (Swagger UI) e `/api-docs.json`.
+
+**Verificação das rotas de escrita e do painel no Express (PI4-131, 28/10/2026):** `GET/POST /api/pedidos`, `PATCH /api/pedidos/:id`, `POST /api/produtos`, `PATCH /api/produtos/:id` e `GET /api/painel/estatisticas` têm as mesmas regras do Next.
+
+- Sessão obrigatória (401) e perfil (403) no middleware `exigirSessao`.
+- Comprador e artesão vindos sempre da sessão: `compradorId`, `usuarioId`, `artesaoId`, `valorTotal` e `precoUnitario` enviados no corpo são ignorados.
+- Dono do produto e do pedido conferido no service.
+- Preço, total e estoque lidos do banco com `SELECT ... FOR UPDATE`, com pedido e itens na mesma transação.
+- Quantidade inteira de 1 a 99 por linha.
+- Foto em data URL de até ~2 MB (corpo JSON de até 4 MB, acima disso 413).
+- Erros em `{ "ok": false, "erro": ... }`.
+
+Testes:
+
+- `backend/test/escritaSemBanco.test.ts`: 401, 403 e validação, sem banco.
+- `backend/test/pedidosProdutos.test.ts`: gravação, dono e identidade da sessão. Só roda com `TEST_DATABASE_URL` apontando para um banco **descartável**; o `test/ajudantes.ts` aborta se ela for igual ao banco do time.
+
+Na escrita, o front continua chamando o Next até a PI4-132.
 
 ## 3. Ordem de migração e estado de cada fase
 
