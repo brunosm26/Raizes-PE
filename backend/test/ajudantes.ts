@@ -1,11 +1,28 @@
+import { existsSync, readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { join } from "node:path";
+import { parse } from "dotenv";
 import type { Server } from "node:http";
 import type { TipoUsuario } from "../src/types/dominio";
 
 // Os testes que gravam no banco só rodam com TEST_DATABASE_URL apontando para um banco
 // DESCARTÁVEL (nunca o Neon do time): eles criam pedidos e produtos.
-export const bancoDeTeste = process.env.TEST_DATABASE_URL;
+export const bancoDeTeste = process.env.TEST_DATABASE_URL?.trim() || undefined;
 export const semBanco = bancoDeTeste ? false : "defina TEST_DATABASE_URL (banco descartável) para rodar";
+
+// Trava: aborta se a TEST_DATABASE_URL for a mesma connection string do banco do time
+// (DATABASE_URL ou DIRECT_URL, do ambiente ou do backend/.env). Nenhum valor é impresso.
+if (bancoDeTeste) {
+  const arquivoEnv = join(__dirname, "..", ".env");
+  const doArquivo = existsSync(arquivoEnv) ? parse(readFileSync(arquivoEnv)) : {};
+  const doTime = [process.env.DATABASE_URL, process.env.DIRECT_URL, doArquivo.DATABASE_URL, doArquivo.DIRECT_URL];
+  if (doTime.some((url) => url?.trim() === bancoDeTeste)) {
+    throw new Error(
+      "TEST_DATABASE_URL aponta para o mesmo banco do DATABASE_URL/DIRECT_URL (o banco do time). " +
+        "Use um banco DESCARTÁVEL (por exemplo, uma branch do Neon)."
+    );
+  }
+}
 
 process.env.DATABASE_URL = bancoDeTeste ?? "";
 process.env.SESSION_SECRET ??= "segredo-de-teste-com-mais-de-32-caracteres";

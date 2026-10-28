@@ -52,6 +52,39 @@ describe("pedidos e produtos: com banco", { skip: semBanco }, () => {
     assert.equal(depois.length, antes.length + 1);
   });
 
+  it("identidade e preço vêm do servidor: compradorId, valorTotal e precoUnitario do corpo são ignorados", async () => {
+    const r = await fetch(`${api.url}/pedidos`, {
+      method: "POST",
+      ...json(
+        {
+          compradorId: USUARIOS.admin.id,
+          valorTotal: 1,
+          status: "entregue",
+          itens: [{ produtoId: "p4", quantidade: 1, precoUnitario: 0.01 }],
+        },
+        await api.cookie(USUARIOS.comprador)
+      ),
+    });
+    assert.equal(r.status, 201);
+    const pedido = await r.json();
+    assert.equal(pedido.compradorId, USUARIOS.comprador.id);
+    assert.equal(pedido.status, "pendente");
+    assert.equal(pedido.valorTotal, 95);
+    assert.equal(pedido.itens[0].precoUnitario, 95);
+  });
+
+  it("artesão não vê pedido que só tem produto de outro artesão", async () => {
+    const r = await fetch(`${api.url}/pedidos`, {
+      method: "POST",
+      ...json({ itens: [{ produtoId: PRODUTO_DO_ARTESAO, quantidade: 1 }] }, await api.cookie(USUARIOS.comprador)),
+    });
+    const criado = await r.json();
+    const doOutro = await (await fetch(`${api.url}/pedidos`, { headers: { cookie: await api.cookie(USUARIOS.outroArtesao) } })).json();
+    assert.ok(!doOutro.some((p: { id: string }) => p.id === criado.id));
+    const doDono = await (await fetch(`${api.url}/pedidos`, { headers: { cookie: await api.cookie(USUARIOS.artesao) } })).json();
+    assert.ok(doDono.some((p: { id: string }) => p.id === criado.id));
+  });
+
   it("artesão não cria pedido (403) e quantidade acima do estoque dá 409", async () => {
     const r1 = await fetch(`${api.url}/pedidos`, {
       method: "POST",
@@ -92,6 +125,28 @@ describe("pedidos e produtos: com banco", { skip: semBanco }, () => {
     });
     assert.equal(enviado.status, 200);
     assert.equal((await enviado.json()).status, "enviado");
+  });
+
+  it("produto é sempre da loja do artesão da sessão: usuarioId e artesaoId do corpo são ignorados", async () => {
+    const r = await fetch(`${api.url}/produtos`, {
+      method: "POST",
+      ...json(
+        {
+          usuarioId: USUARIOS.outroArtesao.id,
+          artesaoId: "20000000-0000-4000-8000-000000000001",
+          nome: "Cesto de Teste",
+          descricao: "Teste",
+          tecnica: "Palha",
+          categoria: "Cestos",
+          preco: 20,
+          estoqueQtd: 1,
+        },
+        await api.cookie(USUARIOS.artesao)
+      ),
+    });
+    assert.equal(r.status, 201);
+    const produto = await r.json();
+    assert.equal(produto.artesaoId, "20000000-0000-4000-8000-000000000002"); // loja do Tacaratu
   });
 
   it("artesão cadastra produto (201) e não edita produto de outro (403)", async () => {
