@@ -16,33 +16,36 @@ import {
   Link as ChakraLink,
 } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { FiCompass, FiMapPin, FiShoppingCart, FiUser, FiHelpCircle } from "react-icons/fi";
-import { calcularRecomendacoes, ProdutoRecomendado } from "@/lib/motorRecomendacao";
+import { FiCompass, FiMapPin, FiShoppingCart, FiHelpCircle } from "react-icons/fi";
+import type { ProdutoRecomendado } from "@/lib/motorRecomendacao";
 import { useCarrinho } from "@/lib/contextoCarrinho";
+import { useSessao } from "@/lib/contextoSessao";
 import { estiloFundoProduto } from "@/lib/arteProduto";
 
-interface SecaoRecomendadosProps {
-  compradorIdInicial?: string;
-}
-
-export default function SecaoRecomendados({
-  compradorIdInicial = "u7", // Ana Beatriz como compradora demo padrão
-}: SecaoRecomendadosProps) {
-  const [compradorId, setCompradorId] = useState<string | undefined>(compradorIdInicial);
+export default function SecaoRecomendados() {
+  const { usuario, carregando } = useSessao();
+  // Comprador logado → recomendações pelo histórico dele; visitante e demais perfis → cold start.
+  // Quem decide é o servidor, pela sessão; aqui só recarregamos quando a pessoa entra ou sai.
+  const compradorId = usuario?.tipo === "comprador" ? usuario.id : undefined;
   const [recomendados, setRecomendados] = useState<ProdutoRecomendado[]>([]);
   const { itens, adicionarItem } = useCarrinho();
   const toast = useToast();
 
   useEffect(() => {
-    // Carrega recomendações geradas pelo motor da baseline de IA (busca os dados na API fake).
+    if (carregando) return;
     let ativo = true;
-    calcularRecomendacoes(compradorId, 4).then((resultado) => {
-      if (ativo) setRecomendados(resultado);
-    });
+    fetch("/api/recomendacoes?limite=4")
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((json: { dados?: ProdutoRecomendado[] }) => {
+        if (ativo) setRecomendados(json.dados ?? []);
+      })
+      .catch(() => {
+        if (ativo) setRecomendados([]);
+      });
     return () => {
       ativo = false;
     };
-  }, [compradorId]);
+  }, [compradorId, carregando]);
 
   function handleAdicionar(produto: ProdutoRecomendado) {
     adicionarItem(produto);
@@ -98,24 +101,6 @@ export default function SecaoRecomendados({
           </Text>
         </Box>
 
-        {/* Seletor de simulação de usuário: ótimo para avaliações e demonstrações da faculdade */}
-        <HStack spacing={2} bg="card" p={1.5} borderRadius="8px" border="1px solid" borderColor="border">
-          <Icon as={FiUser} color="mutedFg" ml={1} />
-          <Button
-            size="xs"
-            variant={ehModoHistorico ? "solid" : "ghost"}
-            onClick={() => setCompradorId("u7")}
-          >
-            Ana Beatriz (Histórico)
-          </Button>
-          <Button
-            size="xs"
-            variant={!ehModoHistorico ? "solid" : "ghost"}
-            onClick={() => setCompradorId(undefined)}
-          >
-            Novo Visitante (Cold Start)
-          </Button>
-        </HStack>
       </Flex>
 
       <SimpleGrid columns={{ base: 1, sm: 2, md: 4 }} spacing={5}>

@@ -13,14 +13,19 @@ import {
 } from "@chakra-ui/react";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import LinhaPedido from "@/components/LinhaPedido";
-import { usePedidos, ID_COMPRADOR_DEMO } from "@/lib/contextoPedidos";
+import { usePedidos } from "@/lib/contextoPedidos";
+import { useSessao } from "@/lib/contextoSessao";
 
 export default function Pagina() {
   const { pedidosDoComprador, notificacoesDoComprador, marcarNotificacoesComoLidas } =
     usePedidos();
+  const { usuario } = useSessao();
+  const compradorId = usuario?.id ?? "";
 
-  const pedidos = pedidosDoComprador(ID_COMPRADOR_DEMO);
-  const avisosNaoLidos = notificacoesDoComprador(ID_COMPRADOR_DEMO).filter((n) => !n.lida);
+  // O servidor já devolve só os pedidos do usuário logado; o filtro garante o mesmo aqui.
+  // (O admin, que vê todos os pedidos no servidor, não tem pedidos próprios.)
+  const pedidos = pedidosDoComprador(compradorId);
+  const avisosNaoLidos = notificacoesDoComprador(compradorId).filter((n) => !n.lida);
 
   return (
     <>
@@ -54,7 +59,7 @@ export default function Pagina() {
             </Box>
             <CloseButton
               aria-label="Fechar aviso de envio"
-              onClick={() => marcarNotificacoesComoLidas(ID_COMPRADOR_DEMO)}
+              onClick={() => marcarNotificacoesComoLidas(compradorId)}
             />
           </Alert>
         )}

@@ -24,8 +24,44 @@ require.extensions[".ts"] = function (module, filename) {
   module._compile(transpiled, filename);
 };
 
-const motorPath = path.join(rootDir, "lib", "motorRecomendacao.ts");
-const { calcularRecomendacoes } = require(motorPath);
+// O motor agora lê do PostgreSQL; a regra de pontuação (lib/rankingRecomendacao.ts) não
+// depende do banco. Os testes alimentam essa regra com os dados falsos, que têm o mesmo
+// conteúdo da carga db/05_dados_raizes_pe.sql.
+const { rankearRecomendacoes } = require(path.join(rootDir, "lib", "rankingRecomendacao.ts"));
+const dados = require(path.join(rootDir, "lib", "dadosFalsos.ts"));
+
+function montarEntrada(compradorId) {
+  const produtos = dados.produtos.map((p) => {
+    const artesao = dados.artesaos.find((a) => a.id === p.artesaoId);
+    const usuario = dados.usuarios.find((u) => u.id === artesao?.usuarioId);
+    return {
+      ...p,
+      artesaoNome: usuario?.nome ?? "Artesão de Pernambuco",
+      artesaoRegiao: artesao?.regiaoOrigem ?? "Pernambuco",
+    };
+  });
+
+  const avaliacoes = dados.produtos.flatMap((p) => {
+    const notas = dados.avaliacoes.filter((a) => a.produtoId === p.id).map((a) => a.nota);
+    if (notas.length === 0) return [];
+    return [{ produtoId: p.id, media: notas.reduce((s, n) => s + n, 0) / notas.length, qtd: notas.length }];
+  });
+
+  const idsPedidos = new Set(
+    dados.pedidos.filter((ped) => ped.compradorId === compradorId).map((ped) => ped.id)
+  );
+  const quantidades = new Map();
+  for (const item of dados.itensPedido.filter((i) => idsPedidos.has(i.pedidoId))) {
+    quantidades.set(item.produtoId, (quantidades.get(item.produtoId) ?? 0) + item.quantidade);
+  }
+  const comprados = Array.from(quantidades, ([produtoId, quantidade]) => ({ produtoId, quantidade }));
+
+  return { produtos, avaliacoes, comprados };
+}
+
+async function calcularRecomendacoes(compradorId, limite) {
+  return rankearRecomendacoes(montarEntrada(compradorId), limite);
+}
 
 test("Garante que nenhum produto com estoque zerado é recomendado (PI4-82)", async () => {
   const recomendacoes = await calcularRecomendacoes(undefined, 20);
