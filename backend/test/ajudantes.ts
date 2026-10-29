@@ -148,6 +148,10 @@ export async function subirApi(): Promise<Api> {
   const servidor: Server = await new Promise((ok) => {
     const s = app.listen(0, () => ok(s));
   });
+  // unref: no Node 22, com --test-name-pattern, num arquivo sem teste correspondente o
+  // after roda antes de o before terminar, e a API que sobe depois ficaria aberta, prendendo
+  // o processo. As requisições em andamento continuam segurando o processo normalmente.
+  servidor.unref();
   const { port } = servidor.address() as AddressInfo;
   return {
     url: `http://127.0.0.1:${port}/api`,

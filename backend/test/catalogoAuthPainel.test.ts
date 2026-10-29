@@ -6,7 +6,7 @@ let api: Api;
 before(async () => {
   api = await subirApi();
 });
-after(() => api.fechar());
+after(() => api?.fechar()); // com --test-name-pattern o after pode rodar antes do before (ver subirApi)
 
 function cookieDaResposta(r: Response): string {
   const cabecalho = r.headers.get("set-cookie") ?? "";

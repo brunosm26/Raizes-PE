@@ -99,7 +99,7 @@ A especificação fica em `openapi.yaml` (versionada) e também é servida crua 
 npm run lint
 ```
 
-ESLint 10 com as regras recomendadas do ESLint e do typescript-eslint (sem regras de formatação), em `src/`, `test/` e `scripts/`. O `src/generated` (client do Prisma) fica de fora. A configuração está em `eslint.config.mjs`.
+ESLint 10 com as regras recomendadas do ESLint e do typescript-eslint (sem regras de formatação), em `src/`, `test/`, `scripts/` e `prisma.config.ts`. O `src/generated` (client do Prisma) fica de fora. A configuração está em `eslint.config.mjs`.
 
 O backend usa TypeScript **6.0** porque o typescript-eslint precisa da API JavaScript do compilador, que o TypeScript 7 (nativo) não tem. Antes de subir para o 7, confira se o typescript-eslint já dá suporte a ele.
 
@@ -109,7 +109,9 @@ O backend usa TypeScript **6.0** porque o typescript-eslint precisa da API JavaS
 npm test
 ```
 
-O `npm test` roda `scripts/rodar-testes.ts`, que lista os `test/**/*.test.ts` e chama o `tsx --test` com eles. Assim não depende de o shell expandir `*` e funciona no Node 20.19+ e no 22, no Windows (cmd e PowerShell) e no Linux. Argumentos extras vão para o `node --test`, por exemplo `npm test -- --test-reporter=spec`. Para rodar um arquivo só, use `npx tsx --test test/tokenSessao.test.ts` (o `--test-name-pattern` aplicado a todos os arquivos trava, porque os arquivos sem teste correspondente sobem a API e não a fecham). Arquivo novo em `test/` terminado em `.test.ts` entra sozinho.
+O `npm test` roda `scripts/rodar-testes.ts`, que lista os `test/**/*.test.ts` e chama o `tsx --test` com eles. Assim não depende de o shell expandir `*` e funciona no Node 20.19+ e no 22, no Windows (cmd e PowerShell) e no Linux. Arquivos passados como argumento substituem a lista (`npm test -- test/tokenSessao.test.ts` roda só esse), e as outras opções vão para o `node --test` (`npm test -- --test-name-pattern=JWT`, `npm test -- --test-reporter=spec`). Arquivo novo em `test/` terminado em `.test.ts` entra sozinho.
+
+O `test/tokenSessao.test.ts` confere a compatibilidade com o `lib/sessao.ts` do front, que usa a `jose` instalada na raiz. Por isso o `npm test` e o `npm run typecheck` do backend precisam também do `npm install` na raiz do repositório.
 
 Testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pontuação das recomendações) e `utilitarios.test.ts` (cookies, ids, query, limite, senha e `ErroHttp`).
 

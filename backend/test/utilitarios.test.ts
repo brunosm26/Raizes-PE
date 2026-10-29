@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import "./ajudantes"; // ambiente de teste antes de carregar o service (sem banco)
-import { limitar } from "../src/services/catalogoService";
+import "./ajudantes"; // ambiente de teste (sem banco)
 import { lerCookie } from "../src/utils/cookies";
 import { ErroHttp } from "../src/utils/erroHttp";
 import { ehUuid, resolverId } from "../src/utils/ids";
@@ -54,7 +53,9 @@ describe("query e limite", () => {
     assert.equal(textoDaQuery([{ a: 1 }]), undefined);
   });
 
-  it("limitar usa o padrão quando não é número e prende entre 1 e o máximo", () => {
+  it("limitar usa o padrão quando não é número e prende entre 1 e o máximo", async () => {
+    // Import dinâmico: o service carrega o config/env, que só pode ser lido depois do ajudantes.
+    const { limitar } = await import("../src/services/catalogoService.js");
     assert.equal(limitar("5", 3), 5);
     assert.equal(limitar(undefined, 3), 3);
     assert.equal(limitar("abc", 3), 3);
