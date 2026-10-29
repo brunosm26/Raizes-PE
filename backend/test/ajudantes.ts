@@ -142,12 +142,16 @@ export interface Api {
 
 // Sobe o app numa porta livre. O import é dinâmico para o env acima valer antes.
 export async function subirApi(): Promise<Api> {
-  const { app } = await import("../src/app");
-  const { fecharPool } = await import("../src/config/db");
-  const { COOKIE_SESSAO, criarToken } = await import("../src/utils/tokenSessao");
+  const { app } = await import("../src/app.js");
+  const { fecharPool } = await import("../src/config/db.js");
+  const { COOKIE_SESSAO, criarToken } = await import("../src/utils/tokenSessao.js");
   const servidor: Server = await new Promise((ok) => {
     const s = app.listen(0, () => ok(s));
   });
+  // unref: no Node 22, com --test-name-pattern, num arquivo sem teste correspondente o
+  // after roda antes de o before terminar, e a API que sobe depois ficaria aberta, prendendo
+  // o processo. As requisições em andamento continuam segurando o processo normalmente.
+  servidor.unref();
   const { port } = servidor.address() as AddressInfo;
   return {
     url: `http://127.0.0.1:${port}/api`,

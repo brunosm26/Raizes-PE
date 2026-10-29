@@ -12,9 +12,11 @@ import { cookieFormatoAntigo, json, subirApi, USUARIOS, type Api } from "./ajuda
 const SEM_CONTA = { id: "10000000-0000-4000-8000-0000000000ff", nome: "Removido", tipo: "comprador" } as const;
 const PERFIL_TROCADO = { id: "10000000-0000-4000-8000-0000000000fe", nome: "Ex-comprador", tipo: "comprador" } as const;
 
-function instalarDubleDeUsuarios(): void {
+// O import é dinâmico, como no subirApi: o repository carrega o config/env, que só pode ser
+// lido depois de o ajudantes preparar o ambiente de teste.
+async function instalarDubleDeUsuarios(): Promise<void> {
   const caminho = require.resolve("../src/repositories/usuarioRepository");
-  const real = require(caminho);
+  const real = await import("../src/repositories/usuarioRepository.js");
   const duble = new Module(caminho);
   duble.filename = caminho;
   duble.loaded = true;
@@ -56,10 +58,10 @@ type Rota = (typeof ROTAS)[keyof typeof ROTAS];
 
 let api: Api;
 before(async () => {
-  instalarDubleDeUsuarios();
+  await instalarDubleDeUsuarios();
   api = await subirApi();
 });
-after(() => api.fechar());
+after(() => api?.fechar()); // com --test-name-pattern o after pode rodar antes do before (ver subirApi)
 
 async function chamar(rota: Rota, cookie?: string, corpo?: unknown) {
   const enviado = corpo ?? ("corpo" in rota ? rota.corpo : undefined);

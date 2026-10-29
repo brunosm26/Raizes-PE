@@ -337,7 +337,7 @@ O projeto foi construído utilizando um ecossistema moderno focado em alta perfo
 A aplicação roda **conectada a um banco PostgreSQL hospedado no [Neon](https://neon.tech)**, o banco oficial do projeto. O banco já está criado e carregado; para rodar o app você só precisa da connection string.
 
 **Pré-requisitos:**
-- [Node.js](https://nodejs.org/en/) **22 LTS** (recomendado) e `npm`. O app Next aceita Node 18.18+, mas o backend exige `^20.19 || ^22.12 || >=24` por causa do Prisma 7. Com o Node 22, os dois rodam, e o `npm test` funciona também no Windows (veja "Problemas comuns").
+- [Node.js](https://nodejs.org/en/) **22 LTS** (recomendado) e `npm`. O app Next aceita Node 18.18+, mas o backend exige `^20.19 || ^22.12 || >=24` por causa do Prisma 7. Com o Node 22, os dois rodam. O `npm test` dos dois projetos funciona no Node 20.19+ e no 22, no Windows (cmd e PowerShell) e no Linux.
 - As connection strings do banco no Neon (peça ao responsável pelo banco, por um canal privado; veja "Variáveis de ambiente").
 
 **Passo 1:** Clone o repositório e entre na pasta.
@@ -405,7 +405,7 @@ A `TEST_DATABASE_URL` (testes do backend que gravam no banco) **não** vai em ar
 | raiz | `npm run dev` / `npm run build` | Sobe / compila o app Next |
 | raiz | `npm test`, `npm run lint`, `npx tsc --noEmit` | Testes, lint e typecheck do front |
 | `backend/` | `npm run dev` / `npm run build` / `npm start` | Sobe a API em modo de desenvolvimento / compila / roda a versão compilada |
-| `backend/` | `npm run typecheck`, `npm test` | Typecheck e testes da API (incluem a conferência do `openapi.yaml`) |
+| `backend/` | `npm test`, `npm run lint`, `npx tsc --noEmit` (ou `npm run typecheck`) | Testes, lint e typecheck da API, cobrindo `src/`, `test/` e `scripts/` (os testes incluem a conferência do `openapi.yaml`) |
 | `backend/` | `npm run prisma:generate` | Regera o client do Prisma (o `npm install` já faz isso) |
 | `backend/` | `npm run prisma:verificar` | **Só leitura:** conta as linhas das 8 tabelas e da view no Neon |
 
@@ -433,7 +433,6 @@ Para conferir se ficou correto, cole o conteúdo de `db/validacao_resumo.sql` no
 - **Erro de conexão no `npm run dev` ou em `/api/saude-bd`:** confira a `DATABASE_URL` do `.env.local` (a string deve terminar com `?sslmode=require`) e reinicie o servidor. O Neon pode levar alguns segundos para "acordar" na primeira consulta; tente de novo.
 - **Login falha com erro de servidor:** confira se o `SESSION_SECRET` está preenchido no `.env.local` (mínimo de 32 caracteres) e reinicie o `npm run dev`.
 - **`relation "produto" does not exist` no SQL Editor:** o esquema não foi selecionado. Execute `SET search_path TO origem;` junto com a consulta.
-- **`npm test` falha no Windows com `Could not find '...\tests\*.test.mjs'`** (ou `...\backend\test\*.test.ts`): acontece no **Node 20**, porque o `cmd.exe` não expande o `*` e o `node --test` só passou a expandir padrões no Node 21. No Node 22 o `npm test` funciona normalmente. Se precisar ficar no Node 20, rode na raiz `node --test tests/` e, no `backend/`, `npx tsx --test test/catalogoAuthPainel.test.ts test/escritaSemBanco.test.ts test/openapi.test.ts test/pedidosProdutos.test.ts test/tokenSessao.test.ts test/travaBanco.test.ts`.
 - **`EPERM: operation not permitted, rmdir ...src\generated...` no `prisma generate`:** acontece com o projeto dentro do OneDrive. Veja "Problemas comuns" em [`backend/README.md`](backend/README.md).
 
 **Antes de abrir um Pull Request**, rode os testes automatizados, o lint e o typecheck para manter a integridade do código:
@@ -476,8 +475,9 @@ npm run dev
 **Antes de abrir um Pull Request no backend:**
 ```bash
 cd backend
-npm run typecheck
 npm test   # inclui o teste que confere se openapi.yaml cobre todas as rotas
+npm run lint
+npx tsc --noEmit
 ```
 
 ## 🔐 Login de Demonstração
@@ -539,10 +539,12 @@ Cada perfil só acessa o que é seu: o comprador vê `/meus-pedidos` e `/checkou
 │   ├── plano-migracao-api.md # Plano de migração do apiFalsa.ts para a API real
 │   ├── RELATORIO_TESTES_W12.md # Relatório de testes e rastreabilidade (PI4-31)
 │   └── BASELINE_IA.md        # Documentação e regras da Baseline de IA (U1)
+├── scripts/rodar-testes.mjs  # Lista os tests/**/*.test.mjs para o npm test (sem glob do shell)
 ├── tests/                    # Suíte de testes automatizados (node --test)
 │   ├── catalogo.test.mjs     # Testes do catálogo
 │   ├── mascaras.test.mjs     # Testes unitários de máscaras de input
-│   └── recomendacao.test.mjs # Testes do motor de recomendação inteligente
+│   ├── recomendacao.test.mjs # Testes do motor de recomendação inteligente
+│   └── sessao.test.mjs       # Sessão em JWT do front (lib/sessao.ts)
 ├── db/                       # Scripts SQL do banco (Neon) e consulta de validação
 ├── backend/                  # API REST em Express (ver "API em camadas")
 │   ├── openapi.yaml          # Especificação OpenAPI de todas as rotas (servida em /api-docs)

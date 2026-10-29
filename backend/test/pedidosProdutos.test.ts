@@ -17,7 +17,7 @@ let api: Api;
 before(async () => {
   api = await subirApi();
 });
-after(() => api.fechar());
+after(() => api?.fechar()); // com --test-name-pattern o after pode rodar antes do before (ver subirApi)
 
 describe("pedidos e produtos: sem banco", () => {
   it("GET /pedidos sem login responde 401 { ok, erro }", async () => {
