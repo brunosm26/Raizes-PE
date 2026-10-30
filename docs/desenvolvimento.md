@@ -13,6 +13,8 @@ Use dois terminais, um para cada porta. Antes de subir a API, crie o `backend/.e
 
 Hoje o front usa as rotas do próprio Next (`app/api/*`). O backend Express tem as mesmas rotas, com o mesmo contrato, e passa a ser chamado pelo front na PI4-132. Camadas e mapa da migração: [`arquitetura-backend.md`](arquitetura-backend.md). Instalação, Prisma e testes do backend: [`backend/README.md`](../backend/README.md).
 
+**Publicação:** para colocar a API no Render e ligar o front da Vercel a ela, veja [`publicacao.md`](publicacao.md).
+
 **Documentação da API:** com a API rodando, abra <http://localhost:4000/api-docs> (Swagger UI). Para testar as rotas protegidas no próprio Swagger, execute primeiro `POST /auth/login` com um login de demonstração: o navegador guarda o cookie de sessão e o envia nas chamadas seguintes. A especificação crua fica em <http://localhost:4000/api-docs.json> e o arquivo-fonte é `backend/openapi.yaml`. No deploy, o caminho é o mesmo: `<url-da-api>/api-docs`.
 
 ## Variáveis de ambiente
