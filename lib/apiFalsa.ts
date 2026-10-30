@@ -1,3 +1,4 @@
+import { apiFetch } from "./apiUrl";
 import {
   usuarios,
   artesaos,
@@ -50,7 +51,7 @@ function paraProdutoComArtesao(p: (typeof produtos)[number]): ProdutoComArtesao 
 // Lê JSON de uma rota interna. 404 vira undefined (a tela mostra "não encontrado");
 // qualquer outro erro é lançado, e a tela mostra a mensagem de erro com "tentar de novo".
 async function buscarJson<T>(url: string): Promise<T | undefined> {
-  const resposta = await fetch(url, { cache: "no-store" });
+  const resposta = await apiFetch(url, { cache: "no-store" });
   if (resposta.status === 404) return undefined;
   if (!resposta.ok) throw new Error(`Falha ao consultar ${url} (${resposta.status})`);
   return (await resposta.json()) as T;

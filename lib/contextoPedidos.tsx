@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { resolverId } from "./idsLegados";
 import { useSessao } from "./contextoSessao";
+import { apiFetch } from "./apiUrl";
 import type {
   ItemCarrinhoComProduto,
   NotificacaoEnvio,
@@ -96,7 +97,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       return;
     }
     let ativo = true;
-    fetch("/api/pedidos")
+    apiFetch("/api/pedidos")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((lista: PedidoComItens[]) => {
         if (ativo) setPedidos(lista);
@@ -128,7 +129,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   // confere o estoque e calcula o total com os preços do banco.
   const criarPedido = useCallback(
     async (compradorId: string, itens: ItemCarrinhoComProduto[]): Promise<PedidoComItens> => {
-      const res = await fetch("/api/pedidos", {
+      const res = await apiFetch("/api/pedidos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -152,7 +153,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       // Só faz sentido enviar o que ainda não saiu; reenviar geraria aviso duplicado.
       if (alvo.status !== "pendente" && alvo.status !== "pago") return;
 
-      const res = await fetch(`/api/pedidos/${encodeURIComponent(pedidoId)}`, {
+      const res = await apiFetch(`/api/pedidos/${encodeURIComponent(pedidoId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "enviado" satisfies StatusPedido }),

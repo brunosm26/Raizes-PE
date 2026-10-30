@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { resolverId } from "./idsLegados";
+import { apiFetch } from "./apiUrl";
 import type { Produto, ProdutoComArtesao, Tecnica } from "./tipos";
 
 interface DadosNovoProduto {
@@ -43,7 +44,7 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let ativo = true;
-    fetch("/api/produtos")
+    apiFetch("/api/produtos")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((lista: ProdutoComArtesao[]) => {
         if (ativo) setProdutos(lista);
@@ -59,7 +60,7 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
   // Chamado ao salvar o formulário do popup "Adicionar Produto" no painel do artesão.
   const criarProduto = useCallback(
     async (usuarioId: string, dados: DadosNovoProduto): Promise<ProdutoComArtesao> => {
-      const res = await fetch("/api/produtos", {
+      const res = await apiFetch("/api/produtos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...dados, usuarioId }),
@@ -77,7 +78,7 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
       id: string,
       dados: Pick<Produto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">
     ): Promise<ProdutoComArtesao> => {
-      const res = await fetch(`/api/produtos/${encodeURIComponent(id)}`, {
+      const res = await apiFetch(`/api/produtos/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dados),

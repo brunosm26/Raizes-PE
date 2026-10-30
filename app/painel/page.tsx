@@ -14,6 +14,7 @@ import type { ProdutoComArtesao } from "@/lib/tipos";
 import { usePedidos } from "@/lib/contextoPedidos";
 import { useProdutos } from "@/lib/contextoProdutos";
 import { useSessao } from "@/lib/contextoSessao";
+import { apiFetch } from "@/lib/apiUrl";
 import type { EstatisticasPainel } from "@/lib/tipos";
 
 export default function Pagina() {
@@ -39,7 +40,7 @@ export default function Pagina() {
     if (!usuarioId) return;
     let ativo = true;
     setErroEstatisticas(false);
-    fetch("/api/painel/estatisticas")
+    apiFetch("/api/painel/estatisticas")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((dados: EstatisticasPainel) => {
         if (ativo) setEstatisticas(dados);
