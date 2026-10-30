@@ -115,7 +115,7 @@ O `test/tokenSessao.test.ts` confere a compatibilidade com o `lib/sessao.ts` do 
 
 Testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pontuação das recomendações) e `utilitarios.test.ts` (cookies, ids, query, limite, senha e `ErroHttp`).
 
-Sobe o app numa porta livre e chama as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
+Os testes de integração sobem o app numa porta livre e chamam as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
 
 Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`. **Nunca** aponte para o Neon do time. A variável vai **no terminal**, não no `backend/.env` (os testes não leem o `.env` para ela):
 
