@@ -11,7 +11,15 @@ Use dois terminais, um para cada porta. Antes de subir a API, crie o `backend/.e
 | 1. App Next (front + `app/api`) | raiz do projeto | `npm run dev` | <http://localhost:3000> |
 | 2. API Express | `backend/` | `npm install` (só na primeira vez) e depois `npm run dev` | <http://localhost:4000/api/saude> e <http://localhost:4000/api-docs> |
 
-Hoje o front usa as rotas do próprio Next (`app/api/*`). O backend Express tem as mesmas rotas, com o mesmo contrato, e passa a ser chamado pelo front na PI4-132. Camadas e mapa da migração: [`arquitetura-backend.md`](arquitetura-backend.md). Instalação, Prisma e testes do backend: [`backend/README.md`](../backend/README.md).
+Por padrão o front usa as rotas do próprio Next (`app/api/*`). O backend Express tem as mesmas rotas, com o mesmo contrato. Para o front chamá-lo (PI4-132):
+
+1. Suba a API Express (terminal 2) com o `backend/.env` preenchido.
+2. No `.env.local` da raiz, defina `API_URL=http://localhost:4000` e reinicie o `npm run dev`.
+3. Confira: <http://localhost:3000/api/saude> deve responder `{"ok":true}`. Essa rota só existe no Express, então a resposta prova que o Next está repassando `/api/*` a ele. Login e rotas protegidas passam a valer com o JWT emitido pelo Express.
+
+Sem a `API_URL`, nada muda. O navegador fala só com o Next (mesma origem): o cookie de sessão fica no domínio do site, sem CORS, e o `middleware.ts` valida o mesmo JWT. A chamada direta do navegador à API em outra origem (`NEXT_PUBLIC_API_URL`, `CORS_ORIGIN`, `COOKIE_SAMESITE`) também é suportada; as diferenças estão em [`arquitetura-backend.md`](arquitetura-backend.md), seção 3.5.
+
+Camadas e mapa da migração: [`arquitetura-backend.md`](arquitetura-backend.md). Instalação, Prisma e testes do backend: [`backend/README.md`](../backend/README.md).
 
 **Documentação da API:** com a API rodando, abra <http://localhost:4000/api-docs> (Swagger UI). Para testar as rotas protegidas no próprio Swagger, execute primeiro `POST /auth/login` com um login de demonstração: o navegador guarda o cookie de sessão e o envia nas chamadas seguintes. A especificação crua fica em <http://localhost:4000/api-docs.json> e o arquivo-fonte é `backend/openapi.yaml`. No deploy, o caminho é o mesmo: `<url-da-api>/api-docs`.
 
@@ -21,8 +29,8 @@ Cada projeto tem o seu arquivo, e nenhum dos dois vai para o GitHub:
 
 | Arquivo | Quem lê | Variáveis | Modelo |
 |---|---|---|---|
-| `.env.local` (raiz) | App Next | `DATABASE_URL`, `SESSION_SECRET` | `.env.example` |
-| `backend/.env` | API Express e CLI do Prisma | `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `PORT` (padrão 4000), `NODE_ENV` | `backend/.env.example` |
+| `.env.local` (raiz) | App Next | `DATABASE_URL`, `SESSION_SECRET`; opcionais: `API_URL` (proxy para o Express), `NEXT_PUBLIC_API_URL` | `.env.example` |
+| `backend/.env` | API Express e CLI do Prisma | `DATABASE_URL`, `DIRECT_URL`, `SESSION_SECRET`, `PORT` (padrão 4000), `NODE_ENV`; opcionais: `CORS_ORIGIN`, `COOKIE_SAMESITE` | `backend/.env.example` |
 
 - O `SESSION_SECRET` deve ser **o mesmo** nos dois arquivos, para o front e a API aceitarem o mesmo cookie de sessão. Para gerar um valor: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 - No painel do Neon, ambas as strings ficam em **Connect** e terminam em `?sslmode=require`:

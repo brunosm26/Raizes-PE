@@ -102,8 +102,26 @@ Os caminhos à esquerda são os do app Next (a integração com o banco do PR #2
 | Arquivo | Por quê |
 |---|---|
 | `middleware.ts` | Protege **páginas** (redireciona para `/login`). Lê o mesmo cookie; continua no Next |
-| `lib/apiFalsa.ts`, `lib/contexto*.tsx` | Clientes da API. Passam a apontar para a URL do Express na PI4-132 (URL base, CORS e cookie) |
-| `app/api/*`, `lib/servidor/*`, `lib/db.ts` | Ficam até a PI4-132 ligar o front ao Express; depois são removidos |
+| `lib/apiUrl.ts` | Ponto único das chamadas do front à API (`apiFetch`): URL base (`NEXT_PUBLIC_API_URL`) e `credentials: "include"` |
+| `lib/apiFalsa.ts`, `lib/contexto*.tsx`, `app/painel`, `SecaoRecomendados` | Clientes da API. Chamam sempre por `apiFetch` (PI4-132) |
+| `app/api/*`, `lib/servidor/*`, `lib/db.ts` | Ficam como alternativa quando não há `API_URL`; saem quando o Express virar o padrão |
+
+### 3.5 Ligação do front ao Express (PI4-132)
+
+Dois modos, escolhidos por variável de ambiente:
+
+| | Proxy do Next (recomendado) | Chamada direta em outra origem |
+|---|---|---|
+| Como ligar | `API_URL=http://localhost:4000` no `.env.local` (lida pelo `next.config.mjs`) | `NEXT_PUBLIC_API_URL=<url do Express>` no front (lida no build); `CORS_ORIGIN` no `backend/.env` |
+| Origem vista pelo navegador | Uma só (a do site). `rewrites` com `beforeFiles` repassa `/api/*` ao Express | Duas (site e API) |
+| CORS | Não precisa | Sim: `middlewares/cors.ts` libera só as origens de `CORS_ORIGIN`, com `Access-Control-Allow-Credentials` (nunca `*`) e responde o preflight |
+| Cookie de sessão | Do domínio do site; `SameSite=Lax` basta | Do domínio da API. Entre domínios diferentes: `COOKIE_SAMESITE=none` (o backend força `Secure`, então só com HTTPS). Em `localhost` com portas diferentes o `Lax` funciona, pois as portas não mudam o "site" |
+| `middleware.ts` | Vê o cookie e valida o JWT nas páginas protegidas | **Não vê o cookie** (ele pertence ao domínio da API): as páginas protegidas redirecionam para `/login` mesmo com sessão. Só funciona se front e API compartilharem um domínio pai com `Domain` no cookie |
+| Corpo de erro | Igual ao do Express: `{ "ok": false, "erro": ... }` | Igual |
+
+Por isso o proxy é o modo recomendado: é o que mantém o `middleware.ts` útil. Todas as chamadas passam por `lib/apiUrl.ts` (`apiFetch`), que envia o cookie nos dois modos. O front só lê o status e `erro` do corpo, então a diferença de `ok` descrita em `docs/plano-migracao-api.md` não o afeta.
+
+Verificação rápida: com `API_URL` definida, `GET http://localhost:3000/api/saude` responde `{"ok":true}`; essa rota só existe no Express.
 
 ## 4. Estado da migração (22/10/2026)
 
@@ -123,7 +141,7 @@ Pendências, todas fora do escopo da PI4-119:
 
 - **Prisma (PI4-128)**: já configurado (PR #28), mas os repositories das rotas continuam em `pg`; passar para o Prisma é decisão pendente do time e troca só `repositories/`.
 - **JWT (PI4-130)**: concluído; no backend, a troca ficou em `utils/tokenSessao.ts`, com o `authController` e o `sessaoService` passando a aguardar o token assíncrono (ver `docs/estrategia-autenticacao.md`, seção 12).
-- **Front apontando para o Express (PI4-132)**: até lá o front continua usando os route handlers do Next, que respondem igual.
+- **Front apontando para o Express (PI4-132)**: concluído por variável de ambiente (seção 3.5). Sem `API_URL`, o front continua usando os route handlers do Next, que respondem igual.
 - **`GET /api/artesaos` (lista) e `GET /api/filtros`**: nunca existiram no Next (fase 7 do `plano-migracao-api.md`), então não são migração; entram como rotas novas.
 
 ### Testes

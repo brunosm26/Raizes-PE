@@ -50,7 +50,7 @@ flowchart LR
 ```
 
 - Hoje o site roda inteiro no **app Next.js**: as páginas e as rotas `app/api/*` leem e gravam direto no banco.
-- A **API Express** já tem as mesmas rotas, organizadas em camadas e documentadas no Swagger. O front passa a usá-la na PI4-132 (linha tracejada).
+- A **API Express** já tem as mesmas rotas, organizadas em camadas e documentadas no Swagger. O front a usa quando a `API_URL` está definida (PI4-132, linha tracejada); sem ela, usa as rotas do próprio Next.
 - O **serviço de IA** da AV2 roda separado, com dados sintéticos, e mostra o módulo de recomendação especificado na AV1.
 
 ## Inteligência artificial
@@ -101,7 +101,7 @@ A tela `/cadastro` cria uma conta de comprador nova.
 
 - Catálogo, pedidos, produtos do painel, login e recomendações já usam o banco.
 - O admin ainda usa dados de exemplo (`lib/dadosFalsos.ts`), e a aprovação de artesãos, a moderação e as categorias ficam só no navegador.
-- A API Express já tem as mesmas rotas do app, mas o front ainda não a chama (PI4-132).
+- A API Express já tem as mesmas rotas do app, e o front a chama quando a `API_URL` está definida (PI4-132).
 
 **Próximos passos:** alerta de baixo estoque, moderação e categorias do admin no banco, criação de contas de artesão pelo admin e recomendação colaborativa. O plano está em [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md).
 
