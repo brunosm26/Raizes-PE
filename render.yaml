@@ -1,0 +1,23 @@
+# Blueprint do Render para publicar a API Express (PI4-134).
+# Passo a passo e roteiro de testes: docs/publicacao.md
+services:
+  - type: web
+    name: raizes-pe-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    # --include=dev: o build precisa do tsc e o postinstall roda `prisma generate`,
+    # ambos devDependencies (o Render define NODE_ENV=production e, sem a flag, pularia elas).
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/saude
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # Preenchidas no painel do Render (sync: false), nunca no repositório.
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
