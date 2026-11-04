@@ -65,6 +65,8 @@ Para conferir se ficou correto, cole o conteúdo de `db/validacao_resumo.sql` no
 | raiz | `npm test`, `npm run lint`, `npx tsc --noEmit` | Testes, lint e typecheck do front |
 | `backend/` | `npm run dev` / `npm run build` / `npm start` | Sobe a API em modo de desenvolvimento / compila / roda a versão compilada |
 | `backend/` | `npm test`, `npm run lint`, `npx tsc --noEmit` (ou `npm run typecheck`) | Testes, lint e typecheck da API, cobrindo `src/`, `test/` e `scripts/` (os testes incluem a conferência do `openapi.yaml`) |
+| `backend/` | `npm run openapi:lint` | Lint do `openapi.yaml` com o Redocly |
+| `backend/` | `npm run openapi:conferir` | **Só leitura**, com a API local rodando: compara status e corpos reais com o `openapi.yaml` |
 | `backend/` | `npm run prisma:generate` | Regera o client do Prisma (o `npm install` já faz isso) |
 | `backend/` | `npm run prisma:verificar` | **Só leitura:** conta as linhas das 8 tabelas e da view no Neon |
 | raiz | `python ia/avaliar_baseline.py` | Métricas do módulo de IA (veja [`ia/README.md`](../ia/README.md)) |
@@ -81,7 +83,7 @@ npx tsc --noEmit
 
 # backend
 cd backend
-npm test        # inclui o teste que confere se openapi.yaml cobre todas as rotas
+npm test        # inclui os testes que comparam openapi.yaml com as rotas, os perfis e os limites
 npm run lint
 npx tsc --noEmit
 ```

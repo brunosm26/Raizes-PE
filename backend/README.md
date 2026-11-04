@@ -87,7 +87,16 @@ Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver
 
 Com o servidor rodando, abra <http://localhost:4000/api-docs>. Lá estão todas as rotas, com parâmetros, corpos, respostas e erros. Para chamar as rotas protegidas pelo "Try it out", execute antes `POST /auth/login` (por exemplo `ana.beatriz@raizespe.dev` / `demo123`): o navegador guarda o cookie de sessão.
 
-A especificação fica em `openapi.yaml` (versionada) e também é servida crua em <http://localhost:4000/api-docs.json>. Ao criar ou mudar uma rota, atualize o `openapi.yaml`: o `npm test` falha se uma rota do Express não estiver documentada (ou o contrário).
+A especificação fica em `openapi.yaml` (versionada) e também é servida crua em <http://localhost:4000/api-docs.json>. Ao criar ou mudar uma rota, atualize o `openapi.yaml`: o `npm test` falha se uma rota do Express não estiver documentada (ou o contrário), se a sessão e os perfis (`x-perfis`) diferirem do `exigirSessao` da rota, ou se os limites da spec diferirem da validação dos services.
+
+Para conferir a spec contra a API de verdade, com o servidor rodando em outro terminal:
+
+```bash
+npm run openapi:lint      # lint da spec com o Redocly (baixa a CLI na hora; regras em redocly.yaml)
+npm run openapi:conferir  # compara status e corpos reais com os schemas
+```
+
+O `openapi:conferir` é **somente leitura** e só aceita host local: chama os GETs públicos com ids reais, inexistentes e inválidos e, sem cookie e sem corpo, as rotas protegidas (401). Nunca faz login, cadastro ou escrita, e a saída traz status e nomes de campos, não valores. Linhas `CODIGO` são divergências conhecidas do código, que não reprovam a conferência; linhas `FALHA` reprovam. Para outra porta, use `OPENAPI_CONFERIR_URL` (padrão `http://localhost:4000/api`).
 
 ## Camadas
 

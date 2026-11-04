@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API Raízes PE
-  version: 0.2.0
+  version: 0.2.1
   description: |
     API REST do marketplace de artesanato pernambucano Raízes PE (Express + TypeScript + PostgreSQL).
 
@@ -9,13 +9,20 @@ info:
     As rotas protegidas leem esse cookie; no Swagger UI basta fazer o login pelo próprio "Try it out",
     porque o navegador guarda o cookie e o reenvia nas chamadas seguintes.
 
-    **Perfis:** `comprador`, `artesao` e `admin`. Cada rota protegida informa quem pode chamá-la.
+    **Perfis:** `comprador`, `artesao` e `admin`. Cada rota protegida informa quem pode chamá-la
+    na descrição e na extensão `x-perfis` (conferida por teste contra o `exigirSessao` da rota).
     Sem sessão a resposta é **401**; com sessão de outro perfil, **403**.
 
     **Erros:** todo erro responde `{ "ok": false, "erro": "<mensagem em português>" }`.
+    Caminho que não existe responde **404** nesse mesmo formato.
+
+    **Corpo:** só `Content-Type: application/json` é lido; com outro tipo, o corpo é tratado como vazio.
+    O corpo é lido antes das rotas, então JSON malformado (**400**) ou acima de 4 MB (**413**) tem precedência
+    sobre a checagem de sessão, e vale para qualquer rota que receba corpo em JSON, inclusive as que não usam corpo.
 
     **Ids:** onde a rota recebe `{id}`, além do UUID ela aceita os ids antigos do mock
     (`p1` para produto, `a2` para artesão), que apontam para os UUIDs da carga de demonstração.
+    Id em formato inválido é tratado como inexistente: nunca responde 400.
   contact:
     name: Time Raízes PE
 servers:
@@ -79,7 +86,11 @@ paths:
                   ok: { type: boolean, enum: [true] }
                   produtos: { type: integer, example: 7 }
         "500":
-          $ref: "#/components/responses/ErroInterno"
+          description: Banco inacessível. Diferente das outras rotas, `erro` traz a mensagem real do erro do banco.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+              example: { ok: false, erro: password authentication failed }
 
   /auth/login:
     post:
@@ -88,7 +99,10 @@ paths:
       description: |
         Valida e-mail e senha e grava o cookie de sessão (7 dias).
         `perfil` é a aba escolhida na tela de login: precisa bater com o perfil da conta (o admin entra por qualquer aba).
-        Após 5 falhas para o mesmo e-mail e IP, novas tentativas são recusadas por 15 minutos.
+        O `perfil` não é validado contra a lista: um valor fora dela responde 403, não 400.
+        O e-mail só precisa estar preenchido (o formato não é conferido aqui); fora do formato, a resposta é 401.
+        Após 5 falhas para o mesmo e-mail e IP, novas tentativas são recusadas até completar 15 minutos da primeira
+        falha. A contagem fica na memória do processo e o IP é o primeiro valor de `X-Forwarded-For`, quando existe.
       operationId: login
       security: []
       requestBody:
@@ -99,8 +113,8 @@ paths:
               type: object
               required: [email, senha]
               properties:
-                email: { type: string, format: email, example: ana.beatriz@raizespe.dev }
-                senha: { type: string, format: password, example: demo123 }
+                email: { type: string, minLength: 1, example: ana.beatriz@raizespe.dev }
+                senha: { type: string, format: password, minLength: 1, example: demo123 }
                 perfil: { $ref: "#/components/schemas/TipoUsuario" }
       responses:
         "200":
@@ -132,6 +146,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Muitas tentativas. Aguarde alguns minutos e tente de novo. }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -142,6 +158,7 @@ paths:
       description: |
         O cadastro público sempre cria um **comprador** e já inicia a sessão.
         Contas de artesão e admin são criadas por quem administra a plataforma.
+        O nome é gravado sem espaços nas pontas e o e-mail, também em minúsculas; os limites valem depois disso.
       operationId: cadastro
       security: []
       requestBody:
@@ -152,7 +169,7 @@ paths:
               type: object
               required: [nome, email, senha]
               properties:
-                nome: { type: string, maxLength: 150, example: Maria da Silva }
+                nome: { type: string, minLength: 1, maxLength: 150, example: Maria da Silva }
                 email: { type: string, format: email, maxLength: 150, example: maria@exemplo.com }
                 senha: { type: string, format: password, minLength: 8, maxLength: 200 }
       responses:
@@ -173,6 +190,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Este e-mail já está cadastrado. }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -180,12 +199,18 @@ paths:
     post:
       tags: [Autenticação]
       summary: Sair
-      description: Apaga o cookie de sessão. Funciona mesmo sem sessão.
+      description: |
+        Apaga o cookie de sessão. Funciona mesmo sem sessão e não precisa de corpo; se vier um corpo em JSON,
+        ele passa pela mesma leitura das outras rotas (400 e 413).
       operationId: logout
       security: []
       responses:
         "200":
-          description: Sessão encerrada
+          description: Sessão encerrada. O cabeçalho `Set-Cookie` apaga o cookie (`Max-Age=0`).
+          headers:
+            Set-Cookie:
+              description: "`raizes_sessao=` vazio, com `Max-Age=0` e os mesmos atributos do cookie de sessão"
+              schema: { type: string }
           content:
             application/json:
               schema:
@@ -193,6 +218,10 @@ paths:
                 required: [ok]
                 properties:
                   ok: { type: boolean, enum: [true] }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
 
   /auth/me:
     get:
@@ -228,7 +257,10 @@ paths:
     get:
       tags: [Catálogo]
       summary: Listar produtos (vitrine)
-      description: Ordenados do mais novo para o mais antigo. Todos os filtros são opcionais e se combinam.
+      description: |
+        Ordenados do mais novo para o mais antigo. Todos os filtros são opcionais e se combinam.
+        `tecnica`, `categoria` e `regiao` comparam o valor exato; um valor sem correspondência, inclusive uma técnica
+        fora da lista, devolve lista vazia, não 400.
       operationId: listarProdutos
       security: []
       parameters:
@@ -263,6 +295,7 @@ paths:
       operationId: criarProduto
       security:
         - cookieSessao: []
+      x-perfis: [artesao]
       requestBody:
         required: true
         content:
@@ -318,10 +351,12 @@ paths:
       summary: Editar produto
       description: |
         **Artesão** dono da loja ou **admin**. Técnica e categoria não mudam na edição.
-        Todos os campos editáveis são obrigatórios (a tela envia o formulário completo).
+        Todos os campos editáveis são obrigatórios (a tela envia o formulário completo), e `imagemUrl` ausente
+        também remove a foto. A validação do corpo (400) vem antes da checagem do dono (403 e 404).
       operationId: editarProduto
       security:
         - cookieSessao: []
+      x-perfis: [artesao, admin]
       requestBody:
         required: true
         content:
@@ -354,14 +389,14 @@ paths:
     get:
       tags: [Catálogo]
       summary: Produtos relacionados
-      description: Produtos da mesma técnica, sem o próprio produto (RF-01). Id inexistente devolve lista vazia.
+      description: Produtos da mesma técnica, sem o próprio produto (RF-01). Id inexistente ou inválido devolve lista vazia.
       operationId: listarRelacionados
       security: []
       parameters:
         - $ref: "#/components/parameters/IdProduto"
         - name: limite
           in: query
-          description: Quantidade máxima (1 a 20; fora disso é ajustado)
+          description: Quantidade máxima. Nunca responde 400 - fora de 1 a 20 é ajustado ao limite mais próximo, e o que não for número usa o padrão.
           schema: { type: integer, minimum: 1, maximum: 20, default: 3 }
       responses:
         "200":
@@ -378,7 +413,7 @@ paths:
     get:
       tags: [Catálogo]
       summary: Resumo das avaliações do produto
-      description: Média e quantidade. Produto sem avaliação (ou inexistente) devolve zeros.
+      description: Média e quantidade. Produto sem avaliação, inexistente ou com id inválido devolve zeros.
       operationId: resumirAvaliacoes
       security: []
       parameters:
@@ -411,7 +446,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/PerfilArtesao" }
         "404":
-          description: Artesão não encontrado
+          description: Artesão não encontrado (inclui id em formato inválido)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
@@ -429,6 +464,7 @@ paths:
       operationId: listarPedidos
       security:
         - cookieSessao: []
+      x-perfis: [comprador, artesao, admin]
       responses:
         "200":
           description: Lista de pedidos (pode ser vazia)
@@ -445,12 +481,14 @@ paths:
       tags: [Pedidos]
       summary: Criar pedido (checkout)
       description: |
-        Só **comprador**; o comprador é sempre o da sessão. Itens repetidos do mesmo produto são somados.
+        Só **comprador**; o comprador é sempre o da sessão. Itens repetidos do mesmo produto são somados, e o limite
+        de `quantidade` vale por linha: a soma das linhas pode passar de 99.
         Preço e total vêm do banco (o cliente não envia valores). Pedido, itens e baixa de estoque são gravados
         na mesma transação, com o estoque travado contra compras simultâneas. O pedido nasce `pendente`.
       operationId: criarPedido
       security:
         - cookieSessao: []
+      x-perfis: [comprador]
       requestBody:
         required: true
         content:
@@ -467,7 +505,7 @@ paths:
                     required: [produtoId, quantidade]
                     properties:
                       produtoId: { type: string, description: UUID ou id legado, example: p4 }
-                      quantidade: { type: integer, minimum: 1, maximum: 99, example: 2 }
+                      quantidade: { type: integer, minimum: 1, maximum: 99, description: Inteiro de 1 a 99. Aceita também texto numérico., example: 2 }
       responses:
         "201":
           description: Pedido criado
@@ -492,6 +530,8 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: "Só restam 3 unidade(s) de \"Escultura em Madeira - Leão\"." }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -501,15 +541,18 @@ paths:
       summary: Atualizar status do pedido
       description: |
         **Admin** muda para qualquer status. **Artesão** só marca como `enviado`, e só pedidos que contêm produto dele.
+        A sequência de status não é conferida: qualquer um dos quatro pode vir depois de qualquer outro.
+        Para o artesão, um pedido inexistente responde 403 (não contém produto dele), não 404.
       operationId: atualizarStatusPedido
       security:
         - cookieSessao: []
+      x-perfis: [artesao, admin]
       parameters:
         - name: id
           in: path
           required: true
-          description: UUID do pedido
-          schema: { type: string, format: uuid }
+          description: UUID do pedido. Outro formato responde 404.
+          schema: { type: string }
       requestBody:
         required: true
         content:
@@ -536,11 +579,13 @@ paths:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Este pedido não contém produtos seus. }
         "404":
-          description: Pedido não encontrado
+          description: Pedido não encontrado (inclui id em formato inválido)
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Pedido não encontrado. }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -559,7 +604,7 @@ paths:
       parameters:
         - name: limite
           in: query
-          description: Quantidade máxima (1 a 20; fora disso é ajustado)
+          description: Quantidade máxima. Nunca responde 400 - fora de 1 a 20 é ajustado ao limite mais próximo, e o que não for número usa o padrão.
           schema: { type: integer, minimum: 1, maximum: 20, default: 4 }
       responses:
         "200":
@@ -594,6 +639,7 @@ paths:
       operationId: estatisticasPainel
       security:
         - cookieSessao: []
+      x-perfis: [artesao, admin]
       responses:
         "200":
           description: Estatísticas do painel
@@ -621,7 +667,9 @@ components:
 
   headers:
     SetCookieSessao:
-      description: "`raizes_sessao=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800` (mais `Secure` em produção)"
+      description: |
+        `raizes_sessao=<token>; Max-Age=604800; Path=/; Expires=<data>; HttpOnly; SameSite=Lax`.
+        `SameSite` vem de `COOKIE_SAMESITE` (padrão `Lax`). `Secure` entra em produção e sempre que `SameSite=None`.
       schema: { type: string }
 
   parameters:
@@ -658,7 +706,7 @@ components:
           schema: { $ref: "#/components/schemas/Erro" }
           example: { ok: false, erro: Produto não encontrado. }
     CorpoGrandeDemais:
-      description: Corpo acima de 4 MB
+      description: Corpo acima de 4 MB (4.194.304 bytes)
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Erro" }
@@ -706,7 +754,7 @@ components:
 
     ProdutoComArtesao:
       type: object
-      required: [id, artesaoId, nome, descricao, tecnica, categoria, preco, estoqueQtd, dataCadastro, artesaoNome, artesaoRegiao]
+      required: [id, artesaoId, nome, descricao, tecnica, categoria, preco, estoqueQtd, dataCadastro, artesaoNome, artesaoRegiao, artesaoUsuarioId]
       properties:
         id: { type: string, format: uuid }
         artesaoId: { type: string, format: uuid }
@@ -731,8 +779,8 @@ components:
       type: object
       required: [nome, descricao, preco, estoqueQtd]
       properties:
-        nome: { type: string, minLength: 1, maxLength: 150, example: Bolsa de Palha }
-        descricao: { type: string, minLength: 1, example: Trançada à mão em palha de ouricuri. }
+        nome: { type: string, minLength: 1, maxLength: 150, description: Sem contar espaços nas pontas., example: Bolsa de Palha }
+        descricao: { type: string, minLength: 1, description: Sem contar espaços nas pontas., example: Trançada à mão em palha de ouricuri. }
         preco:
           type: number
           exclusiveMinimum: true
@@ -740,12 +788,12 @@ components:
           maximum: 99999999.99
           description: Em reais; arredondado para centavos. Aceita número ou texto numérico.
           example: 59.9
-        estoqueQtd: { type: integer, minimum: 0, maximum: 1000000, example: 4 }
+        estoqueQtd: { type: integer, minimum: 0, maximum: 1000000, description: Aceita também texto numérico., example: 4 }
         imagemUrl:
           type: string
           nullable: true
           maxLength: 2800000
-          description: "`data:image/(png|jpeg|webp|gif);base64,...` de até ~2 MB, URL `http(s)://` ou caminho `/...`. Vazio ou null remove a foto."
+          description: "`data:image/(png|jpg|jpeg|webp|gif);base64,...` de até ~2 MB (2.800.000 caracteres), URL `http(s)://` ou caminho `/...`. Vazio, null ou ausente deixa o produto sem foto."
 
     NovoProduto:
       allOf:
