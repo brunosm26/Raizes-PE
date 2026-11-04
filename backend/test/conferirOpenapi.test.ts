@@ -118,8 +118,9 @@ describe("conferir-openapi", () => {
   });
 
   it("reprova campo obrigatório ausente e valor fora do schema, sem imprimir o valor", async () => {
-    const { nome: _nome, ...semNome } = PRODUTO;
-    const { resumo, saida } = await rodar({ ...semNome, dataCadastro: SEGREDO });
+    const semNome: Record<string, unknown> = { ...PRODUTO, dataCadastro: SEGREDO };
+    delete semNome.nome;
+    const { resumo, saida } = await rodar(semNome);
     assert.ok(resumo.falhas > 0);
     assert.match(saida, /nome/);
     assert.match(saida, /dataCadastro must match format "date"/);
