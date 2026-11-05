@@ -20,6 +20,7 @@ import { FiCompass, FiMapPin, FiShoppingCart, FiHelpCircle } from "react-icons/f
 import type { ProdutoRecomendado } from "@/lib/motorRecomendacao";
 import { useCarrinho } from "@/lib/contextoCarrinho";
 import { useSessao } from "@/lib/contextoSessao";
+import { apiFetch } from "@/lib/apiUrl";
 import { estiloFundoProduto } from "@/lib/arteProduto";
 
 export default function SecaoRecomendados() {
@@ -34,7 +35,7 @@ export default function SecaoRecomendados() {
   useEffect(() => {
     if (carregando) return;
     let ativo = true;
-    fetch("/api/recomendacoes?limite=4")
+    apiFetch("/api/recomendacoes?limite=4")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((json: { dados?: ProdutoRecomendado[] }) => {
         if (ativo) setRecomendados(json.dados ?? []);

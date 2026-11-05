@@ -72,7 +72,7 @@ describe("openapi.yaml", () => {
 
 describe("Swagger UI", () => {
   it("serve a página em /api-docs e a spec em /api-docs.json", async () => {
-    const { subirApi } = await import("./ajudantes");
+    const { subirApi } = await import("./ajudantes.js");
     const api = await subirApi();
     try {
       const raiz = api.url.replace(/\/api$/, "");

@@ -1,7 +1,10 @@
 # Estratégia de autenticação: Raízes PE
 
-PI4-117, subtarefa da PI4-113 (W10, Preparação do ambiente para integração).
-Status: implementada no PR da integração (`feat/integracao-api-banco`), para revisão do time de WEB.
+PI4-117, subtarefa da PI4-113 (W10, Preparação do ambiente para integração). Atualizado na PI4-135 e na PI4-130.
+**Situação em 27/10/2026:**
+
+- **Implementado:** sessão em **JWT (HS256, biblioteca `jose`) guardado no cookie `httpOnly` `raizes_sessao`**, assinado com o `SESSION_SECRET`, com a senha em scrypt. O mesmo token é emitido e aceito pelo app Next (`lib/sessao.ts`) e pelo backend Express (`backend/src/utils/tokenSessao.ts`). A troca do antigo cookie assinado próprio (HMAC-SHA256, "corpo.assinatura") pelo JWT é da PI4-130 (seção 12).
+- As seções 1 a 10 registram a decisão original da PI4-117; onde a PI4-130 mudou algo, há uma nota. A seção 11 descreve o Express.
 
 Este documento registra a decisão que está no código. Ele substitui a proposta inicial (Auth.js com bcrypt, PR #21); as diferenças estão na seção 10.
 
@@ -32,6 +35,8 @@ Com o PostgreSQL no Neon (PI4-114) e a conexão pronta (PI4-115), a autenticaç�
 ## 3. Decisão
 
 **Opção B: cookie de sessão assinado (HMAC-SHA256), sem estado no servidor, com a senha em scrypt.**
+
+> **Atualização da PI4-130:** o token sem estado continua, mas o formato próprio "corpo.assinatura" virou um **JWT HS256** gerado pela biblioteca `jose` (seção 12). Com isso, o primeiro motivo abaixo ("sem dependência nova") deixou de valer: a `jose` entrou no projeto. Os demais continuam valendo, já que a `jose` usa Web Crypto e roda no Edge.
 
 ### Por que
 
@@ -73,8 +78,8 @@ Com o PostgreSQL no Neon (PI4-114) e a conexão pronta (PI4-115), a autenticaç�
 ## 5. Cookie e sessão
 
 - **Nome:** `raizes_sessao`. `httpOnly`, `SameSite=Lax`, `Secure` em produção, `path=/`, validade de 7 dias.
-- **Conteúdo:** apenas `id`, `nome`, `tipo` e `exp`. E-mail e hash de senha não entram.
-- **Assinatura:** HMAC-SHA256 com o `SESSION_SECRET` (mínimo de 32 caracteres, só no `.env.local`, nunca versionado). Sem o segredo configurado o sistema recusa criar ou validar sessão.
+- **Conteúdo (claims do JWT):** `sub` (id do usuário), `nome`, `tipo`, `iat` e `exp`. E-mail e hash de senha não entram.
+- **Assinatura:** JWT HS256 (`jose`) com o `SESSION_SECRET` (mínimo de 32 caracteres, nunca versionado). Ele fica no `.env.local` do front e, com o **mesmo valor**, no `backend/.env`, para os dois lados aceitarem o mesmo cookie. Sem o segredo configurado o sistema recusa criar ou validar sessão.
 - **Sessão da requisição:** `obterSessao()` confere a assinatura e a validade do cookie e depois consulta o banco para ver se o usuário ainda existe com o mesmo perfil. O nome exibido vem do banco.
 
 ## 6. Controle de acesso por perfil
@@ -138,7 +143,7 @@ O cliente nunca decide permissão. Esconder botão na tela é só UX.
 
 | Onde | Mudança |
 |---|---|
-| `lib/sessao.ts` (novo) | Cookie assinado: criar e ler token, duração, perfis por área |
+| `lib/sessao.ts` (novo) | Criar e ler o token da sessão (JWT HS256 desde a PI4-130), duração, perfis por área |
 | `lib/servidor/auth.ts` (novo) | Hash e verificação de senha, login, cadastro de comprador, `obterSessao`, `exigirSessao` |
 | `middleware.ts` (novo) | Barreira de acesso por perfil nas páginas protegidas |
 | `app/api/auth/{login,cadastro,logout,me}/route.ts` (novos) | Rotas de autenticação |
@@ -148,11 +153,12 @@ O cliente nunca decide permissão. Esconder botão na tela é só UX.
 | `lib/contextoPedidos.tsx`, `lib/contextoProdutos.tsx`, `/checkout`, `/meus-pedidos`, `/painel` | Usam o usuário da sessão no lugar de `u2` e `u7` |
 | `db/07_autenticacao.sql` (novo) | Coluna `usuario.senha_hash` e senha das contas de demonstração |
 | `.env.example` | `SESSION_SECRET` |
+| `backend/` (PI4-124) | A mesma autenticação no Express; os arquivos estão na seção 11 |
 
 ## 9. Dependências com as outras subtarefas e pontos em aberto
 
 - **PI4-114:** o banco tem a coluna `usuario.senha_hash` e as contas de demonstração (`db/07_autenticacao.sql`).
-- **PI4-115:** a conexão usa o `pg` (`lib/db.ts`); a autenticação consulta o banco por essa conexão.
+- **PI4-115:** a conexão usa o `pg` (`lib/db.ts`); a autenticação consulta o banco por essa conexão. No backend, a consulta a `usuario` também é feita com `pg` (`backend/src/repositories/usuarioRepository.ts`, pelo pool de `backend/src/config/db.ts`).
 - **PI4-116:** as rotas de escrita (pedidos e produtos) leem o usuário da sessão.
 
 Fora do escopo nesta etapa, e registrado para a próxima sprint (PI4-118 e backlog):
@@ -167,7 +173,7 @@ Fora do escopo nesta etapa, e registrado para a próxima sprint (PI4-118 e backl
 
 | Ponto | Proposta inicial | Implementado |
 |---|---|---|
-| Biblioteca | Auth.js v5 (`next-auth`) | Cookie assinado próprio (Web Crypto), sem dependência nova |
+| Biblioteca | Auth.js v5 (`next-auth`) | Cookie assinado próprio (Web Crypto); desde a PI4-130, JWT HS256 com `jose` |
 | Hash de senha | bcrypt (`bcryptjs`), custo 12 | scrypt (`node:crypto`), N=16384 |
 | Coluna | `senha_hash VARCHAR(60) NOT NULL` | `senha_hash VARCHAR(200)`, aceitando nulo (nulo = sem acesso) |
 | Duração da sessão | 8 horas | 7 dias |
@@ -177,3 +183,60 @@ Fora do escopo nesta etapa, e registrado para a próxima sprint (PI4-118 e backl
 | Revogação | Só por expiração | Só por expiração do cookie, com revalidação de usuário e perfil no banco a cada requisição de API |
 | Variável de ambiente | `AUTH_SECRET` | `SESSION_SECRET` |
 | Arquivos | `auth.ts`, `app/api/auth/[...nextauth]/route.ts`, `lib/senha.ts` | `lib/sessao.ts`, `lib/servidor/auth.ts` e as quatro rotas de `app/api/auth/` |
+
+## 11. A mesma autenticação no backend Express (implementado)
+
+O backend em `backend/` (PI4-119/PI4-124) tem as mesmas quatro rotas de autenticação (`POST /api/auth/login`, `POST /api/auth/cadastro`, `POST /api/auth/logout`, `GET /api/auth/me`), com as mesmas regras das seções 3 a 7:
+
+- **O mesmo cookie:** nome `raizes_sessao`, com o mesmo JWT HS256 (seção 12), `httpOnly`, `SameSite=Lax`, `Secure` em produção, `path=/` e 7 dias. Com o mesmo `SESSION_SECRET` nos dois `.env`, um token emitido pelo Express é aceito pelo `middleware.ts` do Next, e vice-versa. Isso é coberto por `backend/test/tokenSessao.test.ts`.
+- **Senha:** o mesmo scrypt (N=16384, r=8, p=1, sal de 16 bytes, chave de 64 bytes) e o mesmo formato `scrypt$N$r$p$sal$hash`.
+- **Freio de tentativas:** 5 falhas por e-mail e IP a cada 15 minutos, também em memória.
+- **Perfis:** `exigirSessao(perfis?)` responde 401 sem login e 403 com o perfil errado, e revalida usuário e perfil no banco a cada requisição (`services/sessaoService.ts`). O `carregarSessao` lê a sessão sem bloquear (usado em `GET /api/recomendacoes`).
+- **Erros:** no formato do backend, `{ "ok": false, "erro": "<mensagem>" }`, com as mesmas mensagens.
+
+| Onde (em `backend/src/`) | O que faz |
+|---|---|
+| `utils/tokenSessao.ts` | Criar e ler o JWT do cookie, ambos assíncronos (equivale a `lib/sessao.ts`) |
+| `utils/senha.ts` | Hash e verificação scrypt |
+| `utils/cookies.ts` | Lê o cabeçalho `Cookie`, sem dependência nova |
+| `services/authService.ts` | Login, cadastro de comprador e freio de tentativas |
+| `services/sessaoService.ts` | Revalida a sessão no banco |
+| `middlewares/sessao.ts` | `carregarSessao` e `exigirSessao(perfis?)` |
+| `controllers/authController.ts`, `routes/authRoutes.ts` | As quatro rotas de `/api/auth` |
+
+**O front usa essas rotas quando a `API_URL` está definida** (PI4-132): as telas continuam chamando `/api/...` relativo e o Next repassa ao Express, então o cookie fica no domínio do site e o `middleware.ts` valida o mesmo JWT. Sem a variável, valem as rotas do Next na porta 3000. O modo de chamada direta em outra origem (CORS e `COOKIE_SAMESITE=none`) e seus limites estão em `docs/arquitetura-backend.md`, seção 3.5.
+
+### Cuidados de segurança (valem para o Next e para o Express)
+
+- **`SESSION_SECRET` forte e privado:** 32+ caracteres aleatórios, nunca versionado, nunca no Jira ou no chat. Trocar o segredo invalida todas as sessões abertas.
+- **IP do freio de tentativas:** os dois lados usam o primeiro valor do cabeçalho `x-forwarded-for`. Esse valor é enviado pelo próprio cliente quando não há um proxy confiável na frente, então pode ser forjado para escapar do limite. Atrás do proxy do deploy, o correto é confiar só no IP que o proxy acrescenta.
+- **Revogação:** um cookie copiado continua válido até expirar (7 dias). A revalidação no banco só derruba a sessão se a conta sumir ou mudar de perfil.
+
+## 12. JWT em cookie `httpOnly` (PI4-130): implementado
+
+A PI4-121 adotou a stack de referência da disciplina (Node.js, Express, Prisma e JWT). Na PI4-130, o cookie assinado próprio foi trocado por um **JWT guardado no mesmo cookie `httpOnly`**, sem mudar as regras deste documento: scrypt, perfis, revalidação no banco, freio de tentativas e flags do cookie continuam iguais.
+
+| Item | Como ficou |
+|---|---|
+| Biblioteca | [`jose`](https://github.com/panva/jose) 6.2.13, nos dois lados (`package.json` da raiz e do `backend/`). Ela usa só Web Crypto, então roda no runtime Edge do `middleware.ts`, onde a `jsonwebtoken` não roda. No backend CommonJS, a `jose` 6 (só ESM) é carregada pelo `require()` de ESM, que vem ligado por padrão no Node 20.19+ e 22.12+, as versões do `engines` do backend |
+| Algoritmo | **HS256**. A leitura usa `algorithms: ["HS256"]`, então tokens com `alg: "none"`, HS512 ou qualquer outro algoritmo são recusados. A leitura também exige as claims `sub`, `iat` e `exp` (`requiredClaims`) |
+| Cabeçalho | `{ "alg": "HS256", "typ": "JWT" }` |
+| Claims | `sub` = id do usuário (UUID), `nome`, `tipo` (`comprador`, `artesao` ou `admin`), `iat` e `exp`. Tipo fora dessa lista é recusado |
+| Expiração | 7 dias (`DURACAO_SESSAO_SEG`), igual ao `maxAge` do cookie |
+| Segredo | O mesmo **`SESSION_SECRET`** (32+ caracteres), no `.env.local` e no `backend/.env`. Não foi renomeado para `JWT_SECRET`, para não quebrar o login publicado até alguém ajustar a variável no deploy |
+| Cookie | Sem mudança: `raizes_sessao`, `httpOnly`, `SameSite=Lax`, `Secure` em produção, `path=/`, 7 dias. O logout continua apagando o cookie |
+| Interface | `criarToken(usuario, duracaoSeg?)` e `lerToken(token)` devolvem `Promise`; `lerToken` devolve `DadosSessao { id, nome, tipo, exp }` ou `null`. No backend as duas passaram a ser assíncronas (`authController` e `sessaoService` foram ajustados). No Next elas já eram assíncronas, então nenhum chamador mudou |
+| Sem `SESSION_SECRET` | Igual a antes: `criarToken` lança erro nos dois lados. `lerToken` lança no backend e devolve `null` no Next, onde o `middleware.ts` trata a falta de sessão |
+
+**Cookies antigos.** Quem tinha um cookie no formato anterior ("corpo.assinatura" em HMAC) passa a ser tratado como visitante: o `lerToken` devolve `null`, sem erro, e a pessoa precisa entrar de novo uma única vez. Isso acontece no primeiro acesso depois do deploy.
+
+**Testes:** `backend/test/tokenSessao.test.ts` e `tests/sessao.test.mjs`.
+
+- Criar e ler o token, com as claims e a validade de 7 dias.
+- Recusa de token adulterado, expirado, com `alg: "none"`, com HS512, assinado com outro segredo, com perfil inválido e no formato antigo.
+- Compatibilidade nos dois sentidos: token do Express aceito pelo Next, e o inverso.
+- Cookie antigo dando 401 numa rota protegida.
+
+O freio de tentativas é coberto pelo teste com banco de `backend/test/catalogoAuthPainel.test.ts`, que só roda com `TEST_DATABASE_URL`.
+
+**Continua fora do escopo:** revogação imediata (lista de bloqueio ou tabela de sessões), rotação de chave e token CSRF dedicado (seção 9).

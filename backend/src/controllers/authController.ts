@@ -6,15 +6,16 @@ import type { UsuarioAutenticado } from "../types/dominio";
 import { lerCookie } from "../utils/cookies";
 import { COOKIE_SESSAO, criarToken, DURACAO_SESSAO_SEG } from "../utils/tokenSessao";
 
-const OPCOES_COOKIE: CookieOptions = {
+// SameSite=None só vale com Secure (HTTPS); por isso "none" força o Secure mesmo fora de produção.
+export const OPCOES_COOKIE: CookieOptions = {
   httpOnly: true,
-  sameSite: "lax",
-  secure: env.NODE_ENV === "production",
+  sameSite: env.COOKIE_SAMESITE,
+  secure: env.NODE_ENV === "production" || env.COOKIE_SAMESITE === "none",
   path: "/",
 };
 
-function gravarSessao(res: Response, usuario: UsuarioAutenticado): void {
-  res.cookie(COOKIE_SESSAO, criarToken(usuario), { ...OPCOES_COOKIE, maxAge: DURACAO_SESSAO_SEG * 1000 });
+async function gravarSessao(res: Response, usuario: UsuarioAutenticado): Promise<void> {
+  res.cookie(COOKIE_SESSAO, await criarToken(usuario), { ...OPCOES_COOKIE, maxAge: DURACAO_SESSAO_SEG * 1000 });
 }
 
 // Mesmo critério da versão no Next: primeiro IP do x-forwarded-for (proxy do deploy).
@@ -27,20 +28,21 @@ function ipDe(req: Request): string {
 // POST /api/auth/login  { email, senha, perfil? }
 export const login: RequestHandler = async (req, res) => {
   const usuario = await authService.entrar(req.body ?? {}, ipDe(req));
-  gravarSessao(res, usuario);
+  await gravarSessao(res, usuario);
   res.json({ usuario });
 };
 
 // POST /api/auth/cadastro  { nome, email, senha } → cria um comprador e já entra
 export const cadastro: RequestHandler = async (req, res) => {
   const usuario = await authService.cadastrarComprador(req.body ?? {});
-  gravarSessao(res, usuario);
+  await gravarSessao(res, usuario);
   res.status(201).json({ usuario });
 };
 
 // POST /api/auth/logout
 export const logout: RequestHandler = (_req, res) => {
-  res.cookie(COOKIE_SESSAO, "", { path: "/", maxAge: 0 });
+  // Mesmos atributos do cookie criado: com SameSite=None o navegador só aceita a limpeza se baterem.
+  res.cookie(COOKIE_SESSAO, "", { ...OPCOES_COOKIE, maxAge: 0 });
   res.json({ ok: true });
 };
 

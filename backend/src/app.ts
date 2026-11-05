@@ -1,6 +1,7 @@
 import express from "express";
 import swaggerUi from "swagger-ui-express";
 import { especificacaoOpenApi } from "./config/openapi";
+import { cors } from "./middlewares/cors";
 import { naoEncontrado, tratadorDeErros } from "./middlewares/erros";
 import { rotas } from "./routes";
 
@@ -9,6 +10,8 @@ import { rotas } from "./routes";
 export const app = express();
 
 app.disable("x-powered-by");
+// CORS com cookies para o front em outra origem (só liga com CORS_ORIGIN definida).
+app.use(cors());
 // Limite de 4 MB: o cadastro de produto aceita foto como data URL de até ~2,8 MB.
 app.use(express.json({ limit: "4mb" }));
 

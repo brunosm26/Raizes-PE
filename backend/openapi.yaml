@@ -614,8 +614,10 @@ components:
       in: cookie
       name: raizes_sessao
       description: |
-        Cookie httpOnly gravado por `/auth/login` e `/auth/cadastro`, assinado com HMAC-SHA256 e válido por 7 dias.
-        A cada requisição a API confere a assinatura, a validade e se o usuário ainda existe com o mesmo perfil.
+        Cookie httpOnly gravado por `/auth/login` e `/auth/cadastro` com um JWT HS256 (claims `sub`, `nome`, `tipo`,
+        `iat` e `exp`), assinado com o `SESSION_SECRET` e válido por 7 dias. Tokens com outro algoritmo (inclusive
+        `none`) e cookies no formato antigo (anterior à PI4-130) são recusados. A cada requisição a API confere a
+        assinatura, a validade e se o usuário ainda existe com o mesmo perfil.
 
   headers:
     SetCookieSessao:

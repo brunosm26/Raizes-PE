@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { TipoUsuario } from "./tipos";
+import { apiFetch } from "./apiUrl";
 
 export interface UsuarioSessao {
   id: string;
@@ -21,7 +22,7 @@ interface ValorContextoSessao {
 const ContextoSessao = createContext<ValorContextoSessao | null>(null);
 
 async function enviar(url: string, corpo?: unknown): Promise<Response> {
-  return fetch(url, {
+  return apiFetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: corpo === undefined ? undefined : JSON.stringify(corpo),
@@ -47,7 +48,7 @@ export function ProvedorSessao({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let ativo = true;
-    fetch("/api/auth/me")
+    apiFetch("/api/auth/me")
       .then((res) => res.json() as Promise<{ usuario: UsuarioSessao | null }>)
       .then((json) => {
         if (ativo) setUsuario(json.usuario);

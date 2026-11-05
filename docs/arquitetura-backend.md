@@ -8,7 +8,7 @@
 
 A decisão da PI4-121 adotou a stack de referência da disciplina (Node.js, Express, Prisma e JWT), com o front em Next.js. O backend é o projeto Express em `backend/`, criado na PI4-127. As rotas que hoje vivem em `app/api/*` (route handlers do Next) e as funções de `lib/servidor/*` são portadas para lá, uma camada por vez, **sem mudar o contrato** (mesmo método, caminho, corpo, resposta de sucesso e código HTTP).
 
-Enquanto o Prisma (PI4-128) não está pronto, os repositories usam o `pg` diretamente, com o mesmo SQL que já roda hoje. Quando o Prisma entrar, **só os arquivos de `repositories/` mudam**; services, controllers e rotas continuam iguais.
+Os repositories das rotas usam o `pg` diretamente (`config/db.ts`), com o mesmo SQL que já roda no Next. O Prisma (PI4-128) já está configurado (`config/prisma.ts`, `prisma/schema.prisma`), mas hoje só o `repositories/popularidadeRepository.ts` o usa, e nenhuma rota chama esse repository. Se o time decidir passar os repositories para o Prisma, **só os arquivos de `repositories/` mudam**; services, controllers e rotas continuam iguais. *(Atualizado na PI4-135, 27/10/2026.)*
 
 ## 2. As camadas
 
@@ -46,14 +46,14 @@ Erros: qualquer camada lança `ErroHttp(status, mensagem)`; o middleware `tratad
 
 ## 3. Mapa: arquivo atual → camada de destino
 
-Os caminhos à esquerda são os da branch `feat/PI4-114-postgres-local` (onde a integração com o banco foi mergeada no PR #23). À direita, tudo é relativo a `backend/src/`.
+Os caminhos à esquerda são os do app Next (a integração com o banco do PR #23 chegou à `main` pelo PR #29). À direita, tudo é relativo a `backend/src/`.
 
 ### 3.1 Infraestrutura e utilitários
 
 | Arquivo atual | Destino | Observação |
 |---|---|---|
 | `lib/db.ts` | `config/db.ts` | Pool único; `DATABASE_URL` validada em `config/env.ts` |
-| `lib/sessao.ts` (criar/ler token) | `utils/tokenSessao.ts` | Mesmo formato do cookie `raizes_sessao` (HMAC-SHA256), compatível com o `middleware.ts` do Next. A troca por JWT é da PI4-130 e fica isolada neste arquivo |
+| `lib/sessao.ts` (criar/ler token) | `utils/tokenSessao.ts` | Mesmo token do cookie `raizes_sessao`, compatível com o `middleware.ts` do Next: desde a PI4-130, um JWT HS256 (`jose`), nos dois lados |
 | `lib/sessao.ts` (`PERFIS_POR_AREA`) | Fica no front | Só o `middleware.ts` e a barra de navegação usam |
 | `lib/servidor/auth.ts` (`hashSenha`, `verificarSenha`) | `utils/senha.ts` | scrypt, sem mudança de formato |
 | `lib/servidor/auth.ts` (`obterSessao`, `exigirSessao`) | `middlewares/sessao.ts` | `carregarSessao` (opcional) e `exigirSessao(perfis?)` reaproveitáveis em qualquer rota |
@@ -102,8 +102,26 @@ Os caminhos à esquerda são os da branch `feat/PI4-114-postgres-local` (onde a 
 | Arquivo | Por quê |
 |---|---|
 | `middleware.ts` | Protege **páginas** (redireciona para `/login`). Lê o mesmo cookie; continua no Next |
-| `lib/apiFalsa.ts`, `lib/contexto*.tsx` | Clientes da API. Passam a apontar para a URL do Express na PI4-132 (URL base, CORS e cookie) |
-| `app/api/*`, `lib/servidor/*`, `lib/db.ts` | Ficam até a PI4-132 ligar o front ao Express; depois são removidos |
+| `lib/apiUrl.ts` | Ponto único das chamadas do front à API (`apiFetch`): URL base (`NEXT_PUBLIC_API_URL`) e `credentials: "include"` |
+| `lib/apiFalsa.ts`, `lib/contexto*.tsx`, `app/painel`, `SecaoRecomendados` | Clientes da API. Chamam sempre por `apiFetch` (PI4-132) |
+| `app/api/*`, `lib/servidor/*`, `lib/db.ts` | Ficam como alternativa quando não há `API_URL`; saem quando o Express virar o padrão |
+
+### 3.5 Ligação do front ao Express (PI4-132)
+
+Dois modos, escolhidos por variável de ambiente:
+
+| | Proxy do Next (recomendado) | Chamada direta em outra origem |
+|---|---|---|
+| Como ligar | `API_URL=http://localhost:4000` no `.env.local` (lida pelo `next.config.mjs`) | `NEXT_PUBLIC_API_URL=<url do Express>` no front (lida no build); `CORS_ORIGIN` no `backend/.env` |
+| Origem vista pelo navegador | Uma só (a do site). `rewrites` com `beforeFiles` repassa `/api/*` ao Express | Duas (site e API) |
+| CORS | Não precisa | Sim: `middlewares/cors.ts` libera só as origens de `CORS_ORIGIN`, com `Access-Control-Allow-Credentials` (nunca `*`) e responde o preflight |
+| Cookie de sessão | Do domínio do site; `SameSite=Lax` basta | Do domínio da API. Entre domínios diferentes: `COOKIE_SAMESITE=none` (o backend força `Secure`, então só com HTTPS). Em `localhost` com portas diferentes o `Lax` funciona, pois as portas não mudam o "site" |
+| `middleware.ts` | Vê o cookie e valida o JWT nas páginas protegidas | **Não vê o cookie** (ele pertence ao domínio da API): as páginas protegidas redirecionam para `/login` mesmo com sessão. Só funciona se front e API compartilharem um domínio pai com `Domain` no cookie |
+| Corpo de erro | Igual ao do Express: `{ "ok": false, "erro": ... }` | Igual |
+
+Por isso o proxy é o modo recomendado: é o que mantém o `middleware.ts` útil. Todas as chamadas passam por `lib/apiUrl.ts` (`apiFetch`), que envia o cookie nos dois modos. O front só lê o status e `erro` do corpo, então a diferença de `ok` descrita em `docs/plano-migracao-api.md` não o afeta.
+
+Verificação rápida: com `API_URL` definida, `GET http://localhost:3000/api/saude` responde `{"ok":true}`; essa rota só existe no Express.
 
 ## 4. Estado da migração (22/10/2026)
 
@@ -121,13 +139,14 @@ Middlewares reaproveitáveis: `exigirSessao(perfis?)` (401/403), `carregarSessao
 
 Pendências, todas fora do escopo da PI4-119:
 
-- **Prisma (PI4-128)** e **JWT (PI4-130)**: entram trocando só `repositories/` e `utils/tokenSessao.ts`, respectivamente.
-- **Front apontando para o Express (PI4-132)**: até lá o front continua usando os route handlers do Next, que respondem igual.
+- **Prisma (PI4-128)**: já configurado (PR #28), mas os repositories das rotas continuam em `pg`; passar para o Prisma é decisão pendente do time e troca só `repositories/`.
+- **JWT (PI4-130)**: concluído; no backend, a troca ficou em `utils/tokenSessao.ts`, com o `authController` e o `sessaoService` passando a aguardar o token assíncrono (ver `docs/estrategia-autenticacao.md`, seção 12).
+- **Front apontando para o Express (PI4-132)**: concluído por variável de ambiente (seção 3.5). Sem `API_URL`, o front continua usando os route handlers do Next, que respondem igual.
 - **`GET /api/artesaos` (lista) e `GET /api/filtros`**: nunca existiram no Next (fase 7 do `plano-migracao-api.md`), então não são migração; entram como rotas novas.
 
 ### Testes
 
-`cd backend && npm test` sobe o app numa porta livre e chama as rotas com `fetch` (`node:test`). Os testes que não tocam o banco (401, 400, 404, logout) rodam sempre. Os que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável**, carregado com `db/01`, `04`, `05`, `06` e `07`; nunca use o Neon do time.
+`cd backend && npm test` sobe o app numa porta livre e chama as rotas com `fetch` (`node:test`). Os testes que não tocam o banco (401, 400, 404, logout) rodam sempre. Os que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` (definida no terminal, não no `backend/.env`) apontando para um banco **descartável**, carregado com `db/01`, `04`, `05`, `06` e `07`; nunca use o Neon do time. A trava em `test/ajudantes.ts` aborta se for o mesmo banco do time e exige `TEST_DB_REMOTO_DESCARTAVEL=1` para host remoto (ver `backend/README.md`).
 
 ## 5. Contrato
 

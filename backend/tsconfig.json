@@ -4,6 +4,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "outDir": "dist",
+    // ".." porque test/tokenSessao.test.ts importa lib/sessao.ts do front. O build usa
+    // tsconfig.build.json (rootDir src).
+    "rootDir": "..",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
@@ -13,5 +16,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["src", "scripts", "prisma.config.ts"]
+  "include": ["src", "test", "scripts", "prisma.config.ts"]
 }
