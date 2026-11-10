@@ -114,6 +114,7 @@ A tela `/cadastro` cria uma conta de comprador nova.
 | [`ia/README.md`](ia/README.md) | Módulo de IA da AV2: serviço BentoML, contrato e testes |
 | [`docs/arquitetura-backend.md`](docs/arquitetura-backend.md) | Camadas do backend e mapa da migração |
 | [`docs/estrategia-autenticacao.md`](docs/estrategia-autenticacao.md) | Sessão, senha e perfis de acesso |
+| [`docs/dicionario-de-dados.md`](docs/dicionario-de-dados.md) | Dicionário de dados do schema `origem`: tabelas, colunas, chaves, restrições, domínios e view de popularidade |
 | [`docs/BASELINE_IA.md`](docs/BASELINE_IA.md) | Regras do motor de recomendação do app |
 | [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md) | Contrato inicial da API |
 | [`docs/RELATORIO_TESTES_W12.md`](docs/RELATORIO_TESTES_W12.md) | Relatório de testes e rastreabilidade |
