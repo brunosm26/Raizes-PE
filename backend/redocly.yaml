@@ -1,0 +1,11 @@
+# Lint do openapi.yaml (npm run openapi:lint). Três regras do conjunto recomendado ficam
+# desligadas porque contrariam o que a API faz de propósito.
+extends:
+  - recommended
+rules:
+  # Várias rotas públicas de fato não têm resposta 4xx (saúde, /auth/me, listagens).
+  operation-4xx-response: off
+  # O servidor localhost é o de desenvolvimento e aparece de propósito no Swagger UI.
+  no-server-example.com: off
+  # Projeto acadêmico e privado, sem licença a declarar.
+  info-license: off

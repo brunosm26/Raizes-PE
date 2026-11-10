@@ -18,6 +18,8 @@
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull",
     "prisma:verificar": "tsx scripts/verificar-prisma.ts",
+    "openapi:conferir": "tsx scripts/conferir-openapi.ts",
+    "openapi:lint": "npx --yes @redocly/cli@2.74.0 lint openapi.yaml",
     "test": "tsx scripts/rodar-testes.ts"
   },
   "dependencies": {
@@ -31,11 +33,13 @@
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^13.0.0",
     "@eslint/js": "^10.0.1",
     "@types/express": "^5.0.6",
     "@types/node": "^20.19.43",
     "@types/pg": "^8.23.1",
     "@types/swagger-ui-express": "^4.1.8",
+    "ajv": "^8.20.0",
     "eslint": "^10.13.0",
     "prisma": "^7.10.1",
     "tsx": "^4.23.15",
