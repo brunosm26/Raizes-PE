@@ -1,5 +1,19 @@
 import type { ProdutoComArtesao } from "./tipos";
 
+// Constantes de pontuação do sistema de recomendações
+const PESO_MEDIA_AVALIACAO = 10;
+const PESO_QUANTIDADE_AVALIACOES = 2;
+const BONUS_TECNICA = 40;
+const PESO_AFINIDADE_TECNICA = 10;
+const BONUS_REGIAO = 25;
+const BONUS_ALTA_AVALIACAO = 15;
+const BONUS_COLD_START = 20;
+const PENALIDADE_COMPRA = 50;
+const NOTA_MINIMA_ALTA_AVALIACAO = 4.5;
+const NOTA_PADRAO_SEM_AVALIACOES = 4.0;
+const DIAS_PARA_NOVIDADE = 30;
+const BONUS_NOVIDADE = 5;
+
 export type CriterioRecomendacao =
   | "historico_tecnica"
   | "historico_regiao"
@@ -58,10 +72,11 @@ export function rankearRecomendacoes(
   // 3. Pontuação de cada produto (Scoring Engine)
   const recomendados: ProdutoRecomendado[] = disponiveis.map((prod) => {
     const av = avaliacaoPorProduto.get(prod.id);
-    const mediaAvaliacao = av ? av.media : 4.0;
+    const mediaAvaliacao = av ? av.media : NOTA_PADRAO_SEM_AVALIACOES;
     const qtdAvaliacoes = av ? av.qtd : 0;
 
-    let score = mediaAvaliacao * 10 + qtdAvaliacoes * 2;
+    let score = mediaAvaliacao * PESO_MEDIA_AVALIACAO
+      + qtdAvaliacoes * PESO_QUANTIDADE_AVALIACOES;
     let motivo = "Destaque do artesanato pernambucano";
     let criterio: CriterioRecomendacao = "popularidade";
 
@@ -69,8 +84,8 @@ export function rankearRecomendacoes(
     const dataCadastro = new Date(prod.dataCadastro).getTime();
     const dataReferencia = new Date("2025-06-30").getTime();
     const diferencaDias = Math.max(0, (dataReferencia - dataCadastro) / (1000 * 60 * 60 * 24));
-    if (diferencaDias < 30) {
-      score += 5;
+    if (diferencaDias < DIAS_PARA_NOVIDADE) {
+      score += BONUS_NOVIDADE;
     }
 
     if (temHistorico) {
@@ -79,27 +94,27 @@ export function rankearRecomendacoes(
       const jaComprou = idsProdutosComprados.has(prod.id);
 
       if (afinidadeTecnica > 0) {
-        score += 40 + afinidadeTecnica * 10;
+        score += BONUS_TECNICA + afinidadeTecnica * PESO_AFINIDADE_TECNICA;
         motivo = `Inspirado no seu apreço por ${prod.tecnica}`;
         criterio = "historico_tecnica";
       } else if (ehMesmaRegiao) {
-        score += 25;
+        score += BONUS_REGIAO;
         motivo = `Tradição de ${prod.artesaoRegiao}, de onde você já comprou`;
         criterio = "historico_regiao";
-      } else if (mediaAvaliacao >= 4.5 && qtdAvaliacoes > 0) {
-        score += 15;
+      } else if (mediaAvaliacao >= NOTA_MINIMA_ALTA_AVALIACAO && qtdAvaliacoes > 0) {
+        score += BONUS_ALTA_AVALIACAO;
         motivo = `Alta recomendação da comunidade (${mediaAvaliacao.toFixed(1)} ★)`;
         criterio = "popularidade";
       }
 
       // Desprioriza itens que o comprador já comprou para favorecer novas descobertas
       if (jaComprou) {
-        score -= 50;
+        score -= PENALIDADE_COMPRA;
       }
     } else {
       // Cold Start (PI4-84): usuário anônimo ou sem compras
-      if (mediaAvaliacao >= 4.5 && qtdAvaliacoes > 0) {
-        score += 20;
+      if (mediaAvaliacao >= NOTA_MINIMA_ALTA_AVALIACAO && qtdAvaliacoes > 0) {
+        score += BONUS_COLD_START;
         motivo = `Mais bem avaliados (${mediaAvaliacao.toFixed(1)} ★)`;
         criterio = "popularidade";
       } else {
