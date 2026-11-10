@@ -1,0 +1,32 @@
+name: Testes automatizados - Projeto Origem
+
+on:
+  push:
+    branches:
+      - refactor/pedro-magic-numbers
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar codigo
+        uses: actions/checkout@v7
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Executar testes automatizados
+        run: npm test
