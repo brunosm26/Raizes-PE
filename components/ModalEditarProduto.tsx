@@ -30,7 +30,7 @@ import { FiImage, FiUpload } from "react-icons/fi";
 import type { ProdutoComArtesao } from "@/lib/tipos";
 import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco } from "@/lib/mascaras";
 
-type DadosEditados = Pick<ProdutoComArtesao, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">;
+type DadosEditados = Pick<ProdutoComArtesao, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl" | "estoqueVersao">;
 
 const TAMANHO_MAXIMO_IMAGEM = 2 * 1024 * 1024;
 
@@ -86,7 +86,7 @@ export default function ModalEditarProduto({
     const valor = Number(preco.replace(",", "."));
     const estoque = Number(estoqueQtd);
     if (!Number.isFinite(valor) || valor <= 0 || !Number.isInteger(estoque) || estoque < 0) return;
-    aoSalvar(produto.id, { nome: nome.trim(), descricao: descricao.trim(), preco: valor, estoqueQtd: estoque, imagemUrl });
+    aoSalvar(produto.id, { nome: nome.trim(), descricao: descricao.trim(), preco: valor, estoqueQtd: estoque, estoqueVersao: produto.estoqueVersao, imagemUrl });
     aoFechar();
   }
 

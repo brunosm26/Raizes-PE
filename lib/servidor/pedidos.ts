@@ -6,6 +6,7 @@ import { pool } from "@/lib/db";
 import { ehUuid, resolverId } from "@/lib/idsLegados";
 import type { DadosSessao } from "@/lib/sessao";
 import type { ItemPedidoComProduto, PedidoComItens, StatusPedido, Tecnica } from "@/lib/tipos";
+import { assinaturaItens, idDoPedido } from "./idempotenciaPedido";
 
 export class ErroPedido extends Error {
   constructor(mensagem: string, public status = 400) {
@@ -98,7 +99,8 @@ export async function listarPedidosDoArtesao(usuarioId: string): Promise<PedidoC
 
 export async function criarPedido(
   compradorIdBruto: string,
-  itensEntrada: { produtoId: string; quantidade: number }[]
+  itensEntrada: { produtoId: string; quantidade: number }[],
+  chave?: string
 ): Promise<PedidoComItens> {
   const compradorId = resolverId(String(compradorIdBruto ?? ""));
   if (!ehUuid(compradorId)) throw new ErroPedido("Comprador inválido.");
@@ -109,7 +111,7 @@ export async function criarPedido(
   // Junta linhas repetidas do mesmo produto e valida as quantidades.
   const quantidades = new Map<string, number>();
   for (const item of itensEntrada) {
-    const produtoId = resolverId(String(item?.produtoId ?? ""));
+    const produtoId = resolverId(String(item?.produtoId ?? "")).toLowerCase();
     const quantidade = Number(item?.quantidade);
     if (!ehUuid(produtoId)) throw new ErroPedido("Produto inválido no pedido.");
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 99) {
@@ -117,6 +119,10 @@ export async function criarPedido(
     }
     quantidades.set(produtoId, (quantidades.get(produtoId) ?? 0) + quantidade);
   }
+
+  if (chave !== undefined && !ehUuid(chave)) throw new ErroPedido("Informe uma chave de idempotência UUID válida.");
+  const itensCanonicos = assinaturaItens([...quantidades].map(([produtoId, quantidade]) => ({ produtoId, quantidade })));
+  const tentativaId = idDoPedido(compradorId, chave);
 
   const client = await pool.connect();
   try {
@@ -127,6 +133,15 @@ export async function criarPedido(
       [compradorId]
     );
     if (compradores.length === 0) throw new ErroPedido("Comprador não encontrado.", 404);
+
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", [tentativaId]);
+    const [anterior] = await carregar("WHERE pe.id = $1", [tentativaId], client);
+    if (anterior) {
+      if (anterior.compradorId.toLowerCase() !== compradorId.toLowerCase() ||
+          assinaturaItens(anterior.itens) !== itensCanonicos) throw new ErroPedido("Esta chave já foi usada para outro carrinho.", 409);
+      await client.query("COMMIT");
+      return anterior;
+    }
 
     // Trava as linhas dos produtos para duas compras simultâneas não estourarem o estoque.
     const ids = Array.from(quantidades.keys());
@@ -160,9 +175,9 @@ export async function criarPedido(
     }
 
     const { rows } = await client.query<{ id: string }>(
-      `INSERT INTO origem.pedido (comprador_id, status, valor_total)
-       VALUES ($1, 'pendente', $2::numeric / 100) RETURNING id`,
-      [compradorId, totalCentavos]
+      `INSERT INTO origem.pedido (comprador_id, status, valor_total, id)
+       VALUES ($1, 'pendente', $2::numeric / 100, $3) RETURNING id`,
+      [compradorId, totalCentavos, tentativaId]
     );
     const pedidoId = rows[0].id;
 
@@ -179,8 +194,9 @@ export async function criarPedido(
       );
     }
 
-    await client.query("COMMIT");
     const [criado] = await carregar("WHERE pe.id = $1", [pedidoId], client);
+    if (!criado) throw new ErroPedido("Pedido não encontrado.", 404);
+    await client.query("COMMIT");
     return criado;
   } catch (erro) {
     await client.query("ROLLBACK").catch(() => undefined);

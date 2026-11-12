@@ -23,6 +23,7 @@ function produto(
     categoria: "Casa",
     preco: 100,
     estoqueQtd,
+    estoqueVersao: "0",
     dataCadastro,
     artesaoNome: `Artesão ${id}`,
     artesaoRegiao: regiao,

@@ -126,13 +126,17 @@ describe("auth, catálogo, recomendações e painel: com banco", () => {
   itComBanco("recomendações: visitante recebe cold start, comprador recebe pela sessão", async () => {
     const visitante = await (await fetch(`${api.url}/recomendacoes?limite=2`)).json();
     assert.equal(visitante.sucesso, true);
+    assert.equal(visitante.origem, "baseline_ia_v1");
     assert.equal(visitante.compradorId, null);
     assert.equal(visitante.total, 2);
+    assert.ok(visitante.dados.every((p: { estoqueQtd: number; motivo: string }) => p.estoqueQtd > 0 && p.motivo.length > 0));
 
     const cookie = await api.cookie(USUARIOS.comprador);
     const comprador = await (await fetch(`${api.url}/recomendacoes`, { headers: { cookie } })).json();
+    assert.equal(comprador.origem, "baseline_ia_v1");
     assert.equal(comprador.compradorId, USUARIOS.comprador.id);
     assert.ok(comprador.dados.length <= 4);
+    assert.ok(comprador.dados.every((p: { estoqueQtd: number }) => p.estoqueQtd > 0));
   });
 
   itComBanco("painel: comprador 403, artesão recebe 6 meses de histórico", async () => {

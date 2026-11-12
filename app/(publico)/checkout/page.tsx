@@ -90,7 +90,7 @@ interface PedidoConfirmado {
 
 export default function Pagina() {
   const { itens, valorTotal, quantidadeTotal, limparCarrinho } = useCarrinho();
-  const { criarPedido } = usePedidos();
+  const { criarPedido, finalizarCheckout } = usePedidos();
   const { usuario } = useSessao();
   const [etapa, setEtapa] = useState(0);
   const [dados, setDados] = useState<DadosEntrega>(DADOS_VAZIOS);
@@ -153,6 +153,14 @@ export default function Pagina() {
         quantidadeDePecas: quantidadeTotal,
       });
       limparCarrinho();
+      let carrinhoPersistido = false;
+      try {
+        localStorage.setItem("raizes-pe:carrinho", "[]");
+        carrinhoPersistido = true;
+      } catch { /* carrinho continua funcionando em memória */ }
+      // Se o carrinho antigo puder voltar após recarga, preserve sua chave para
+      // recuperar o pedido confirmado, em vez de criar uma compra duplicada.
+      finalizarCheckout(!carrinhoPersistido);
       setEtapa(3);
     } catch (erro) {
       setErroPedido(

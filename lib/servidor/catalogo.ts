@@ -20,6 +20,7 @@ const SELECT_PRODUTO = `
          COALESCE(p.categoria, '')           AS categoria,
          p.preco::float8                     AS preco,
          p.estoque_qtd                       AS "estoqueQtd",
+         p.xmin::text                       AS "estoqueVersao",
          to_char(p.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro",
          p.imagem_url                        AS "imagemUrl",
          u.nome                              AS "artesaoNome",

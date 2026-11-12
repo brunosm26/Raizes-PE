@@ -1,5 +1,7 @@
 # Raízes PE - Marketplace da Economia Criativa
 
+Para a PI4-30, consulte [arquitetura e evidências](docs/arquitetura-distribuida-concorrencia.md). As proteções usam o schema PostgreSQL existente, sem migração adicional.
+
 ![Artesã trabalhando em uma oficina de cerâmica](public/hero-oficina-ceramica.webp)
 
 Marketplace que conecta artesãos de Pernambuco diretamente a compradores. O artesão cadastra suas peças e acompanha as vendas; o comprador encontra produtos por técnica e região, recebe recomendações e compra pelo site ou pelo WhatsApp.

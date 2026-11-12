@@ -1,0 +1,29 @@
+Revisão do PR #47 — 2026-11-12
+
+Ambiente: PostgreSQL 16 descartável local; scripts 01, 04, 05, 06 e 07.
+Não foi executada migração nem alteração no Neon publicado.
+
+Resultados dos comandos executados:
+backend: npm run test -> 166 testes, 166 aprovados, 0 falhas, 0 ignorados.
+backend: npm run test:concorrencia -> 14 testes, 14 aprovados, 0 falhas, 0 ignorados.
+backend: npm run typecheck, npm run lint, npm run build -> concluídos com sucesso.
+raiz: npm test -> 40 testes, 40 aprovados, 0 falhas, 0 ignorados.
+raiz: node --test tests/tentativaCheckout.test.mjs -> 8 aprovados.
+Next: tests/concorrencia-next.test.ts -> 3 aprovados com banco descartável.
+raiz: npm run lint -> sucesso; aviso preexistente de fonte.
+raiz: npm run build -> sucesso, incluindo verificação TypeScript.
+
+Regressões verificadas:
+- Catálogo e recomendações retornam 200 sem coluna ou tabela adicional.
+- Checkout sem cabeçalho mantém atomicidade: cinco requisições, uma venda, saldo zero.
+- Edição antiga preserva saldo; saldo desatualizado recebe 409 com orientação de releitura.
+- Retry com a mesma chave retorna o mesmo pedido, inclusive após mudança de status.
+- Falhas de acesso/leitura/escrita/remoção de sessionStorage não impedem checkout.
+- Falha ao persistir limpeza do carrinho preserva chave para recuperação após recarga.
+
+Evidência bruta de banco/HTTP: concorrencia-main-atualizada.txt.
+Evidência bruta do controlador de tentativas: armazenamento-checkout.txt.
+Nova revisão de padrões e comportamento: sem bloqueador concreto residual identificado.
+Limites: testes locais, sem teste visual ou de carga; não comprovam disponibilidade em produção.
+Clientes sem chave não têm deduplicação de retries. Storage totalmente indisponível
+perde a recuperação após recarga. EstoqueVersao é token xmin de curta duração.

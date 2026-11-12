@@ -218,7 +218,7 @@ describe("pedidos e produtos: com banco", () => {
 
     const editado = await fetch(`${api.url}/produtos/${criado.id}`, {
       method: "PATCH",
-      ...json({ nome: "Bolsa de Palha Grande", descricao: "D", preco: 79, estoqueQtd: 2 }, cookie),
+      ...json({ nome: "Bolsa de Palha Grande", descricao: "D", preco: 79, estoqueQtd: 2, estoqueVersao: criado.estoqueVersao }, cookie),
     });
     assert.equal(editado.status, 200);
     assert.equal((await editado.json()).nome, "Bolsa de Palha Grande");
