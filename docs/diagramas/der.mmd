@@ -1,0 +1,11 @@
+erDiagram
+    USUARIO  ||--o| ARTESAO       : "especializa"
+    ARTESAO  ||--o{ PRODUTO      : "vende"
+    USUARIO  ||--o{ PEDIDO       : "faz"
+    PEDIDO   ||--|{ ITEM_PEDIDO  : "contém"
+    PRODUTO  ||--o{ ITEM_PEDIDO  : "é vendido em"
+    USUARIO  ||--o{ AVALIACAO    : "escreve"
+    PRODUTO  ||--o{ AVALIACAO    : "recebe"
+    USUARIO  ||--o| CARRINHO     : "possui"
+    CARRINHO ||--o{ ITEM_CARRINHO: "contém"
+    PRODUTO  ||--o{ ITEM_CARRINHO: "é adicionado em"
