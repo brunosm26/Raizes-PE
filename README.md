@@ -118,6 +118,7 @@ A tela `/cadastro` cria uma conta de comprador nova.
 | [`docs/BASELINE_IA.md`](docs/BASELINE_IA.md) | Regras do motor de recomendação do app |
 | [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md) | Contrato inicial da API |
 | [`docs/RELATORIO_TESTES_W12.md`](docs/RELATORIO_TESTES_W12.md) | Relatório de testes e rastreabilidade |
+| [`docs/AUDITORIA_INPUTS.md`](docs/AUDITORIA_INPUTS.md) | Auditoria de tipagem e validação de inputs (PI4-91) |
 
 ## Autoria
 

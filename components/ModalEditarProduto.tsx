@@ -140,8 +140,15 @@ export default function ModalEditarProduto({
               </FormControl>
               <FormControl isRequired>
                 <FormLabel fontSize="0.86rem">Estoque</FormLabel>
-                <NumberInput min={0} value={estoqueQtd} onChange={setEstoqueQtd}>
-                  <NumberInputField />
+                <NumberInput
+                  min={0}
+                  step={1}
+                  precision={0}
+                  clampValueOnBlur
+                  value={estoqueQtd}
+                  onChange={setEstoqueQtd}
+                >
+                  <NumberInputField placeholder="0" inputMode="numeric" />
                   <NumberInputStepper>
                     <NumberIncrementStepper />
                     <NumberDecrementStepper />
