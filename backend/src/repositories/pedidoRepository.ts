@@ -1,22 +1,10 @@
 import type { ItemPedidoComProduto, PedidoComItens, StatusPedido } from "../types/dominio";
 import { executorPadrao, type Executor } from "./transacao";
 
-export async function reservarCheckout(compradorId: string, chave: string, itens: string, tx: Executor) {
-  const reserva = await tx.query(
-    `INSERT INTO origem.checkout_idempotencia (comprador_id, chave, itens_canonicos)
-     VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING chave`, [compradorId, chave, itens]
-  );
-  if (reserva.rowCount) return null;
-  const { rows } = await tx.query<{ itens: string; resposta: PedidoComItens | null }>(
-    `SELECT itens_canonicos AS itens, resposta FROM origem.checkout_idempotencia WHERE comprador_id = $1 AND chave = $2`,
-    [compradorId, chave]
-  );
-  return rows[0]!;
-}
-
-export async function salvarRespostaCheckout(compradorId: string, chave: string, resposta: PedidoComItens, tx: Executor) {
-  await tx.query(`UPDATE origem.checkout_idempotencia SET resposta = $3::jsonb WHERE comprador_id = $1 AND chave = $2`,
-    [compradorId, chave, JSON.stringify(resposta)]);
+export async function travarTentativa(id: string, tx: Executor): Promise<void> {
+  // Lock transacional comum a todas as instâncias. Colisões do hash apenas
+  // serializam tentativas diferentes; a comparação de identidade é pelo UUID.
+  await tx.query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", [id]);
 }
 
 // Acesso a origem.pedido e origem.item_pedido. Pedido e itens são gravados na MESMA
@@ -106,11 +94,11 @@ export async function buscarPorId(id: string, executor?: Executor): Promise<Pedi
   return pedido ?? null;
 }
 
-export async function inserir(compradorId: string, totalCentavos: number, tx: Executor): Promise<string> {
+export async function inserir(compradorId: string, totalCentavos: number, tx: Executor, id: string): Promise<string> {
   const { rows } = await tx.query<{ id: string }>(
-    `INSERT INTO origem.pedido (comprador_id, status, valor_total)
-     VALUES ($1, 'pendente', $2::numeric / 100) RETURNING id`,
-    [compradorId, totalCentavos]
+    `INSERT INTO origem.pedido (comprador_id, status, valor_total, id)
+     VALUES ($1, 'pendente', $2::numeric / 100, $3) RETURNING id`,
+    [compradorId, totalCentavos, id]
   );
   return rows[0]!.id;
 }

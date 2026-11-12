@@ -107,16 +107,16 @@ export async function editarProduto(
   }
 
   const versao = bruto.estoqueVersao;
-  if (typeof versao !== "string" || !/^(0|[1-9]\d{0,18})$/.test(versao) || BigInt(versao) > BigInt("9223372036854775807")) {
+  if (versao !== undefined && (typeof versao !== "string" || !/^\d{1,10}$/.test(versao))) {
     throw new ErroProduto("Versão do estoque inválida. Atualize o produto.");
   }
   const { rowCount } = await pool.query(
     `UPDATE origem.produto
         SET nome = $2, descricao = $3, preco = $4, estoque_qtd = $5, imagem_url = $6
-      WHERE id = $1 AND estoque_versao = $7::bigint`,
-    [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl, versao]
+      WHERE id = $1 AND (xmin::text = $7::text OR ($7::text IS NULL AND estoque_qtd = $5))`,
+    [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl, versao ?? null]
   );
-  if (!rowCount) throw new ErroProduto("O estoque mudou. Atualize o produto antes de salvar.", 409);
+  if (!rowCount) throw new ErroProduto("Recarregue a página e revise o estoque antes de salvar.", 409);
   const atualizado = await buscarProduto(id);
   if (!atualizado) throw new ErroProduto("Produto não encontrado.", 404);
   return atualizado;

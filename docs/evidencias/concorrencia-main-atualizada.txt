@@ -3,85 +3,112 @@
 > tsx --test test/concorrencia.test.ts
 
 TAP version 13
-# EVIDENCIA ultimo-item {"estoqueInicial":1,"status":[201,409,409,409,409,409,409,409,409,409],"estoques":[{"id":"2d060a2b-ba54-44c0-b40a-d6c62d2231e0","estoque":0}],"itens":[{"produtoId":"2d060a2b-ba54-44c0-b40a-d6c62d2231e0","quantidade":1,"pedidoId":"031cb307-bba2-403c-b663-778ef30878fe"}]}
+# EVIDENCIA ultimo-item {"estoqueInicial":1,"status":[201,409,409,409,409,409,409,409,409,409],"estoques":[{"id":"0fe3afa7-f691-4d6e-a809-e17187d23746","estoque":0}],"itens":[{"produtoId":"0fe3afa7-f691-4d6e-a809-e17187d23746","quantidade":1,"pedidoId":"81853feb-1435-857e-b054-1f3acf8310de"}]}
 # Subtest: checkout concorrente com PostgreSQL descartável
     # Subtest: uma unidade disputada por dez requisições gera apenas um pedido
     ok 1 - uma unidade disputada por dez requisições gera apenas um pedido
       ---
-      duration_ms: 412.88
+      duration_ms: 744.2268
       type: 'test'
       ...
-# EVIDENCIA demanda-excedente {"estoqueInicial":7,"status":[201,201,201,409,409,409,409,409,409,409],"estoques":[{"id":"b0d91e8e-c863-4392-8c6c-a5c153506925","estoque":1}],"itens":[{"produtoId":"b0d91e8e-c863-4392-8c6c-a5c153506925","quantidade":2,"pedidoId":"43a48789-8dee-4630-9912-10ea2a73907e"},{"produtoId":"b0d91e8e-c863-4392-8c6c-a5c153506925","quantidade":2,"pedidoId":"604a3206-e5a5-41ff-bb8d-35ee9122ba28"},{"produtoId":"b0d91e8e-c863-4392-8c6c-a5c153506925","quantidade":2,"pedidoId":"7d46d5c2-7935-4282-8da3-6d63c7069967"}]}
+# EVIDENCIA demanda-excedente {"estoqueInicial":7,"status":[201,201,201,409,409,409,409,409,409,409],"estoques":[{"id":"95d04861-392a-4d3f-8194-ba28209e249a","estoque":1}],"itens":[{"produtoId":"95d04861-392a-4d3f-8194-ba28209e249a","quantidade":2,"pedidoId":"24803529-8a9d-8515-92dc-0b33ecbfe193"},{"produtoId":"95d04861-392a-4d3f-8194-ba28209e249a","quantidade":2,"pedidoId":"290220e4-9a43-8662-9c94-e86412414122"},{"produtoId":"95d04861-392a-4d3f-8194-ba28209e249a","quantidade":2,"pedidoId":"650d1dca-d5ea-83c5-8451-ec7563a330f2"}]}
     # Subtest: reconcilia estoque e itens quando a demanda ultrapassa o saldo
     ok 2 - reconcilia estoque e itens quando a demanda ultrapassa o saldo
       ---
-      duration_ms: 244.7571
+      duration_ms: 446.5441
       type: 'test'
       ...
-# EVIDENCIA rollback-carrinho {"disponivel":"cd7a4194-a7c3-4152-8563-c35cce0ceb62","esgotado":"85acb484-ddc8-40e3-877b-fee84d6f6d57","status":[409,409,409,409,409],"estoques":[{"id":"85acb484-ddc8-40e3-877b-fee84d6f6d57","estoque":0},{"id":"cd7a4194-a7c3-4152-8563-c35cce0ceb62","estoque":3}],"itens":[]}
+# EVIDENCIA rollback-carrinho {"disponivel":"d6c4903f-0286-4c12-a60c-9cf4dfbccd4b","esgotado":"4874b509-8af5-4f28-be83-6d791d9e629d","status":[409,409,409,409,409],"estoques":[{"id":"4874b509-8af5-4f28-be83-6d791d9e629d","estoque":0},{"id":"d6c4903f-0286-4c12-a60c-9cf4dfbccd4b","estoque":3}],"itens":[]}
     # Subtest: não persiste pedido nem baixa parcial quando um item está esgotado
     ok 3 - não persiste pedido nem baixa parcial quando um item está esgotado
       ---
-      duration_ms: 105.8256
+      duration_ms: 193.7838
       type: 'test'
       ...
-# EVIDENCIA ordem-inversa {"estoqueInicialPorProduto":2,"status":[201,201,409,409,409,409],"estoques":[{"id":"68e90a83-3c42-4187-8735-0b39e8e66432","estoque":0},{"id":"ef6b4114-50c3-46b8-bf66-cc1174f84c55","estoque":0}],"itens":[{"produtoId":"68e90a83-3c42-4187-8735-0b39e8e66432","quantidade":1,"pedidoId":"1468122a-70e7-44d8-95f8-fd831e00e5e3"},{"produtoId":"ef6b4114-50c3-46b8-bf66-cc1174f84c55","quantidade":1,"pedidoId":"1468122a-70e7-44d8-95f8-fd831e00e5e3"},{"produtoId":"68e90a83-3c42-4187-8735-0b39e8e66432","quantidade":1,"pedidoId":"c2e601ba-aa49-465e-888d-96e188b666ee"},{"produtoId":"ef6b4114-50c3-46b8-bf66-cc1174f84c55","quantidade":1,"pedidoId":"c2e601ba-aa49-465e-888d-96e188b666ee"}]}
+# EVIDENCIA ordem-inversa {"estoqueInicialPorProduto":2,"status":[201,201,409,409,409,409],"estoques":[{"id":"3b3bf529-77af-487c-a70a-345daa7d048e","estoque":0},{"id":"e7b9c62d-620c-4944-84cb-7aba8591290b","estoque":0}],"itens":[{"produtoId":"3b3bf529-77af-487c-a70a-345daa7d048e","quantidade":1,"pedidoId":"8219f2ab-d19a-8be3-8beb-0c276a9d769e"},{"produtoId":"e7b9c62d-620c-4944-84cb-7aba8591290b","quantidade":1,"pedidoId":"8219f2ab-d19a-8be3-8beb-0c276a9d769e"},{"produtoId":"3b3bf529-77af-487c-a70a-345daa7d048e","quantidade":1,"pedidoId":"bd96ba7f-01eb-8816-9903-4a14e5a2c2a8"},{"produtoId":"e7b9c62d-620c-4944-84cb-7aba8591290b","quantidade":1,"pedidoId":"bd96ba7f-01eb-8816-9903-4a14e5a2c2a8"}]}
     # Subtest: carrinhos em ordens inversas concluem sem impasse nem venda excessiva
     ok 4 - carrinhos em ordens inversas concluem sem impasse nem venda excessiva
       ---
-      duration_ms: 178.8622
+      duration_ms: 302.686
       type: 'test'
       ...
-# EVIDENCIA idempotencia {"estoqueInicial":3,"status":[201,201,201,201,201,201,201,201,201,201],"estoques":[{"id":"ed016de0-601b-483f-9e5b-0a5c498cfdea","estoque":2}],"itens":[{"produtoId":"ed016de0-601b-483f-9e5b-0a5c498cfdea","quantidade":1,"pedidoId":"a4dd6f07-8596-42ac-9721-09f2f56d6a20"}]}
+# EVIDENCIA idempotencia {"estoqueInicial":3,"status":[201,201,201,201,201,201,201,201,201,201],"estoques":[{"id":"addbfc91-580b-48ac-817e-08b9ebff964f","estoque":2}],"itens":[{"produtoId":"addbfc91-580b-48ac-817e-08b9ebff964f","quantidade":1,"pedidoId":"5248f9eb-299b-83d9-b288-b75b237df5ab"}]}
     # Subtest: repetições simultâneas com a mesma chave criam um único pedido
     ok 5 - repetições simultâneas com a mesma chave criam um único pedido
       ---
-      duration_ms: 167.1552
+      duration_ms: 694.0043
       type: 'test'
       ...
     # Subtest: chave inválida é rejeitada e falha de estoque não consome a chave
     ok 6 - chave inválida é rejeitada e falha de estoque não consome a chave
       ---
-      duration_ms: 129.0268
+      duration_ms: 209.9812
       type: 'test'
       ...
     # Subtest: chave de um comprador não revela nem reutiliza o pedido de outro
     ok 7 - chave de um comprador não revela nem reutiliza o pedido de outro
       ---
-      duration_ms: 141.3297
+      duration_ms: 218.6843
       type: 'test'
       ...
 # EVIDENCIA edicao-conflitante {"estoqueInicial":3,"aposVenda":2,"statusAtrasado":409,"statusAtual":200,"estoqueFinal":4}
     # Subtest: rejeita edição desatualizada depois de venda e aceita após releitura
     ok 8 - rejeita edição desatualizada depois de venda e aceita após releitura
       ---
-      duration_ms: 131.484
+      duration_ms: 201.595
       type: 'test'
       ...
     # Subtest: duas edições concorrentes da mesma versão não sobrescrevem o estoque
     ok 9 - duas edições concorrentes da mesma versão não sobrescrevem o estoque
       ---
-      duration_ms: 61.9045
+      duration_ms: 72.789
       type: 'test'
       ...
     # Subtest: detecta alteração mesmo quando estoque retorna ao valor anterior
     ok 10 - detecta alteração mesmo quando estoque retorna ao valor anterior
       ---
-      duration_ms: 97.7732
+      duration_ms: 132.2598
       type: 'test'
       ...
-    1..10
+# EVIDENCIA schema-original {"coluna_adicional":false,"tabela_adicional":false,"catalogo":200,"recomendacoes":200}
+    # Subtest: catálogo e recomendação funcionam no schema original, sem script 08
+    ok 11 - catálogo e recomendação funcionam no schema original, sem script 08
+      ---
+      duration_ms: 132.0354
+      type: 'test'
+      ...
+# EVIDENCIA cliente-antigo-checkout {"status":[409,201,409,409,409],"estoques":[{"id":"f8f1e432-c154-446a-94ee-06c1e75281e5","estoque":0}],"itens":[{"produtoId":"f8f1e432-c154-446a-94ee-06c1e75281e5","quantidade":1,"pedidoId":"a13220dc-ba3c-4ddf-9435-10dbe40d55a1"}]}
+    # Subtest: checkout antigo sem chave continua transacional sob concorrência
+    ok 12 - checkout antigo sem chave continua transacional sob concorrência
+      ---
+      duration_ms: 128.9679
+      type: 'test'
+      ...
+# EVIDENCIA cliente-antigo-edicao {"preservarSaldo":200,"conflito":409,"aposReleitura":200}
+    # Subtest: edição antiga só preserva saldo e pede atualização para alterá-lo
+    ok 13 - edição antiga só preserva saldo e pede atualização para alterá-lo
+      ---
+      duration_ms: 177.6747
+      type: 'test'
+      ...
+    # Subtest: retry equivale a itens agrupados e consulta o mesmo pedido após mudança de status
+    ok 14 - retry equivale a itens agrupados e consulta o mesmo pedido após mudança de status
+      ---
+      duration_ms: 132.6444
+      type: 'test'
+      ...
+    1..14
 ok 1 - checkout concorrente com PostgreSQL descartável
   ---
-  duration_ms: 3036.1895
+  duration_ms: 8200.7737
   type: 'suite'
   ...
 1..1
-# tests 10
+# tests 14
 # suites 1
-# pass 10
+# pass 14
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 3630.1935
+# duration_ms 13033.6429

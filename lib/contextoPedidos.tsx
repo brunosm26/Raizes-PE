@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { criarControleCheckout } from "./tentativaCheckout";
 import { resolverId } from "./idsLegados";
 import { useSessao } from "./contextoSessao";
 import { apiFetch } from "./apiUrl";
@@ -12,7 +13,6 @@ import type {
 } from "./tipos";
 
 const CHAVE_ARMAZENAMENTO = "raizes-pe:pedidos";
-export const CHAVE_CHECKOUT_PENDENTE = "raizes-pe:checkout-pendente";
 
 interface ValorContextoPedidos {
   pedidos: PedidoComItens[];
@@ -26,6 +26,7 @@ interface ValorContextoPedidos {
   // Grava o pedido no banco (POST /api/pedidos). Rejeita com a mensagem do servidor
   // (ex.: estoque insuficiente), que a tela de checkout mostra ao comprador.
   criarPedido: (compradorId: string, itens: ItemCarrinhoComProduto[]) => Promise<PedidoComItens>;
+  finalizarCheckout: (preservarRecuperacao?: boolean) => void;
   marcarComoEnviado: (pedidoId: string) => Promise<void>;
   marcarNotificacoesComoLidas: (compradorId: string) => void;
 }
@@ -83,6 +84,9 @@ function porDataDecrescente(a: PedidoComItens, b: PedidoComItens): number {
 }
 
 export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
+  const controleCheckout = useRef<ReturnType<typeof criarControleCheckout> | null>(null);
+  if (!controleCheckout.current) controleCheckout.current = criarControleCheckout();
+  const finalizarCheckout = useCallback((preservarRecuperacao = false) => controleCheckout.current!.concluir(preservarRecuperacao), []);
   const [pedidos, setPedidos] = useState<PedidoComItens[]>([]);
   const [notificacoes, setNotificacoes] = useState<NotificacaoEnvio[]>([]);
   const [hidratado, setHidratado] = useState(false);
@@ -131,17 +135,10 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   const criarPedido = useCallback(
     async (compradorId: string, itens: ItemCarrinhoComProduto[]): Promise<PedidoComItens> => {
       const itensPedido = itens.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade }));
-      const assinatura = JSON.stringify({ compradorId, itens: [...itensPedido].sort((a, b) => a.produtoId.localeCompare(b.produtoId)) });
-      const anterior = sessionStorage.getItem(CHAVE_CHECKOUT_PENDENTE);
-      let pendente: { assinatura: string; chave: string } | null = null;
-      try { if (anterior) pendente = JSON.parse(anterior); } catch { /* valor inválido */ }
-      if (!pendente || pendente.assinatura !== assinatura || typeof pendente.chave !== "string") {
-        pendente = { assinatura, chave: crypto.randomUUID() };
-        sessionStorage.setItem(CHAVE_CHECKOUT_PENDENTE, JSON.stringify(pendente));
-      }
+      const chave = controleCheckout.current!.obterChave(compradorId, itensPedido);
       const res = await apiFetch("/api/pedidos", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": pendente.chave },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": chave },
         body: JSON.stringify({
           compradorId,
           itens: itensPedido,
@@ -260,6 +257,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       vendasDoArtesao,
       notificacoesDoComprador,
       criarPedido,
+      finalizarCheckout,
       marcarComoEnviado,
       marcarNotificacoesComoLidas,
     }),
@@ -273,6 +271,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       vendasDoArtesao,
       notificacoesDoComprador,
       criarPedido,
+      finalizarCheckout,
       marcarComoEnviado,
       marcarNotificacoesComoLidas,
     ]

@@ -29,7 +29,7 @@ import {
 import { FiArrowLeft, FiCheck } from "react-icons/fi";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import { useCarrinho } from "@/lib/contextoCarrinho";
-import { CHAVE_CHECKOUT_PENDENTE, usePedidos } from "@/lib/contextoPedidos";
+import { usePedidos } from "@/lib/contextoPedidos";
 import { useSessao } from "@/lib/contextoSessao";
 import { numeroPedido } from "@/lib/idsLegados";
 import type { DadosEntrega } from "@/lib/tipos";
@@ -90,7 +90,7 @@ interface PedidoConfirmado {
 
 export default function Pagina() {
   const { itens, valorTotal, quantidadeTotal, limparCarrinho } = useCarrinho();
-  const { criarPedido } = usePedidos();
+  const { criarPedido, finalizarCheckout } = usePedidos();
   const { usuario } = useSessao();
   const [etapa, setEtapa] = useState(0);
   const [dados, setDados] = useState<DadosEntrega>(DADOS_VAZIOS);
@@ -153,12 +153,14 @@ export default function Pagina() {
         quantidadeDePecas: quantidadeTotal,
       });
       limparCarrinho();
-      // Só libera a chave depois de persistir o carrinho vazio; se o navegador
-      // fechar entre as etapas, a tentativa recuperada ainda reutiliza a chave.
+      let carrinhoPersistido = false;
       try {
         localStorage.setItem("raizes-pe:carrinho", "[]");
-        sessionStorage.removeItem(CHAVE_CHECKOUT_PENDENTE);
-      } catch { /* manter a chave é mais seguro se o armazenamento falhar */ }
+        carrinhoPersistido = true;
+      } catch { /* carrinho continua funcionando em memória */ }
+      // Se o carrinho antigo puder voltar após recarga, preserve sua chave para
+      // recuperar o pedido confirmado, em vez de criar uma compra duplicada.
+      finalizarCheckout(!carrinhoPersistido);
       setEtapa(3);
     } catch (erro) {
       setErroPedido(

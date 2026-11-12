@@ -353,6 +353,8 @@ paths:
         **Artesão** dono da loja ou **admin**. Técnica e categoria não mudam na edição.
         Todos os campos editáveis são obrigatórios (a tela envia o formulário completo), e `imagemUrl` ausente
         também remove a foto. A validação do corpo (400) vem antes da checagem do dono (403 e 404).
+        Envie estoqueVersao obtida no catálogo para alterar o saldo. Clientes antigos sem versão só podem
+        salvar quando a quantidade enviada continua igual à atual; caso contrário recebem 409 para recarregar.
       operationId: editarProduto
       security:
         - cookieSessao: []
@@ -365,9 +367,8 @@ paths:
               allOf:
                 - $ref: "#/components/schemas/CamposEditaveisProduto"
                 - type: object
-                  required: [estoqueVersao]
                   properties:
-                    estoqueVersao: { type: string, pattern: '^(0|[1-9][0-9]{0,18})$', example: '0' }
+                    estoqueVersao: { type: string, pattern: '^[0-9]{1,10}$', example: '1234', description: Token opaco da linha; use o valor retornado pelo catálogo. }
       responses:
         "200":
           description: Produto atualizado
@@ -503,8 +504,8 @@ paths:
       parameters:
         - name: Idempotency-Key
           in: header
-          required: true
-          description: UUID por tentativa lógica; reutilize em caso de falha.
+          required: false
+          description: UUID por tentativa lógica; reutilize em caso de falha. Clientes antigos sem cabeçalho mantêm checkout transacional, sem deduplicação de tentativas.
           schema: { type: string, format: uuid }
       requestBody:
         required: true
@@ -781,7 +782,7 @@ components:
         categoria: { type: string, example: Vasos }
         preco: { type: number, format: double, example: 185 }
         estoqueQtd: { type: integer, minimum: 0, example: 8 }
-        estoqueVersao: { type: string, example: '0', description: Versão usada para edição de estoque. }
+        estoqueVersao: { type: string, example: '1234', description: Token opaco da linha usado na edição de estoque; não interpretar como contador. }
         dataCadastro: { type: string, format: date, example: "2025-05-10" }
         imagemUrl:
           type: string

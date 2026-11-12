@@ -1,6 +1,6 @@
 # Raízes PE - Marketplace da Economia Criativa
 
-Para a PI4-30, consulte [arquitetura e evidências](docs/arquitetura-distribuida-concorrencia.md). O script `db/08_concorrencia_checkout.sql` precisa ser aplicado ao banco de destino pelo fluxo de mudança do projeto antes da publicação do código.
+Para a PI4-30, consulte [arquitetura e evidências](docs/arquitetura-distribuida-concorrencia.md). As proteções usam o schema PostgreSQL existente, sem migração adicional.
 
 ![Artesã trabalhando em uma oficina de cerâmica](public/hero-oficina-ceramica.webp)
 

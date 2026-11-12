@@ -14,7 +14,7 @@ async function produto(estoque: number): Promise<string> {
   const id = randomUUID();
   await pool.query(
     `INSERT INTO origem.produto (id, artesao_id, nome, tecnica, categoria, preco, estoque_qtd)
-     VALUES ($1, $2, 'Teste de concorrência', 'Cerâmica', 'Teste', 10, $3)`,
+     VALUES ($1, $2, 'Teste de concorrência', 'Palha', 'Teste', 10, $3)`,
     [id, artesaoId, estoque]
   );
   return id;
@@ -186,5 +186,64 @@ describe("checkout concorrente com PostgreSQL descartável", { skip: semBanco },
     });
     assert.equal(resposta.status, 409);
     assert.equal((await estado([id])).estoques[0]?.estoque, 3);
+  });
+
+  it("catálogo e recomendação funcionam no schema original, sem script 08", async () => {
+    const schema = await pool.query(`SELECT
+      EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='origem' AND table_name='produto' AND column_name='estoque_versao') AS coluna_adicional,
+      to_regclass('origem.checkout_idempotencia') IS NOT NULL AS tabela_adicional`);
+    assert.deepEqual(schema.rows[0], { coluna_adicional: false, tabela_adicional: false });
+    const catalogo = await fetch(`${api.url}/produtos`);
+    assert.equal(catalogo.status, 200);
+    const lista = await catalogo.json();
+    assert.ok(lista.length > 0 && lista.every((p: { estoqueVersao: string }) => /^\d+$/.test(p.estoqueVersao)));
+    const recomendacoes = await fetch(`${api.url}/recomendacoes?limite=2`);
+    assert.equal(recomendacoes.status, 200);
+    assert.equal((await recomendacoes.json()).origem, "baseline_ia_v1");
+    console.log("EVIDENCIA schema-original", JSON.stringify({ ...schema.rows[0], catalogo: catalogo.status, recomendacoes: recomendacoes.status }));
+  });
+
+  it("checkout antigo sem chave continua transacional sob concorrência", async () => {
+    const id = await produto(1);
+    const respostas = await Promise.all(Array.from({ length: 5 }, () => fetch(`${api.url}/pedidos`, {
+      method: "POST", headers: { "content-type": "application/json", cookie },
+      body: JSON.stringify({ itens: [{ produtoId: id, quantidade: 1 }] }),
+    })));
+    assert.deepEqual(respostas.map((r) => r.status).sort(), [201, 409, 409, 409, 409]);
+    const dados = await estado([id]);
+    assert.equal(dados.estoques[0]?.estoque, 0);
+    assert.equal(dados.itens.length, 1);
+    console.log("EVIDENCIA cliente-antigo-checkout", JSON.stringify({ status: respostas.map((r) => r.status), ...dados }));
+  });
+
+  it("edição antiga só preserva saldo e pede atualização para alterá-lo", async () => {
+    const id = await produto(3);
+    const artesao = await api.cookie(USUARIOS.outroArtesao);
+    const corpo = { nome: "Nome revisado", descricao: "Teste", preco: 10, estoqueQtd: 3 };
+    const semAlterarSaldo = await fetch(`${api.url}/produtos/${id}`, { method: "PATCH", ...json(corpo, artesao) });
+    assert.equal(semAlterarSaldo.status, 200);
+    assert.equal((await comprar([{ produtoId: id, quantidade: 1 }])).status, 201);
+    const antigo = await fetch(`${api.url}/produtos/${id}`, { method: "PATCH", ...json(corpo, artesao) });
+    assert.equal(antigo.status, 409);
+    assert.match((await antigo.json()).erro, /Recarregue a página/);
+    const atual = await (await fetch(`${api.url}/produtos/${id}`)).json();
+    assert.equal(atual.estoqueQtd, 2);
+    const revisado = await fetch(`${api.url}/produtos/${id}`, { method: "PATCH", ...json({ ...corpo, estoqueVersao: atual.estoqueVersao }, artesao) });
+    assert.equal(revisado.status, 200);
+    assert.equal((await revisado.json()).estoqueQtd, 3);
+    console.log("EVIDENCIA cliente-antigo-edicao", JSON.stringify({ preservarSaldo: semAlterarSaldo.status, conflito: antigo.status, aposReleitura: revisado.status }));
+  });
+
+  it("retry equivale a itens agrupados e consulta o mesmo pedido após mudança de status", async () => {
+    const id = await produto(4);
+    const chave = randomUUID();
+    const primeiro = await comprar([{ produtoId: id, quantidade: 1 }, { produtoId: id, quantidade: 1 }], chave);
+    assert.equal(primeiro.status, 201);
+    await pool.query(`UPDATE origem.pedido SET status = 'pago' WHERE id = $1`, [primeiro.corpo.id]);
+    const retry = await comprar([{ produtoId: id.toUpperCase(), quantidade: 2 }], chave.toUpperCase());
+    assert.equal(retry.status, 201);
+    assert.equal(retry.corpo.id, primeiro.corpo.id);
+    assert.equal(retry.corpo.status, "pago");
+    assert.equal((await estado([id])).estoques[0]?.estoque, 2);
   });
 });

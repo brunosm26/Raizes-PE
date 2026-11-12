@@ -5,6 +5,7 @@ import * as usuarioRepository from "../repositories/usuarioRepository";
 import { STATUS_PEDIDO, type DadosSessao, type PedidoComItens, type StatusPedido } from "../types/dominio";
 import { ErroHttp } from "../utils/erroHttp";
 import { ehUuid, resolverId } from "../utils/ids";
+import { assinaturaItens, idDoPedido } from "../utils/idempotenciaPedido";
 
 // Regras de pedido: quem enxerga o quê, validação do carrinho, estoque, total e
 // quem pode mudar o status.
@@ -35,23 +36,25 @@ function validarItens(itensEntrada: unknown): Map<string, number> {
   return quantidades;
 }
 
-export async function criarPedido(compradorIdBruto: string, itensEntrada: unknown, chave: string): Promise<PedidoComItens> {
+export async function criarPedido(compradorIdBruto: string, itensEntrada: unknown, chave?: string): Promise<PedidoComItens> {
   const compradorId = resolverId(String(compradorIdBruto ?? ""));
   if (!ehUuid(compradorId)) throw new ErroHttp(400, "Comprador inválido.");
   const quantidades = validarItens(itensEntrada);
-  if (!ehUuid(chave)) throw new ErroHttp(400, "Informe uma chave de idempotência UUID válida.");
-  const itensCanonicos = JSON.stringify([...quantidades.entries()].sort(([a], [b]) => a.localeCompare(b)));
+  if (chave !== undefined && !ehUuid(chave)) throw new ErroHttp(400, "Informe uma chave de idempotência UUID válida.");
+  const itensCanonicos = assinaturaItens([...quantidades].map(([produtoId, quantidade]) => ({ produtoId, quantidade })));
+  const tentativaId = idDoPedido(compradorId, chave);
 
   return emTransacao(async (tx) => {
     if (!(await usuarioRepository.ehComprador(compradorId, tx))) {
       throw new ErroHttp(404, "Comprador não encontrado.");
     }
 
-    const anterior = await pedidoRepository.reservarCheckout(compradorId, chave, itensCanonicos, tx);
+    await pedidoRepository.travarTentativa(tentativaId, tx);
+    const anterior = await pedidoRepository.buscarPorId(tentativaId, tx);
     if (anterior) {
-      if (anterior.itens !== itensCanonicos) throw new ErroHttp(409, "Esta chave já foi usada para outro carrinho.");
-      if (!anterior.resposta) throw new ErroHttp(409, "Pedido ainda não concluído.");
-      return anterior.resposta;
+      if (anterior.compradorId.toLowerCase() !== compradorId.toLowerCase() ||
+          assinaturaItens(anterior.itens) !== itensCanonicos) throw new ErroHttp(409, "Esta chave já foi usada para outro carrinho.");
+      return anterior;
     }
 
     const ids = Array.from(quantidades.keys());
@@ -70,7 +73,7 @@ export async function criarPedido(compradorIdBruto: string, itensEntrada: unknow
       totalCentavos += Math.round(Number(p.preco) * 100) * qtd;
     }
 
-    const id = await pedidoRepository.inserir(compradorId, totalCentavos, tx);
+    const id = await pedidoRepository.inserir(compradorId, totalCentavos, tx, tentativaId);
     for (const p of produtos) {
       const qtd = quantidades.get(p.id) as number;
       await pedidoRepository.inserirItem(id, p.id, qtd, p.preco, tx);
@@ -80,7 +83,6 @@ export async function criarPedido(compradorIdBruto: string, itensEntrada: unknow
     // apenas porque a consulta usada para montar a resposta falhou.
     const criado = await pedidoRepository.buscarPorId(id, tx);
     if (!criado) throw new ErroHttp(404, "Pedido não encontrado.");
-    await pedidoRepository.salvarRespostaCheckout(compradorId, chave, criado, tx);
     return criado;
   });
 }

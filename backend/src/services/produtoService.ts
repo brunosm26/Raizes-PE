@@ -70,11 +70,11 @@ export async function editarProduto(
   }
 
   const versao = bruto.estoqueVersao;
-  if (typeof versao !== "string" || !/^(0|[1-9]\d{0,18})$/.test(versao) || BigInt(versao) > 9223372036854775807n) {
+  if (versao !== undefined && (typeof versao !== "string" || !/^\d{1,10}$/.test(versao))) {
     throw new ErroHttp(400, "Versão do estoque inválida. Atualize o produto.");
   }
   if (!(await produtoRepository.atualizar(id, campos, versao))) {
-    throw new ErroHttp(409, "O estoque mudou. Atualize o produto antes de salvar.");
+    throw new ErroHttp(409, "Recarregue a página e revise o estoque antes de salvar.");
   }
   const atualizado = await produtoRepository.buscarPorId(id);
   if (!atualizado) throw new ErroHttp(404, "Produto não encontrado.");

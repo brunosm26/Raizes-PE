@@ -6,6 +6,7 @@ import { pool } from "@/lib/db";
 import { ehUuid, resolverId } from "@/lib/idsLegados";
 import type { DadosSessao } from "@/lib/sessao";
 import type { ItemPedidoComProduto, PedidoComItens, StatusPedido, Tecnica } from "@/lib/tipos";
+import { assinaturaItens, idDoPedido } from "./idempotenciaPedido";
 
 export class ErroPedido extends Error {
   constructor(mensagem: string, public status = 400) {
@@ -99,7 +100,7 @@ export async function listarPedidosDoArtesao(usuarioId: string): Promise<PedidoC
 export async function criarPedido(
   compradorIdBruto: string,
   itensEntrada: { produtoId: string; quantidade: number }[],
-  chave: string
+  chave?: string
 ): Promise<PedidoComItens> {
   const compradorId = resolverId(String(compradorIdBruto ?? ""));
   if (!ehUuid(compradorId)) throw new ErroPedido("Comprador inválido.");
@@ -119,8 +120,9 @@ export async function criarPedido(
     quantidades.set(produtoId, (quantidades.get(produtoId) ?? 0) + quantidade);
   }
 
-  if (!ehUuid(chave)) throw new ErroPedido("Informe uma chave de idempotência UUID válida.");
-  const itensCanonicos = JSON.stringify([...quantidades.entries()].sort(([a], [b]) => a.localeCompare(b)));
+  if (chave !== undefined && !ehUuid(chave)) throw new ErroPedido("Informe uma chave de idempotência UUID válida.");
+  const itensCanonicos = assinaturaItens([...quantidades].map(([produtoId, quantidade]) => ({ produtoId, quantidade })));
+  const tentativaId = idDoPedido(compradorId, chave);
 
   const client = await pool.connect();
   try {
@@ -132,20 +134,13 @@ export async function criarPedido(
     );
     if (compradores.length === 0) throw new ErroPedido("Comprador não encontrado.", 404);
 
-    const reserva = await client.query(
-      `INSERT INTO origem.checkout_idempotencia (comprador_id, chave, itens_canonicos)
-       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING chave`, [compradorId, chave, itensCanonicos]
-    );
-    if (!reserva.rowCount) {
-      const { rows } = await client.query<{ itens: string; resposta: PedidoComItens | null }>(
-        `SELECT itens_canonicos AS itens, resposta FROM origem.checkout_idempotencia WHERE comprador_id = $1 AND chave = $2`,
-        [compradorId, chave]
-      );
-      const anterior = rows[0];
-      if (!anterior || anterior.itens !== itensCanonicos) throw new ErroPedido("Esta chave já foi usada para outro carrinho.", 409);
-      if (!anterior.resposta) throw new ErroPedido("Pedido ainda não concluído.", 409);
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))", [tentativaId]);
+    const [anterior] = await carregar("WHERE pe.id = $1", [tentativaId], client);
+    if (anterior) {
+      if (anterior.compradorId.toLowerCase() !== compradorId.toLowerCase() ||
+          assinaturaItens(anterior.itens) !== itensCanonicos) throw new ErroPedido("Esta chave já foi usada para outro carrinho.", 409);
       await client.query("COMMIT");
-      return anterior.resposta;
+      return anterior;
     }
 
     // Trava as linhas dos produtos para duas compras simultâneas não estourarem o estoque.
@@ -180,9 +175,9 @@ export async function criarPedido(
     }
 
     const { rows } = await client.query<{ id: string }>(
-      `INSERT INTO origem.pedido (comprador_id, status, valor_total)
-       VALUES ($1, 'pendente', $2::numeric / 100) RETURNING id`,
-      [compradorId, totalCentavos]
+      `INSERT INTO origem.pedido (comprador_id, status, valor_total, id)
+       VALUES ($1, 'pendente', $2::numeric / 100, $3) RETURNING id`,
+      [compradorId, totalCentavos, tentativaId]
     );
     const pedidoId = rows[0].id;
 
@@ -201,8 +196,6 @@ export async function criarPedido(
 
     const [criado] = await carregar("WHERE pe.id = $1", [pedidoId], client);
     if (!criado) throw new ErroPedido("Pedido não encontrado.", 404);
-    await client.query(`UPDATE origem.checkout_idempotencia SET resposta = $3::jsonb WHERE comprador_id = $1 AND chave = $2`,
-      [compradorId, chave, JSON.stringify(criado)]);
     await client.query("COMMIT");
     return criado;
   } catch (erro) {

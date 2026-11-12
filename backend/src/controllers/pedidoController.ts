@@ -10,7 +10,7 @@ export const listar: RequestHandler = async (req, res) => {
 // POST /api/pedidos  { itens: [{ produtoId, quantidade }] } — o comprador é o usuário logado
 export const criar: RequestHandler = async (req, res) => {
   const corpo = (req.body ?? {}) as { itens?: unknown };
-  res.status(201).json(await pedidoService.criarPedido(sessaoDe(req).id, corpo.itens ?? [], req.get("Idempotency-Key") ?? ""));
+  res.status(201).json(await pedidoService.criarPedido(sessaoDe(req).id, corpo.itens ?? [], req.get("Idempotency-Key")));
 };
 
 // PATCH /api/pedidos/:id  { status }
