@@ -12,6 +12,7 @@ import type {
 } from "./tipos";
 
 const CHAVE_ARMAZENAMENTO = "raizes-pe:pedidos";
+export const CHAVE_CHECKOUT_PENDENTE = "raizes-pe:checkout-pendente";
 
 interface ValorContextoPedidos {
   pedidos: PedidoComItens[];
@@ -129,12 +130,21 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   // confere o estoque e calcula o total com os preços do banco.
   const criarPedido = useCallback(
     async (compradorId: string, itens: ItemCarrinhoComProduto[]): Promise<PedidoComItens> => {
+      const itensPedido = itens.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade }));
+      const assinatura = JSON.stringify({ compradorId, itens: [...itensPedido].sort((a, b) => a.produtoId.localeCompare(b.produtoId)) });
+      const anterior = sessionStorage.getItem(CHAVE_CHECKOUT_PENDENTE);
+      let pendente: { assinatura: string; chave: string } | null = null;
+      try { if (anterior) pendente = JSON.parse(anterior); } catch { /* valor inválido */ }
+      if (!pendente || pendente.assinatura !== assinatura || typeof pendente.chave !== "string") {
+        pendente = { assinatura, chave: crypto.randomUUID() };
+        sessionStorage.setItem(CHAVE_CHECKOUT_PENDENTE, JSON.stringify(pendente));
+      }
       const res = await apiFetch("/api/pedidos", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Idempotency-Key": pendente.chave },
         body: JSON.stringify({
           compradorId,
-          itens: itens.map((i) => ({ produtoId: i.produtoId, quantidade: i.quantidade })),
+          itens: itensPedido,
         }),
       });
       if (!res.ok) throw new Error(await mensagemDeErro(res));

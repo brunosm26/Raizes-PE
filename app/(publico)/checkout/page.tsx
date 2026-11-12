@@ -29,7 +29,7 @@ import {
 import { FiArrowLeft, FiCheck } from "react-icons/fi";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import { useCarrinho } from "@/lib/contextoCarrinho";
-import { usePedidos } from "@/lib/contextoPedidos";
+import { CHAVE_CHECKOUT_PENDENTE, usePedidos } from "@/lib/contextoPedidos";
 import { useSessao } from "@/lib/contextoSessao";
 import { numeroPedido } from "@/lib/idsLegados";
 import type { DadosEntrega } from "@/lib/tipos";
@@ -153,6 +153,12 @@ export default function Pagina() {
         quantidadeDePecas: quantidadeTotal,
       });
       limparCarrinho();
+      // Só libera a chave depois de persistir o carrinho vazio; se o navegador
+      // fechar entre as etapas, a tentativa recuperada ainda reutiliza a chave.
+      try {
+        localStorage.setItem("raizes-pe:carrinho", "[]");
+        sessionStorage.removeItem(CHAVE_CHECKOUT_PENDENTE);
+      } catch { /* manter a chave é mais seguro se o armazenamento falhar */ }
       setEtapa(3);
     } catch (erro) {
       setErroPedido(

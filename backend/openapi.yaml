@@ -361,7 +361,13 @@ paths:
         required: true
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/CamposEditaveisProduto" }
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/CamposEditaveisProduto"
+                - type: object
+                  required: [estoqueVersao]
+                  properties:
+                    estoqueVersao: { type: string, pattern: '^(0|[1-9][0-9]{0,18})$', example: '0' }
       responses:
         "200":
           description: Produto atualizado
@@ -380,6 +386,11 @@ paths:
               example: { ok: false, erro: Este produto pertence a outro artesão. }
         "404":
           $ref: "#/components/responses/ProdutoNaoEncontrado"
+        "409":
+          description: Estoque alterado desde a leitura
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
         "413":
           $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
@@ -489,6 +500,12 @@ paths:
       security:
         - cookieSessao: []
       x-perfis: [comprador]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID por tentativa lógica; reutilize em caso de falha.
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -525,7 +542,7 @@ paths:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Produto não encontrado. }
         "409":
-          description: Estoque insuficiente
+          description: Estoque insuficiente ou chave já usada com outro carrinho
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
@@ -764,6 +781,7 @@ components:
         categoria: { type: string, example: Vasos }
         preco: { type: number, format: double, example: 185 }
         estoqueQtd: { type: integer, minimum: 0, example: 8 }
+        estoqueVersao: { type: string, example: '0', description: Versão usada para edição de estoque. }
         dataCadastro: { type: string, format: date, example: "2025-05-10" }
         imagemUrl:
           type: string

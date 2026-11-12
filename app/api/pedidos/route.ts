@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const corpo = (await request.json()) as {
       itens?: { produtoId: string; quantidade: number }[];
     };
-    const pedido = await criarPedido(sessao.id, corpo.itens ?? []);
+    const pedido = await criarPedido(sessao.id, corpo.itens ?? [], request.headers.get("Idempotency-Key") ?? "");
     return NextResponse.json(pedido, { status: 201 });
   } catch (erro) {
     if (erro instanceof SyntaxError) {

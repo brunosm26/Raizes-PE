@@ -12,6 +12,7 @@ const SELECT_PRODUTO = `
          COALESCE(p.categoria, '')           AS categoria,
          p.preco::float8                     AS preco,
          p.estoque_qtd                       AS "estoqueQtd",
+         p.estoque_versao::text              AS "estoqueVersao",
          to_char(p.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro",
          p.imagem_url                        AS "imagemUrl",
          u.nome                              AS "artesaoNome",
@@ -79,12 +80,12 @@ export async function inserir(produto: NovoProduto): Promise<string> {
 export type CamposEditaveis = Pick<NovoProduto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">;
 
 // Devolve false se o produto não existe.
-export async function atualizar(id: string, campos: CamposEditaveis): Promise<boolean> {
+export async function atualizar(id: string, campos: CamposEditaveis, estoqueVersao: string): Promise<boolean> {
   const { rowCount } = await executorPadrao().query(
     `UPDATE origem.produto
         SET nome = $2, descricao = $3, preco = $4, estoque_qtd = $5, imagem_url = $6
-      WHERE id = $1`,
-    [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl]
+      WHERE id = $1 AND estoque_versao = $7::bigint`,
+    [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl, estoqueVersao]
   );
   return Boolean(rowCount);
 }

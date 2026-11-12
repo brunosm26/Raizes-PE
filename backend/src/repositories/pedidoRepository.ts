@@ -1,6 +1,24 @@
 import type { ItemPedidoComProduto, PedidoComItens, StatusPedido } from "../types/dominio";
 import { executorPadrao, type Executor } from "./transacao";
 
+export async function reservarCheckout(compradorId: string, chave: string, itens: string, tx: Executor) {
+  const reserva = await tx.query(
+    `INSERT INTO origem.checkout_idempotencia (comprador_id, chave, itens_canonicos)
+     VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING chave`, [compradorId, chave, itens]
+  );
+  if (reserva.rowCount) return null;
+  const { rows } = await tx.query<{ itens: string; resposta: PedidoComItens | null }>(
+    `SELECT itens_canonicos AS itens, resposta FROM origem.checkout_idempotencia WHERE comprador_id = $1 AND chave = $2`,
+    [compradorId, chave]
+  );
+  return rows[0]!;
+}
+
+export async function salvarRespostaCheckout(compradorId: string, chave: string, resposta: PedidoComItens, tx: Executor) {
+  await tx.query(`UPDATE origem.checkout_idempotencia SET resposta = $3::jsonb WHERE comprador_id = $1 AND chave = $2`,
+    [compradorId, chave, JSON.stringify(resposta)]);
+}
+
 // Acesso a origem.pedido e origem.item_pedido. Pedido e itens são gravados na MESMA
 // transação: o banco confere, no COMMIT, que valor_total = soma dos itens
 // (constraint triggers deferidos do modelo físico).

@@ -1,0 +1,87 @@
+
+> raizes-pe-backend@0.1.0 test:concorrencia
+> tsx --test test/concorrencia.test.ts
+
+TAP version 13
+# EVIDENCIA ultimo-item {"estoqueInicial":1,"status":[201,409,409,409,409,409,409,409,409,409],"estoques":[{"id":"2d060a2b-ba54-44c0-b40a-d6c62d2231e0","estoque":0}],"itens":[{"produtoId":"2d060a2b-ba54-44c0-b40a-d6c62d2231e0","quantidade":1,"pedidoId":"031cb307-bba2-403c-b663-778ef30878fe"}]}
+# Subtest: checkout concorrente com PostgreSQL descartável
+    # Subtest: uma unidade disputada por dez requisições gera apenas um pedido
+    ok 1 - uma unidade disputada por dez requisições gera apenas um pedido
+      ---
+      duration_ms: 412.88
+      type: 'test'
+      ...
+# EVIDENCIA demanda-excedente {"estoqueInicial":7,"status":[201,201,201,409,409,409,409,409,409,409],"estoques":[{"id":"b0d91e8e-c863-4392-8c6c-a5c153506925","estoque":1}],"itens":[{"produtoId":"b0d91e8e-c863-4392-8c6c-a5c153506925","quantidade":2,"pedidoId":"43a48789-8dee-4630-9912-10ea2a73907e"},{"produtoId":"b0d91e8e-c863-4392-8c6c-a5c153506925","quantidade":2,"pedidoId":"604a3206-e5a5-41ff-bb8d-35ee9122ba28"},{"produtoId":"b0d91e8e-c863-4392-8c6c-a5c153506925","quantidade":2,"pedidoId":"7d46d5c2-7935-4282-8da3-6d63c7069967"}]}
+    # Subtest: reconcilia estoque e itens quando a demanda ultrapassa o saldo
+    ok 2 - reconcilia estoque e itens quando a demanda ultrapassa o saldo
+      ---
+      duration_ms: 244.7571
+      type: 'test'
+      ...
+# EVIDENCIA rollback-carrinho {"disponivel":"cd7a4194-a7c3-4152-8563-c35cce0ceb62","esgotado":"85acb484-ddc8-40e3-877b-fee84d6f6d57","status":[409,409,409,409,409],"estoques":[{"id":"85acb484-ddc8-40e3-877b-fee84d6f6d57","estoque":0},{"id":"cd7a4194-a7c3-4152-8563-c35cce0ceb62","estoque":3}],"itens":[]}
+    # Subtest: não persiste pedido nem baixa parcial quando um item está esgotado
+    ok 3 - não persiste pedido nem baixa parcial quando um item está esgotado
+      ---
+      duration_ms: 105.8256
+      type: 'test'
+      ...
+# EVIDENCIA ordem-inversa {"estoqueInicialPorProduto":2,"status":[201,201,409,409,409,409],"estoques":[{"id":"68e90a83-3c42-4187-8735-0b39e8e66432","estoque":0},{"id":"ef6b4114-50c3-46b8-bf66-cc1174f84c55","estoque":0}],"itens":[{"produtoId":"68e90a83-3c42-4187-8735-0b39e8e66432","quantidade":1,"pedidoId":"1468122a-70e7-44d8-95f8-fd831e00e5e3"},{"produtoId":"ef6b4114-50c3-46b8-bf66-cc1174f84c55","quantidade":1,"pedidoId":"1468122a-70e7-44d8-95f8-fd831e00e5e3"},{"produtoId":"68e90a83-3c42-4187-8735-0b39e8e66432","quantidade":1,"pedidoId":"c2e601ba-aa49-465e-888d-96e188b666ee"},{"produtoId":"ef6b4114-50c3-46b8-bf66-cc1174f84c55","quantidade":1,"pedidoId":"c2e601ba-aa49-465e-888d-96e188b666ee"}]}
+    # Subtest: carrinhos em ordens inversas concluem sem impasse nem venda excessiva
+    ok 4 - carrinhos em ordens inversas concluem sem impasse nem venda excessiva
+      ---
+      duration_ms: 178.8622
+      type: 'test'
+      ...
+# EVIDENCIA idempotencia {"estoqueInicial":3,"status":[201,201,201,201,201,201,201,201,201,201],"estoques":[{"id":"ed016de0-601b-483f-9e5b-0a5c498cfdea","estoque":2}],"itens":[{"produtoId":"ed016de0-601b-483f-9e5b-0a5c498cfdea","quantidade":1,"pedidoId":"a4dd6f07-8596-42ac-9721-09f2f56d6a20"}]}
+    # Subtest: repetições simultâneas com a mesma chave criam um único pedido
+    ok 5 - repetições simultâneas com a mesma chave criam um único pedido
+      ---
+      duration_ms: 167.1552
+      type: 'test'
+      ...
+    # Subtest: chave inválida é rejeitada e falha de estoque não consome a chave
+    ok 6 - chave inválida é rejeitada e falha de estoque não consome a chave
+      ---
+      duration_ms: 129.0268
+      type: 'test'
+      ...
+    # Subtest: chave de um comprador não revela nem reutiliza o pedido de outro
+    ok 7 - chave de um comprador não revela nem reutiliza o pedido de outro
+      ---
+      duration_ms: 141.3297
+      type: 'test'
+      ...
+# EVIDENCIA edicao-conflitante {"estoqueInicial":3,"aposVenda":2,"statusAtrasado":409,"statusAtual":200,"estoqueFinal":4}
+    # Subtest: rejeita edição desatualizada depois de venda e aceita após releitura
+    ok 8 - rejeita edição desatualizada depois de venda e aceita após releitura
+      ---
+      duration_ms: 131.484
+      type: 'test'
+      ...
+    # Subtest: duas edições concorrentes da mesma versão não sobrescrevem o estoque
+    ok 9 - duas edições concorrentes da mesma versão não sobrescrevem o estoque
+      ---
+      duration_ms: 61.9045
+      type: 'test'
+      ...
+    # Subtest: detecta alteração mesmo quando estoque retorna ao valor anterior
+    ok 10 - detecta alteração mesmo quando estoque retorna ao valor anterior
+      ---
+      duration_ms: 97.7732
+      type: 'test'
+      ...
+    1..10
+ok 1 - checkout concorrente com PostgreSQL descartável
+  ---
+  duration_ms: 3036.1895
+  type: 'suite'
+  ...
+1..1
+# tests 10
+# suites 1
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3630.1935

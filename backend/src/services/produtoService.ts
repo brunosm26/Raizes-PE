@@ -69,7 +69,13 @@ export async function editarProduto(
     throw new ErroHttp(403, "Este produto pertence a outro artesão.");
   }
 
-  if (!(await produtoRepository.atualizar(id, campos))) throw new ErroHttp(404, "Produto não encontrado.");
+  const versao = bruto.estoqueVersao;
+  if (typeof versao !== "string" || !/^(0|[1-9]\d{0,18})$/.test(versao) || BigInt(versao) > 9223372036854775807n) {
+    throw new ErroHttp(400, "Versão do estoque inválida. Atualize o produto.");
+  }
+  if (!(await produtoRepository.atualizar(id, campos, versao))) {
+    throw new ErroHttp(409, "O estoque mudou. Atualize o produto antes de salvar.");
+  }
   const atualizado = await produtoRepository.buscarPorId(id);
   if (!atualizado) throw new ErroHttp(404, "Produto não encontrado.");
   return atualizado;

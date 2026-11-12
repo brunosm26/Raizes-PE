@@ -98,7 +98,8 @@ export async function listarPedidosDoArtesao(usuarioId: string): Promise<PedidoC
 
 export async function criarPedido(
   compradorIdBruto: string,
-  itensEntrada: { produtoId: string; quantidade: number }[]
+  itensEntrada: { produtoId: string; quantidade: number }[],
+  chave: string
 ): Promise<PedidoComItens> {
   const compradorId = resolverId(String(compradorIdBruto ?? ""));
   if (!ehUuid(compradorId)) throw new ErroPedido("Comprador inválido.");
@@ -109,7 +110,7 @@ export async function criarPedido(
   // Junta linhas repetidas do mesmo produto e valida as quantidades.
   const quantidades = new Map<string, number>();
   for (const item of itensEntrada) {
-    const produtoId = resolverId(String(item?.produtoId ?? ""));
+    const produtoId = resolverId(String(item?.produtoId ?? "")).toLowerCase();
     const quantidade = Number(item?.quantidade);
     if (!ehUuid(produtoId)) throw new ErroPedido("Produto inválido no pedido.");
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 99) {
@@ -117,6 +118,9 @@ export async function criarPedido(
     }
     quantidades.set(produtoId, (quantidades.get(produtoId) ?? 0) + quantidade);
   }
+
+  if (!ehUuid(chave)) throw new ErroPedido("Informe uma chave de idempotência UUID válida.");
+  const itensCanonicos = JSON.stringify([...quantidades.entries()].sort(([a], [b]) => a.localeCompare(b)));
 
   const client = await pool.connect();
   try {
@@ -127,6 +131,22 @@ export async function criarPedido(
       [compradorId]
     );
     if (compradores.length === 0) throw new ErroPedido("Comprador não encontrado.", 404);
+
+    const reserva = await client.query(
+      `INSERT INTO origem.checkout_idempotencia (comprador_id, chave, itens_canonicos)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING RETURNING chave`, [compradorId, chave, itensCanonicos]
+    );
+    if (!reserva.rowCount) {
+      const { rows } = await client.query<{ itens: string; resposta: PedidoComItens | null }>(
+        `SELECT itens_canonicos AS itens, resposta FROM origem.checkout_idempotencia WHERE comprador_id = $1 AND chave = $2`,
+        [compradorId, chave]
+      );
+      const anterior = rows[0];
+      if (!anterior || anterior.itens !== itensCanonicos) throw new ErroPedido("Esta chave já foi usada para outro carrinho.", 409);
+      if (!anterior.resposta) throw new ErroPedido("Pedido ainda não concluído.", 409);
+      await client.query("COMMIT");
+      return anterior.resposta;
+    }
 
     // Trava as linhas dos produtos para duas compras simultâneas não estourarem o estoque.
     const ids = Array.from(quantidades.keys());
@@ -179,8 +199,11 @@ export async function criarPedido(
       );
     }
 
-    await client.query("COMMIT");
     const [criado] = await carregar("WHERE pe.id = $1", [pedidoId], client);
+    if (!criado) throw new ErroPedido("Pedido não encontrado.", 404);
+    await client.query(`UPDATE origem.checkout_idempotencia SET resposta = $3::jsonb WHERE comprador_id = $1 AND chave = $2`,
+      [compradorId, chave, JSON.stringify(criado)]);
+    await client.query("COMMIT");
     return criado;
   } catch (erro) {
     await client.query("ROLLBACK").catch(() => undefined);

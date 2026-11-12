@@ -28,6 +28,7 @@ export interface Produto {
   categoria: string;
   preco: number;
   estoqueQtd: number;
+  estoqueVersao: string;
   dataCadastro: string;
   imagemUrl?: string;
 }

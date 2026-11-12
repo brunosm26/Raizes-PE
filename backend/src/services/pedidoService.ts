@@ -24,7 +24,7 @@ function validarItens(itensEntrada: unknown): Map<string, number> {
   }
   const quantidades = new Map<string, number>();
   for (const item of itensEntrada as { produtoId?: unknown; quantidade?: unknown }[]) {
-    const produtoId = resolverId(String(item?.produtoId ?? ""));
+    const produtoId = resolverId(String(item?.produtoId ?? "")).toLowerCase();
     const quantidade = Number(item?.quantidade);
     if (!ehUuid(produtoId)) throw new ErroHttp(400, "Produto inválido no pedido.");
     if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 99) {
@@ -35,14 +35,23 @@ function validarItens(itensEntrada: unknown): Map<string, number> {
   return quantidades;
 }
 
-export async function criarPedido(compradorIdBruto: string, itensEntrada: unknown): Promise<PedidoComItens> {
+export async function criarPedido(compradorIdBruto: string, itensEntrada: unknown, chave: string): Promise<PedidoComItens> {
   const compradorId = resolverId(String(compradorIdBruto ?? ""));
   if (!ehUuid(compradorId)) throw new ErroHttp(400, "Comprador inválido.");
   const quantidades = validarItens(itensEntrada);
+  if (!ehUuid(chave)) throw new ErroHttp(400, "Informe uma chave de idempotência UUID válida.");
+  const itensCanonicos = JSON.stringify([...quantidades.entries()].sort(([a], [b]) => a.localeCompare(b)));
 
-  const pedidoId = await emTransacao(async (tx) => {
+  return emTransacao(async (tx) => {
     if (!(await usuarioRepository.ehComprador(compradorId, tx))) {
       throw new ErroHttp(404, "Comprador não encontrado.");
+    }
+
+    const anterior = await pedidoRepository.reservarCheckout(compradorId, chave, itensCanonicos, tx);
+    if (anterior) {
+      if (anterior.itens !== itensCanonicos) throw new ErroHttp(409, "Esta chave já foi usada para outro carrinho.");
+      if (!anterior.resposta) throw new ErroHttp(409, "Pedido ainda não concluído.");
+      return anterior.resposta;
     }
 
     const ids = Array.from(quantidades.keys());
@@ -67,12 +76,13 @@ export async function criarPedido(compradorIdBruto: string, itensEntrada: unknow
       await pedidoRepository.inserirItem(id, p.id, qtd, p.preco, tx);
       await produtoRepository.baixarEstoque(p.id, qtd, tx);
     }
-    return id;
+    // Ler antes do COMMIT evita sinalizar falha após uma gravação bem-sucedida
+    // apenas porque a consulta usada para montar a resposta falhou.
+    const criado = await pedidoRepository.buscarPorId(id, tx);
+    if (!criado) throw new ErroHttp(404, "Pedido não encontrado.");
+    await pedidoRepository.salvarRespostaCheckout(compradorId, chave, criado, tx);
+    return criado;
   });
-
-  const criado = await pedidoRepository.buscarPorId(pedidoId);
-  if (!criado) throw new ErroHttp(404, "Pedido não encontrado.");
-  return criado;
 }
 
 export async function atualizarStatus(

@@ -127,6 +127,7 @@ model Produto {
   categoria     String?        @db.VarChar(100)
   preco         Decimal        @db.Decimal(10, 2)
   estoqueQtd    Int            @default(0) @map("estoque_qtd")
+  estoqueVersao BigInt         @default(0) @map("estoque_versao")
   dataCadastro  DateTime       @default(dbgenerated("CURRENT_DATE")) @map("data_cadastro") @db.Date
   descricao     String?
   imagemUrl     String?        @map("imagem_url")
