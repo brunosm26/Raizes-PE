@@ -103,18 +103,71 @@ Vitrine (components/SecaoRecomendados.tsx)
 - **Regra do app, no front:** `tests/recomendacao.test.mjs`, com os cenários da baseline (estoque, limite, personalização por técnica, repetição, *cold start*, explicabilidade). Roda com `npm test` na raiz.
 - **Serviço BentoML:** os 6 casos de [`ia/README.md`](../ia/README.md), com o comando exato e o resultado esperado.
 
-## 9. Limitações conhecidas
+## 9. Integração com os dados do Neon
 
-- **Dois motores com regras diferentes.** O serviço Python não usa o banco e não é chamado pelo app. Unificar (ou ligar o app ao serviço) é uma evolução, não algo que existe hoje.
-- **Data de referência fixa.** O bônus de novidade compara com `2025-06-30`, não com a data atual. Com dados novos, o bônus quase nunca dispara.
-- **Sem avaliação de acerto.** As métricas medem cobertura e comportamento sobre um lote simulado.
+### Motor do app: já usa o banco real
+
+A recomendação publicada lê do esquema `origem` do Neon a cada chamada, por três consultas feitas em paralelo pelos repositories (duas, para visitante, que não tem histórico):
+
+| Consulta | Repositório | Tabelas |
+|---|---|---|
+| Produtos com o artesão | `produtoRepository.listar` | `origem.produto`, `origem.artesao`, `origem.usuario` |
+| Nota média e quantidade de avaliações | `avaliacaoRepository.resumirPorProduto` | `origem.avaliacao` |
+| Itens que o comprador já adquiriu | `pedidoRepository.somarCompradosPorProduto` | `origem.pedido`, `origem.item_pedido` |
+
+Com esses dados, a regra pura (`rankingRecomendacao`) calcula o *score* de cada produto e o corte em `limite`. O que o comprador viu, comprou e avaliou no site é o que alimenta a próxima recomendação, sem passo manual.
+
+### Volume de dados hoje
+
+O banco parte do script `db/05_dados_raizes_pe.sql` e cresce com o uso do site (cadastros, produtos e pedidos feitos nos testes entram nele):
+
+| Tabela | Linhas no script de partida |
+|---|---|
+| `usuario` | 9 |
+| `artesao` | 6 |
+| `produto` | 7 |
+| `pedido` | 3 |
+| `item_pedido` | 5 |
+| `avaliacao` | 6 |
+
+O catálogo sintético do serviço BentoML é maior que a base real: 7 artesãos, 12 produtos, 20 itens de pedido e 18 avaliações.
+
+### Serviço BentoML: ainda não usa o banco
+
+O serviço da AV2 carrega `ia/dados/catalogo_sintetico.json` na subida e não abre conexão com o Neon. **Essa integração não existe.** O caminho previsto, que não foi implementado:
+
+- trocar `carregar_catalogo()` por uma leitura somente leitura do esquema `origem`, sem mudar `recomendar()`, que só depende da estrutura `Catalogo`;
+- a view `origem.vw_popularidade_produto` já entrega `qtd_vendida` e `nota_media` por produto, que são os dois termos da popularidade do serviço (`vendas + nota média`);
+- a conexão ficaria em variável de ambiente (`DATABASE_URL`), com um usuário só de leitura.
+
+### Evidência com dados do banco
+
+Com o site e a API publicados, estas chamadas devolvem dados que vêm do Neon:
+
+- `GET /api/saude-bd` na API responde `{"ok":true,"produtos":7}`, a contagem de produtos lida do banco.
+- `GET /api/recomendacoes?limite=4`, como visitante, devolve o *cold start* sobre os produtos reais, cada um com `motivo`, `score` e `criterio`.
+- A mesma chamada com um comprador logado que já tem pedidos (a vitrine faz isso sozinha) devolve itens com `criterio` `historico_tecnica` ou `historico_regiao`, calculados a partir dos pedidos dele no banco.
+
+## 10. Limitações conhecidas
+
+**Pedidas pelo card (PI4-157):**
+
+- **Poucos dados.** São 7 produtos, 3 pedidos e 6 avaliações na partida. Com `limite` 4, a lista é mais da metade do catálogo, e a diferença entre "personalizado" e "popular" é pequena. Não há volume para validar a qualidade da recomendação.
+- ***Cold start*.** Visitante e comprador sem compras recebem o mesmo ranking, por nota. Um produto novo, sem avaliação, entra com nota 4,0 e nenhuma avaliação (pontuação base 40), então fica atrás de produtos bem avaliados até receber as primeiras notas. O bônus de novidade (+5) compensa só em parte e usa uma data de referência fixa (`2025-06-30`).
+- **Sem recomendação colaborativa.** O motor usa só o conteúdo (técnica e região) e a popularidade. Não há "quem comprou isto também comprou aquilo", fatoração de matriz nem *embeddings*.
+- **Latência.** Cada chamada ao motor do app consulta o Neon (três consultas, duas para visitante), carrega todos os produtos e recalcula o *score* de tudo, sem cache. O Render no plano gratuito dorme quando parado, e a primeira chamada depois disso demora. O Render não tem região em São Paulo, e o Neon está em `sa-east-1`, o que soma latência entre a API e o banco. A latência não foi medida de forma sistemática: o Network do navegador mostra o tempo de cada chamada.
+
+**Do desenho atual:**
+
+- **Dois motores com regras diferentes.** O serviço Python não usa o banco e não é chamado pelo app. Unificar os dois, ou ligar o app ao serviço, é uma evolução.
+- **Sem avaliação de acerto.** As métricas medem cobertura e comportamento sobre um lote simulado, não *precision* nem *recall*, porque não há uma base de verdade (cliques ou compras posteriores).
 - **Histórico simples.** Só conta compras (técnica e região). Não usa visualizações, carrinho nem preço.
 - **Região como texto.** A afinidade de região compara o texto da região do artesão (por exemplo "Alto do Moura, Caruaru"), não uma mesorregião.
 - **Popularidade no banco.** Existe a view `origem.vw_popularidade_produto` e o `popularidadeRepository`, mas o ranking do app calcula a nota pelo resumo de avaliações e ainda não usa a view.
 
-## 10. Rastreabilidade
+## 11. Rastreabilidade
 
 - [`BASELINE_IA.md`](BASELINE_IA.md): documento da Unidade 1 (PI4-26), com a formulação original da baseline.
 - [`ia/README.md`](../ia/README.md): mockup BentoML da AV2, tabela RF e casos de teste.
 - [`CONTRATO_API.md`](CONTRATO_API.md): contrato das rotas.
-- Jira: PI4-155 (este documento), PI4-156 (resultados dos casos de teste) e PI4-157 (integração com os dados do Neon e limitações).
+- Jira: PI4-155 (este documento), PI4-156 (resultados dos casos de teste) e PI4-157 (integração com os dados do Neon e limitações, seções 9 e 10).
