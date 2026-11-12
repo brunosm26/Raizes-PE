@@ -1,0 +1,69 @@
+erDiagram
+    usuario {
+        uuid id PK
+        varchar(150) nome
+        varchar(150) email UK
+        varchar(20) tipo "comprador, artesao ou admin"
+        date data_cadastro
+        varchar(200) senha_hash "nulo = sem login"
+    }
+    artesao {
+        uuid id PK
+        uuid usuario_id FK, UK
+        varchar(100) regiao_origem "nulo"
+        text biografia "nulo"
+    }
+    produto {
+        uuid id PK
+        uuid artesao_id FK
+        varchar(150) nome
+        varchar(100) tecnica "nulo"
+        varchar(100) categoria "nulo"
+        numeric preco "10,2"
+        integer estoque_qtd
+        date data_cadastro
+        text descricao "nulo"
+        text imagem_url "nulo"
+    }
+    pedido {
+        uuid id PK
+        uuid comprador_id FK
+        date data_pedido
+        varchar(20) status "pendente, pago, enviado ou entregue"
+        numeric valor_total "10,2"
+    }
+    item_pedido {
+        uuid id PK
+        uuid pedido_id FK
+        uuid produto_id FK
+        integer quantidade
+        numeric preco_unitario "10,2"
+    }
+    avaliacao {
+        uuid id PK
+        uuid produto_id FK, UK "par único"
+        uuid comprador_id FK, UK "par único"
+        integer nota "1 a 5"
+        date data_avaliacao
+    }
+    carrinho {
+        uuid id PK
+        uuid comprador_id FK, UK
+        date data_criacao
+    }
+    item_carrinho {
+        uuid id PK
+        uuid carrinho_id FK, UK "par único"
+        uuid produto_id FK, UK "par único"
+        integer quantidade
+    }
+    usuario  ||--o| artesao       : "usuario_id"
+    artesao  ||--o{ produto       : "artesao_id"
+    usuario  ||--o{ pedido        : "comprador_id"
+    pedido   ||--|{ item_pedido   : "pedido_id"
+    produto  ||--o{ item_pedido   : "produto_id"
+    usuario  ||--o{ avaliacao     : "comprador_id"
+    produto  ||--o{ avaliacao     : "produto_id"
+    usuario  ||--o| carrinho      : "comprador_id"
+    carrinho ||--o{ item_carrinho : "carrinho_id"
+    produto  ||--o{ item_carrinho : "produto_id"
