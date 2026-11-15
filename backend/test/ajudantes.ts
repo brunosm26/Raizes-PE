@@ -1,10 +1,10 @@
 import { createHmac } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 import { after, it } from "node:test";
 import type { Server } from "node:http";
 import type { TipoUsuario } from "../src/types/dominio";
+import { conferirBancoDeTeste, urlsDoTime } from "../scripts/travaBanco";
 
 // Os testes que gravam no banco só rodam com TEST_DATABASE_URL apontando para um banco
 // DESCARTÁVEL (nunca o Neon do time): eles criam pedidos e produtos. A variável vem só do
@@ -12,94 +12,12 @@ import type { TipoUsuario } from "../src/types/dominio";
 export const bancoDeTeste = process.env.TEST_DATABASE_URL?.trim() || undefined;
 export const semBanco = bancoDeTeste ? false : "defina TEST_DATABASE_URL (banco descartável) no terminal para rodar";
 
-export interface UrlDoTime {
-  fonte: string; // de onde veio (process.env, backend/.env...), para a mensagem de erro
-  variavel: string;
-  valor: string | undefined;
-}
-
-interface BancoNormalizado {
-  host: string;
-  porta: string;
-  banco: string;
-}
-
-const HOSTS_LOCAIS = new Set(["localhost", "127.0.0.1", "::1"]);
-
-// host em minúsculas e sem o "-pooler" do primeiro rótulo (pooled e direta do Neon são o
-// mesmo banco), porta (padrão 5432) e nome do banco. A query (sslmode etc.) é ignorada.
-function normalizarUrlBanco(url: string): BancoNormalizado | null {
-  let u: URL;
-  try {
-    u = new URL(url.trim());
-  } catch {
-    return null;
-  }
-  if (u.protocol !== "postgres:" && u.protocol !== "postgresql:") return null;
-  const host = u.hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1");
-  if (!host) return null;
-  const [primeiro, ...resto] = host.split(".");
-  return {
-    host: [primeiro!.replace(/-pooler$/, ""), ...resto].join("."),
-    porta: u.port || "5432",
-    banco: decodeURIComponent(u.pathname.replace(/^\//, "")) || decodeURIComponent(u.username),
-  };
-}
-
-// Trava pura: lança erro se a URL de teste não puder ser analisada, se for o mesmo banco de
-// alguma URL do time ou se for remota sem a confirmação explícita. Nenhum valor é impresso.
-export function conferirBancoDeTeste(urlTeste: string, doTime: UrlDoTime[], remotoDescartavel: boolean): void {
-  const teste = normalizarUrlBanco(urlTeste);
-  if (!teste) {
-    throw new Error("Não foi possível analisar a TEST_DATABASE_URL (esperado postgresql://usuario:senha@host:porta/banco).");
-  }
-  for (const { fonte, variavel, valor } of doTime) {
-    if (!valor?.trim()) continue;
-    const time = normalizarUrlBanco(valor);
-    if (!time) {
-      throw new Error(`Não foi possível analisar a ${variavel} de ${fonte} para comparar com a TEST_DATABASE_URL.`);
-    }
-    if (time.host === teste.host && time.porta === teste.porta && time.banco === teste.banco) {
-      throw new Error(
-        `TEST_DATABASE_URL aponta para o mesmo banco da ${variavel} de ${fonte} (o banco do time). ` +
-          "Use um banco DESCARTÁVEL (por exemplo, uma branch do Neon)."
-      );
-    }
-  }
-  if (!HOSTS_LOCAIS.has(teste.host) && !remotoDescartavel) {
-    throw new Error(
-      "TEST_DATABASE_URL aponta para um host remoto. Se for um banco DESCARTÁVEL (por exemplo, uma branch do Neon " +
-        "só para testes), defina também TEST_DB_REMOTO_DESCARTAVEL=1 no terminal."
-    );
-  }
-}
-
-// Leitor mínimo de arquivo .env (CHAVE=valor, com ou sem aspas). Só devolve os pares:
-// não grava nada em process.env.
-export function lerArquivoEnv(caminho: string): Record<string, string> {
-  if (!existsSync(caminho)) return {};
-  const vars: Record<string, string> = {};
-  for (const linha of readFileSync(caminho, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/)) {
-    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(linha);
-    if (!m) continue;
-    const aspas = /^(["'])(.*)\1$/.exec(m[2]!);
-    vars[m[1]!] = aspas ? aspas[2]! : m[2]!.replace(/\s+#.*$/, "");
-  }
-  return vars;
-}
+// A trava (normalizar URL, comparar com as URLs do time, exigir host local) fica em
+// scripts/travaBanco.ts, compartilhada com os scripts de banco descartável (PI4-147).
+export { conferirBancoDeTeste, lerArquivoEnv, type UrlDoTime } from "../scripts/travaBanco";
 
 if (bancoDeTeste) {
-  const raiz = join(__dirname, "..", "..");
-  const fontes: [string, Record<string, string | undefined>][] = [
-    ["process.env", process.env],
-    ["backend/.env", lerArquivoEnv(join(__dirname, "..", ".env"))],
-    [".env.local (raiz)", lerArquivoEnv(join(raiz, ".env.local"))],
-    [".env (raiz)", lerArquivoEnv(join(raiz, ".env"))],
-  ];
-  const doTime = fontes.flatMap(([fonte, vars]) =>
-    ["DATABASE_URL", "DIRECT_URL"].map((variavel) => ({ fonte, variavel, valor: vars[variavel] }))
-  );
-  conferirBancoDeTeste(bancoDeTeste, doTime, process.env.TEST_DB_REMOTO_DESCARTAVEL === "1");
+  conferirBancoDeTeste(bancoDeTeste, urlsDoTime(), process.env.TEST_DB_REMOTO_DESCARTAVEL === "1");
 }
 
 process.env.DATABASE_URL = bancoDeTeste ?? "";
