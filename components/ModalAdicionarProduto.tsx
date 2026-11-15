@@ -129,8 +129,8 @@ export default function ModalAdicionarProduto({
     }
 
     const estoque = Number(campos.estoqueQtd);
-    if (campos.estoqueQtd === "" || Number.isNaN(estoque) || estoque < 0) {
-      novosErros.estoqueQtd = "Informe a quantidade em estoque.";
+    if (campos.estoqueQtd === "" || Number.isNaN(estoque) || estoque < 0 || !Number.isInteger(estoque)) {
+      novosErros.estoqueQtd = "Informe uma quantidade inteira válida.";
     }
 
     setErros(novosErros);
@@ -304,9 +304,12 @@ export default function ModalAdicionarProduto({
                 <NumberInput
                   value={campos.estoqueQtd}
                   min={0}
+                  step={1}
+                  precision={0}
+                  clampValueOnBlur
                   onChange={(valor) => setCampos({ ...campos, estoqueQtd: valor })}
                 >
-                  <NumberInputField />
+                  <NumberInputField placeholder="0" inputMode="numeric" />
                   <NumberInputStepper>
                     <NumberIncrementStepper />
                     <NumberDecrementStepper />
