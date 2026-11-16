@@ -1,7 +1,7 @@
 # Plano de migração: de `lib/apiFalsa.ts` para a API real
 
-**Subtarefa:** PI4-116 (história PI4-113, W10 – Preparação do ambiente para integração). Atualizado na PI4-135.
-**Situação em:** 27/10/2026 (`main` com os PRs #28, #29 e #30)
+**Subtarefa:** PI4-116 (história PI4-113, W10 – Preparação do ambiente para integração). Atualizado na PI4-135 e na PI4-143.
+**Situação em:** 15/11/2026, com a fase 7 (PI4-143). A revisão anterior foi de 27/10/2026, com os PRs #28, #29 e #30 na `main`.
 **Documentos relacionados:** `docs/CONTRATO_API.md` (contrato proposto), `docs/estrategia-autenticacao.md` (PI4-117), `docs/arquitetura-backend.md` (PI4-122, camadas do Express), `backend/README.md` (Express e Prisma), `db/` (modelo físico)
 
 ## 1. Objetivo e regra de ouro
@@ -55,10 +55,10 @@ Coluna **Express**: se a rota equivalente já existe em `backend/` (o front a ch
 | `getProdutosBase()` | `GET /api/produtos` | `produto` | **Sem uso** (remover) | Existe |
 | `getPedidos()` e `getItensPedido()` | `GET /api/pedidos` (já devolve o pedido com seus itens; comprador vê os dele, artesão vê os que contêm produtos dele, admin vê todos) | `pedido`, `item_pedido`, `produto`, `usuario` | **Sem uso** (`contextoPedidos` usa a rota; remover) | Existe |
 | `getAvaliacoesTodas()` | Lida direto pelo servidor em `lib/motorRecomendacao.ts`; o front consome `GET /api/recomendacoes?limite=` | `avaliacao`, `produto`, `item_pedido` | **Sem uso** (remover) | Existe (`GET /api/recomendacoes`) |
-| `getArtesaos()` | `GET /api/artesaos` (lista com nome, região e técnicas já juntados; só `admin`) | `artesao`, `usuario`, `produto` | **Pendente** (usada em `/admin`, `/admin/produtos`, `/admin/artesaos`) | Não existe |
-| `getUsuarios()` | Fundir com `GET /api/artesaos` (a única tela que usa é a de gestão de artesãos, e só para achar o nome) | `usuario` | **Pendente** | Não existe |
-| `tecnicas` (constante) | Mantém constante: é o domínio do `CHECK` da coluna `produto.tecnica` | — | Manter | — |
-| `regioes`, `categorias` (constantes calculadas do mock) | `GET /api/filtros` com `SELECT DISTINCT regiao_origem` e `SELECT DISTINCT categoria` | `artesao`, `produto` | **Pendente** (usadas nos filtros da vitrine e em `/admin/categorias`) | Não existe |
+| `getArtesaos()` | `GET /api/artesaos` (lista com nome, região, técnicas, total de produtos, `temLogin` e data de cadastro; só `admin`) | `artesao`, `usuario`, `produto` | **Migrada** na PI4-143: a rota entra com o PR #50, e `/admin`, `/admin/produtos` e `/admin/artesaos` passam a usá-la com o PR #52. Depois disso a função fica sem uso e sai na fase 8 | Entra com o PR #50 |
+| `getUsuarios()` | Fundida com `GET /api/artesaos`, que já traz o nome (a única tela que a usa é a de gestão de artesãos, e só para achar o nome) | `usuario` | **Migrada** na PI4-143: a gestão de artesãos passa a usar a rota com o PR #52. Depois disso a função fica sem uso e sai na fase 8 | Entra com o PR #50 (`GET /api/artesaos`) |
+| `tecnicas` (constante) | Constante `TECNICAS` de `lib/tipos.ts`, o domínio do `CHECK` da coluna `produto.tecnica` (a mesma lista que `GET /api/filtros` devolve) | — | **Migrada** na PI4-143: com o PR #52, a vitrine, o rodapé e o modal de produto passam a usar `TECNICAS` de `lib/tipos.ts`. Depois disso a constante de `apiFalsa.ts` fica sem uso e sai na fase 8 | — |
+| `regioes`, `categorias` (constantes calculadas do mock) | `GET /api/filtros`, com as regiões distintas de `artesao.regiao_origem` e as categorias distintas de `produto.categoria` (D1: sem tabela de categorias); devolve também a lista fixa de `tecnicas` | `artesao`, `produto` | **Migrada** na PI4-143: a rota entra com o PR #50, e os filtros da vitrine e `/admin/categorias` passam a usá-la com o PR #52. Depois disso as constantes ficam sem uso e saem na fase 8 | Entra com o PR #50 |
 
 ### 2.2 Escrita (hoje nos contextos, não em `apiFalsa.ts`)
 
@@ -108,8 +108,8 @@ Princípio: **leitura primeiro, escrita depois, autenticação antes de qualquer
 | 4 | Escrita de pedidos (checkout e envio) | Concluída |
 | 5 | Escrita de produtos (cadastro e edição pelo painel) | Concluída |
 | 6 | Autenticação real, proteção por perfil (middleware + checagem em cada rota) e estatísticas do painel | Concluída |
-| 7 | **Admin**: `getArtesaos`/`getUsuarios` → `GET /api/artesaos`; `regioes`/`categorias` → `GET /api/filtros` | **Pendente** (as rotas não existem nem no Next nem no Express) |
-| 8 | Limpeza: apagar as funções "Sem uso" de `apiFalsa.ts` e, por último, `dadosFalsos.ts` | **Pendente** (depende da fase 7 e de ajustar `tests/`) |
+| 7 | **Admin**: `getArtesaos`/`getUsuarios` → `GET /api/artesaos`; `regioes`/`categorias` → `GET /api/filtros` | **Concluída** na PI4-143, em três PRs com base `main`: rotas no Express e no `app/api` do Next (PR #50), telas do admin e filtros da vitrine (PR #52), senha dos artesãos e documentação (PR #51). Decisões D1 a D4 na seção 3.1 |
+| 8 | Limpeza: apagar as funções "Sem uso" de `apiFalsa.ts` e, por último, `dadosFalsos.ts` | **Pendente**, na PI4-144 (o que entra está na seção 3.1) |
 | 9 | Backend Express em camadas com as mesmas rotas, OpenAPI e Swagger (PI4-119: PI4-122 a PI4-126; PRs #26 e #30) | Concluída |
 | 10 | Prisma no backend (PI4-128, PR #28) | **Em andamento**: Prisma configurado e conectado (lê as 8 tabelas e a view no `prisma:verificar`); os repositories das rotas continuam em `pg` (ver seção 1) |
 | 11 | Front chamando o Express em vez de `app/api/*` (URL base, CORS e cookie): `lib/apiUrl.ts`, `rewrites` com `API_URL`, `CORS_ORIGIN` e `COOKIE_SAMESITE` | **Concluída**, opcional por variável de ambiente (PI4-132) |
@@ -121,6 +121,22 @@ Fases 1 a 6 vieram do PR #23, que só chegou à `main` pelo PR #29.
 
 Antes de apagar `dadosFalsos.ts` (fase 8): rodar `npm test`, `npm run lint` e `npx tsc --noEmit`, e procurar por importações com `grep -rn dadosFalsos app components lib tests`. Hoje ele é importado por `lib/apiFalsa.ts` e pelos testes `tests/catalogo.test.mjs` e `tests/recomendacao.test.mjs`.
 
+### 3.1 Fase 7 na PI4-143: decisões e o que fica para a fase 8
+
+| Decisão | O que foi decidido | Como ficou |
+|---|---|---|
+| D1 | Categorias derivadas dos produtos, sem tabela própria | `GET /api/filtros` devolve as categorias distintas de `produto.categoria` e as regiões distintas de `artesao.regiao_origem`. As técnicas continuam a lista fixa do `CHECK` |
+| D2 | Aprovação de artesãos e moderação de produtos continuam no navegador (`localStorage`), sem coluna nova no banco | Com o PR #52, as telas guardam esse estado pelo UUID do banco, não mais pelos ids do mock (aprovação por `artesao.id`, moderação por `produto.id`), e mostram um aviso de que é demonstração. Pendente é o artesão sem login; em revisão é o produto sem foto ou cadastrado nos últimos 7 dias |
+| D3 | Senha dos artesãos sem login por um script com dry-run, preparado e testado só em banco descartável | `npm run contas:artesao` (PR #51). No Neon, quem roda é o responsável pelo banco (`docs/estrategia-autenticacao.md`, seção 13) |
+| D4 | Três PRs com base `main`; as rotas novas no Express e no `app/api` do Next, com o mesmo contrato | PR #50 (rotas), PR #52 (telas) e PR #51 (script e documentação). As duas rotas novas respondem erro em `{ "ok": false, "erro" }` também no Next |
+
+**Fica para a fase 8 (PI4-144):**
+
+- Apagar de `lib/apiFalsa.ts` as funções marcadas como **Sem uso** na seção 2.1 (`getProdutosDoArtesao`, `getEstatisticasPainel`, `getProdutosBase`, `getPedidos`, `getItensPedido` e `getAvaliacoesTodas`) e, depois de o PR #52 trocar as telas pelas rotas e pela constante `TECNICAS`, também `getArtesaos`, `getUsuarios` e as constantes `tecnicas`, `regioes` e `categorias`. Nenhuma tela chama as seis primeiras, mas o `tests/catalogo.test.mjs` ainda usa `getProdutosDoArtesao`, `getEstatisticasPainel` e as três constantes, então o teste muda junto. Continua a constante `TECNICAS` de `lib/tipos.ts` (seção 2.1).
+- Apagar `lib/dadosFalsos.ts` por último, depois de ajustar `tests/catalogo.test.mjs` e `tests/recomendacao.test.mjs`, com a verificação do parágrafo acima.
+
+**Fica no backlog, fora da fase 8:** tabela de categorias, colunas de aprovação de artesão e de moderação de produto no banco, tela de criação de artesão no admin e troca de senha pelo próprio usuário.
+
 ## 4. Como as assinaturas foram preservadas
 
 - O tipo de retorno de cada função continua sendo o de `lib/tipos.ts`. A rota devolve exatamente esse formato (campos como `artesaoNome` e `artesaoRegiao` já vêm juntados no SQL).
@@ -129,10 +145,10 @@ Antes de apagar `dadosFalsos.ts` (fase 8): rodar `npm test`, `npm run lint` e `n
 
 ## 5. Pontos de atenção e diferenças em relação ao `CONTRATO_API.md`
 
-1. O contrato propõe respostas no envelope `{ "sucesso": true, "dados": ... }`. As rotas implementadas devolvem **o JSON direto** (array ou objeto do tipo de `tipos.ts`). Nos erros, as rotas do Next respondem `{ "erro": "..." }` (as de leitura mais antigas ainda usam `"mensagem"`), e as do Express respondem sempre `{ "ok": false, "erro": "..." }`. Decisão a registrar com o time: atualizar o contrato para o que está implementado (recomendado, menos código) ou adaptar as rotas ao envelope. O contrato real do Express está em `backend/openapi.yaml`.
-2. O contrato descreve `POST /api/usuarios` (comprador ou artesão); o que existe é `POST /api/auth/cadastro`, só para comprador. O contrato deve ser atualizado, e falta decidir como artesãos são criados (hoje: script SQL; proposta: tela do admin).
+1. O contrato propõe respostas no envelope `{ "sucesso": true, "dados": ... }`. As rotas implementadas devolvem **o JSON direto** (array ou objeto do tipo de `tipos.ts`). Nos erros, as rotas do Next respondem `{ "erro": "..." }` (as de leitura mais antigas ainda usam `"mensagem"`), e as do Express respondem sempre `{ "ok": false, "erro": "..." }`. Decisão a registrar com o time: atualizar o contrato para o que está implementado (recomendado, menos código) ou adaptar as rotas ao envelope. O contrato real do Express está em `backend/openapi.yaml`. Na PI4-143, o `CONTRATO_API.md` passou a descrever o formato de erro implementado, o `POST /api/auth/cadastro` e as duas rotas novas; os outros exemplos continuam os da proposta, como avisa o topo do contrato. As duas rotas novas do Next (`GET /api/artesaos` e `GET /api/filtros`) já respondem erro em `{ "ok": false, "erro" }`, como o Express.
+2. O contrato descrevia `POST /api/usuarios` (comprador ou artesão); o que existe é `POST /api/auth/cadastro`, só para comprador, e o contrato foi atualizado na PI4-143. Artesãos novos continuam sendo criados por script SQL (a tela do admin está no backlog). Os que já estão no banco sem senha ganham uma pelo `npm run contas:artesao` (`docs/estrategia-autenticacao.md`, seção 13).
 3. Visitas ao perfil (`visitasNoPerfil`) não existem no modelo físico; hoje o painel não mostra esse número. Se o time quiser, é uma nova coluna/tabela, fora do escopo desta etapa.
-4. A tela `/admin/categorias` guarda a lista no `localStorage`: não há tabela `categoria` no modelo. Continua assim até o time decidir se categoria vira entidade. A aprovação de artesãos (`/admin/artesaos`) e a moderação de produtos (`/admin/produtos`) também ficam só no `localStorage`.
+4. Não há tabela `categoria` no modelo. Pela decisão D1 da PI4-143, as categorias são as dos produtos, devolvidas por `GET /api/filtros`. Com o PR #52, a tela `/admin/categorias` fica só de leitura: lista as categorias de `GET /api/filtros`, com a contagem de produtos por categoria, e não grava mais nada no `localStorage`. A aprovação de artesãos (`/admin/artesaos`, por `artesao.id`; pendente é o artesão sem login) e a moderação de produtos (`/admin/produtos`, por `produto.id`; em revisão é o produto sem foto ou cadastrado nos últimos 7 dias) continuam só no `localStorage` (D2), como demonstração. Tabela de categorias e colunas de aprovação e moderação ficam no backlog (seção 3.1).
 5. O limite de tentativas de login fica em memória, no Next e no Express (some ao reiniciar e não vale entre várias instâncias). Para produção, mover para o banco ou um cache.
 
 ## 6. Critérios de aceite (PI4-116)

@@ -13,6 +13,7 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test scripts prisma.config.ts",
+    "contas:artesao": "tsx scripts/contas-artesao.ts",
     "postinstall": "prisma generate",
     "preprisma:generate": "node -e \"require('fs').rmSync('src/generated', { recursive: true, force: true })\"",
     "prisma:generate": "prisma generate",

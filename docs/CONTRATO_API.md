@@ -1,14 +1,16 @@
 # Contrato da API — Raízes PE
 
-**Versão:** 0.1  
-**Status:** Proposta inicial para integração entre frontend e backend  
+**Versão:** 0.2 (PI4-143, 15/11/2026)  
+**Status:** Proposta inicial para integração entre frontend e backend, com partes já atualizadas para o que está implementado  
 **Projeto:** Raízes PE — Marketplace da Economia Criativa
+
+> **Atualização da PI4-143.** Descrevem o que está implementado: o formato de erro (seção 2), o `POST /api/auth/cadastro` (seção 3), o `GET /api/filtros` (seção 4) e o `GET /api/artesaos` (seção 5). As duas rotas novas entram com o PR #50. Os outros exemplos ainda são da proposta inicial: as rotas implementadas devolvem o JSON direto, sem o envelope `{ "sucesso", "dados" }`. O contrato completo e atualizado do Express está em `backend/openapi.yaml` (Swagger UI em `/api-docs`).
 
 ## 1. Objetivo
 
 Este documento define o contrato inicial de comunicação entre o frontend e a API do projeto Raízes PE. A intenção é estabelecer rotas, parâmetros, estruturas de requisição e formatos de resposta antes da integração com um backend e banco de dados reais.
 
-Na versão atual do projeto, a maior parte dos dados ainda é simulada por arquivos locais (`lib/dadosFalsos.ts` e `lib/apiFalsa.ts`). A rota HTTP de recomendações já existe em `app/api/recomendacoes/route.ts`.
+Quando a proposta foi escrita, a maior parte dos dados ainda era simulada por arquivos locais (`lib/dadosFalsos.ts` e `lib/apiFalsa.ts`). A situação atual está na seção 9.
 
 ## 2. Padrões gerais
 
@@ -18,52 +20,62 @@ Na versão atual do projeto, a maior parte dos dados ainda é simulada por arqui
 - Valores monetários: número decimal em reais, sem símbolo `R$` no JSON.
 - Erros devem retornar uma mensagem legível para o frontend.
 
-Exemplo de erro:
+### Formato de erro (implementado)
+
+Na API Express, todo erro responde neste formato, com a mensagem em português. Caminho que não existe responde 404 no mesmo formato:
 
 ```json
 {
-  "sucesso": false,
-  "mensagem": "Recurso não encontrado"
+  "ok": false,
+  "erro": "Faça login para continuar."
 }
 ```
 
+- **Express (`backend/`):** sempre `{ "ok": false, "erro": "..." }`. Erro inesperado responde 500 com `"Erro interno do servidor"`, sem expor a mensagem interna.
+- **Rotas do Next (`app/api`, usadas quando a `API_URL` não está definida):** as duas rotas da PI4-143 (`GET /api/artesaos` e `GET /api/filtros`, que entram com o PR #50) usam o mesmo `{ "ok": false, "erro" }`. As rotas de autenticação e de escrita do Next respondem só `{ "erro": "..." }`, e as de leitura mais antigas, `{ "mensagem": "..." }`, com os mesmos status.
+
 ## 3. Usuários e autenticação
 
-> Estas rotas representam o contrato proposto para a futura integração. Ainda não há autenticação real implementada no MVP atual.
+> O `POST /api/auth/cadastro` descreve o que está implementado. O exemplo de `POST /api/auth/login` ainda é o da proposta inicial: o login real devolve `{ "usuario": { "id", "nome", "tipo" } }` e grava o cookie `httpOnly` `raizes_sessao`, sem token no corpo (ver `backend/openapi.yaml` e `docs/estrategia-autenticacao.md`).
 
-### POST `/api/usuarios`
+### POST `/api/auth/cadastro`
 
-Cria um novo usuário comprador ou artesão.
+Cria uma conta de **comprador** e já inicia a sessão. Substitui o `POST /api/usuarios` da proposta inicial. Não há autocadastro de artesão nem de admin: essas contas são criadas por quem administra a plataforma. Os artesãos que já estão no banco sem senha ganham uma pelo script `npm run contas:artesao` (`docs/estrategia-autenticacao.md`, seção 13).
 
 #### Requisição
 
 ```json
 {
-  "nome": "Usuário Exemplo",
-  "email": "usuario@exemplo.com",
-  "senha": "senha-segura",
-  "tipo": "comprador"
+  "nome": "Maria da Silva",
+  "email": "maria@exemplo.com",
+  "senha": "senha-segura"
 }
 ```
 
-Valores permitidos para `tipo`:
-
-- `comprador`
-- `artesao`
+- `nome`: de 1 a 150 caracteres, gravado sem espaços nas pontas.
+- `email`: e-mail válido de até 150 caracteres, gravado sem espaços e em minúsculas.
+- `senha`: de 8 a 200 caracteres. É guardada só como hash scrypt.
+- Um campo `tipo` enviado no corpo é ignorado: a conta é sempre de comprador.
 
 #### Resposta de sucesso — 201
 
+Grava o cookie de sessão `raizes_sessao` (`Set-Cookie`) e devolve:
+
 ```json
 {
-  "sucesso": true,
-  "dados": {
-    "id": "u9",
-    "nome": "Usuário Exemplo",
-    "email": "usuario@exemplo.com",
+  "usuario": {
+    "id": "6f1c2a9e-3b7d-4e21-9a55-0c8d4b7e2f10",
+    "nome": "Maria da Silva",
     "tipo": "comprador"
   }
 }
 ```
+
+#### Possíveis erros
+
+- `400`: `"Informe seu nome (até 150 caracteres)."`, `"Informe um e-mail válido."`, `"A senha precisa ter de 8 a 200 caracteres."` ou `"Corpo da requisição inválido."`.
+- `409`: `"Este e-mail já está cadastrado."`.
+- `500`: erro interno.
 
 ### POST `/api/auth/login`
 
@@ -152,7 +164,72 @@ Retorna os detalhes de um produto específico.
 - `200` — produto encontrado.
 - `404` — produto inexistente.
 
+### GET `/api/filtros`
+
+> Implementada na PI4-143 (entra com o PR #50), no Express e no `app/api` do Next, com o mesmo contrato.
+
+Opções dos filtros da vitrine. **Pública**, sem parâmetros.
+
+- `tecnicas`: a lista fixa de técnicas da plataforma, a mesma do `CHECK` da coluna `produto.tecnica`, nesta ordem.
+- `regioes`: as regiões de origem cadastradas nos artesãos.
+- `categorias`: as categorias cadastradas nos produtos. Não há tabela de categorias (decisão D1 da PI4-143).
+- Em `regioes` e `categorias`, os espaços das pontas são removidos, valores vazios ficam de fora, grafias que só diferem em maiúsculas e minúsculas aparecem uma vez e a ordem é alfabética (pt-BR).
+
+#### Resposta — 200
+
+Com a carga de demonstração (`db/05_dados_raizes_pe.sql`):
+
+```json
+{
+  "tecnicas": ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"],
+  "regioes": ["Alto do Moura, Caruaru", "Comunidade do Pilar", "Garanhuns", "Tacaratu", "Tracunhaém"],
+  "categorias": ["Casa", "Decoração", "Vestuário"]
+}
+```
+
+#### Possíveis erros
+
+- `500`: `{ "ok": false, "erro": "Erro interno do servidor" }`.
+
 ## 5. Artesãos
+
+### GET `/api/artesaos`
+
+> Implementada na PI4-143 (entra com o PR #50), no Express e no `app/api` do Next, com o mesmo contrato.
+
+Lista todos os artesãos para a gestão pelo admin. **Só o perfil `admin`**, pelo cookie de sessão `raizes_sessao`.
+
+- Ordem alfabética do nome (pt-BR); nomes iguais desempatam pelo `id`.
+- `id` é o id do artesão (tabela `artesao`) e `usuarioId`, o do usuário dele (tabela `usuario`).
+- `regiaoOrigem` vem vazia quando não foi informada.
+- `tecnicas` são as técnicas distintas dos produtos do artesão, em ordem alfabética (vazia se ele não tem produtos), e `totalProdutos` é quantos produtos ele tem.
+- `temLogin` diz só se a conta tem senha cadastrada. A consulta não lê o hash nem o e-mail, e nenhum dos dois sai na resposta.
+- `dataCadastro` é a data de cadastro do usuário, no formato `YYYY-MM-DD`.
+
+#### Resposta — 200
+
+Um item da carga de demonstração:
+
+```json
+[
+  {
+    "id": "20000000-0000-4000-8000-000000000002",
+    "usuarioId": "10000000-0000-4000-8000-000000000002",
+    "nome": "Cooperativa de Tacaratu",
+    "regiaoOrigem": "Tacaratu",
+    "tecnicas": ["Têxtil"],
+    "totalProdutos": 2,
+    "temLogin": true,
+    "dataCadastro": "2025-01-22"
+  }
+]
+```
+
+#### Possíveis erros
+
+- `401`: sem sessão, `{ "ok": false, "erro": "Faça login para continuar." }`.
+- `403`: sessão de comprador ou artesão, `{ "ok": false, "erro": "Seu perfil não tem permissão para esta ação." }`.
+- `500`: `{ "ok": false, "erro": "Erro interno do servidor" }`.
 
 ### GET `/api/artesaos/{id}`
 
@@ -291,12 +368,14 @@ Valores previstos:
 | 201 | Recurso criado com sucesso |
 | 400 | Dados inválidos |
 | 401 | Não autenticado |
+| 403 | Sem permissão: a sessão é de outro perfil (por exemplo, comprador em `GET /api/artesaos`) |
 | 404 | Recurso não encontrado |
 | 409 | Conflito, como e-mail já cadastrado |
+| 429 | Muitas tentativas de login (5 falhas por e-mail e IP a cada 15 minutos) |
 | 500 | Erro interno do servidor |
 
-## 9. Observação sobre a versão atual
+## 9. Situação atual (15/11/2026)
 
-Atualmente, apenas a rota HTTP de recomendações está implementada de forma real no App Router do Next.js. Produtos, artesãos, pedidos, carrinho e usuários ainda utilizam mocks, Context API e `localStorage`.
+As rotas estão implementadas nos dois lados, com o mesmo contrato: no app Next (`app/api`) e no backend Express (`backend/`), que o front usa quando a `API_URL` está definida. Catálogo, pedidos, produtos do painel, login e recomendações já leem e gravam no banco. Na PI4-143, a lista de artesãos do admin e os filtros da vitrine ganham as rotas `GET /api/artesaos` e `GET /api/filtros` (entram com o PR #50), e as telas passam a usá-las com o PR #52. A aprovação de artesãos e a moderação de produtos continuam só no navegador, como demonstração.
 
-Este contrato serve para deixar combinado como o frontend deverá conversar com o backend quando essas integrações forem implementadas, reduzindo divergências entre as partes do projeto.
+O contrato completo do Express, conferido por testes, está em `backend/openapi.yaml`. Este documento guarda a proposta inicial, com as partes atualizadas na PI4-143 indicadas no topo.
