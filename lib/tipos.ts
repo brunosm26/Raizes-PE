@@ -25,6 +25,9 @@ export type Tecnica =
   | "Renda e Bordado"
   | "Palha";
 
+// Mesma lista e ordem do TECNICAS do backend (backend/src/types/dominio.ts).
+export const TECNICAS: readonly Tecnica[] = ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"];
+
 export interface Produto {
   id: string;
   artesaoId: string;
@@ -168,4 +171,24 @@ export interface EstatisticasPainel {
   visitasDeltaPct?: number;
   historicoMensal: PontoSerieVendas[];
   vendasPorTecnica: DistribuicaoTecnica[];
+}
+
+// GET /api/artesaos (só admin), igual no Express e no fallback do Next. Nunca traz e-mail
+// nem hash: temLogin só diz se a conta tem senha cadastrada.
+export interface ArtesaoAdmin {
+  id: string;
+  usuarioId: string;
+  nome: string;
+  regiaoOrigem: string;
+  tecnicas: string[];
+  totalProdutos: number;
+  temLogin: boolean;
+  dataCadastro: string;
+}
+
+// GET /api/filtros (público): opções dos filtros da vitrine.
+export interface OpcoesFiltros {
+  tecnicas: Tecnica[];
+  regioes: string[];
+  categorias: string[];
 }

@@ -95,3 +95,22 @@ export interface EstatisticasPainel {
   historicoMensal: PontoSerieVendas[];
   vendasPorTecnica: DistribuicaoTecnica[];
 }
+
+// GET /api/artesaos (só admin). Nunca traz e-mail nem hash: temLogin é calculado no SQL.
+export interface ArtesaoAdmin {
+  id: string;
+  usuarioId: string;
+  nome: string;
+  regiaoOrigem: string;
+  tecnicas: string[];
+  totalProdutos: number;
+  temLogin: boolean;
+  dataCadastro: string;
+}
+
+// GET /api/filtros: opções dos filtros da vitrine.
+export interface OpcoesFiltros {
+  tecnicas: Tecnica[];
+  regioes: string[];
+  categorias: string[];
+}

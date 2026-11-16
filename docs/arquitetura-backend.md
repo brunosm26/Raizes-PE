@@ -88,6 +88,9 @@ Os caminhos à esquerda são os do app Next (a integração com o banco do PR #2
 | `app/api/produtos/route.ts` (GET), `app/api/produtos/[id]/route.ts` (GET) | `routes/produtoRoutes.ts`, `controllers/produtoController.ts` |
 | `app/api/produtos/[id]/relacionados/route.ts`, `.../avaliacoes/route.ts` | `routes/produtoRoutes.ts`, `controllers/produtoController.ts` |
 | `app/api/artesaos/[id]/route.ts` | `routes/artesaoRoutes.ts`, `controllers/artesaoController.ts` |
+| `app/api/artesaos/route.ts`, `lib/servidor/artesaos.ts` (PI4-143, só admin) | `routes/artesaoRoutes.ts`, `controllers/artesaoController.ts`, `services/artesaoService.ts`, `repositories/artesaoRepository.ts` |
+| `app/api/filtros/route.ts`, `lib/servidor/filtros.ts` (PI4-143, público) | `routes/filtroRoutes.ts`, `controllers/filtroController.ts`, `services/filtroService.ts`; SQL em `repositories/artesaoRepository.ts` e `produtoRepository.ts` |
+| `lib/servidor/ordenacao.ts` (ordem pt-BR e normalização das opções) | `utils/ordenacao.ts` (cópia conferida por `tests/rotasAdminFiltros.test.mjs`) |
 | `lib/servidor/catalogo.ts` — filtros, busca sem acento, limites | `services/catalogoService.ts` |
 | `lib/servidor/catalogo.ts` — SQL de produto, artesão e avaliação | `repositories/produtoRepository.ts`, `repositories/artesaoRepository.ts`, `repositories/avaliacaoRepository.ts` |
 | `app/api/recomendacoes/route.ts` | `routes/recomendacaoRoutes.ts`, `controllers/recomendacaoController.ts` |
@@ -134,6 +137,7 @@ Verificação rápida: com `API_URL` definida, `GET http://localhost:3000/api/sa
 | `GET /api/recomendacoes` | PI4-124 | Migrada, com testes |
 | `GET /api/painel/estatisticas` | PI4-124 | Migrada, com testes |
 | `GET /api/saude-bd` | PI4-124 | Migrada, com teste |
+| `GET /api/artesaos` (só admin), `GET /api/filtros` (público) | PI4-143 | Novas, no Express e no fallback do Next (mesmo contrato), com testes |
 
 Middlewares reaproveitáveis: `exigirSessao(perfis?)` (401/403), `carregarSessao` (sessão opcional, usada nas recomendações), `naoEncontrado` e `tratadorDeErros` (corpo JSON inválido vira 400, corpo acima de 4 MB vira 413).
 

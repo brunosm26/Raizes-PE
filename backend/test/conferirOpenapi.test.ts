@@ -62,7 +62,8 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
   const protegida =
     (metodo !== "GET" && /^\/api\/(produtos|pedidos)/.test(caminho!)) ||
     caminho === "/api/pedidos" ||
-    caminho === "/api/painel/estatisticas";
+    caminho === "/api/painel/estatisticas" ||
+    caminho === "/api/artesaos";
   if (protegida && !perfil) return { status: 401, corpo: { ok: false, erro: "Faça login para continuar." } };
   if (caminho === "/api/pedidos") return { status: 200, corpo: [] };
   if (caminho === "/api/painel/estatisticas") {
@@ -70,11 +71,19 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
       ? { status: 200, corpo: ESTATISTICAS }
       : { status: 403, corpo: { ok: false, erro: "Seu perfil não tem permissão para esta ação." } };
   }
+  if (caminho === "/api/artesaos") {
+    return perfil === "admin"
+      ? { status: 200, corpo: [] }
+      : { status: 403, corpo: { ok: false, erro: "Seu perfil não tem permissão para esta ação." } };
+  }
 
   if (caminho === "/api/saude") return { status: 200, corpo: { ok: true } };
   if (caminho === "/api/saude-bd") return { status: 200, corpo: { ok: true, produtos: 1 } };
   if (caminho === "/api/auth/me") {
     return { status: 200, corpo: { usuario: perfil ? { id: "10000000-0000-4000-8000-000000000009", nome: "Demo", tipo: perfil } : null } };
+  }
+  if (caminho === "/api/filtros") {
+    return { status: 200, corpo: { tecnicas: ["Cerâmica"], regioes: ["Caruaru"], categorias: ["Vasos"] } };
   }
   if (caminho === "/api/recomendacoes") {
     const compradorId = perfil === "comprador" ? "10000000-0000-4000-8000-000000000009" : null;
