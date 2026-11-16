@@ -1,0 +1,6 @@
+# PI4-147: o Prisma guarda o checksum de cada migration.sql aplicada. Com core.autocrlf
+# no Windows, o mesmo arquivo viraria CRLF e o checksum mudaria entre máquinas; LF fixo
+# evita o "migration was modified after it was applied".
+backend/prisma/migrations/**/*.sql text eol=lf
+backend/prisma/migrations/migration_lock.toml text eol=lf
+db/ddl_final.sql text eol=lf

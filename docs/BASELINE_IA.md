@@ -10,6 +10,9 @@
 
 ---
 
+> **Nota (novembro de 2026):** este é o documento da Unidade 1. O estado atual do módulo (dados vindos do PostgreSQL, comprador identificado pela sessão em vez de `usuarioId`, regra no backend Express e serviço BentoML) está em [`MODULO_IA.md`](MODULO_IA.md).
+
+
 ## 1. Visão Geral e Contexto de Negócio
 
 O **Raízes PE** é uma plataforma de marketplace focada na valorização da economia criativa e do artesanato de Pernambuco, aproximando artesãos do Litoral ao Sertão de compradores apreciadores da cultura regional.
