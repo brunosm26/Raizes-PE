@@ -166,9 +166,6 @@ export interface EstatisticasPainel {
   vendasDoMes: number;
   vendasDeltaPct: number;
   pedidosPendentes: number;
-  // Sem tabela de visitas no modelo físico: só o mock (apiFalsa) preenche estes dois.
-  visitasNoPerfil?: number;
-  visitasDeltaPct?: number;
   historicoMensal: PontoSerieVendas[];
   vendasPorTecnica: DistribuicaoTecnica[];
 }

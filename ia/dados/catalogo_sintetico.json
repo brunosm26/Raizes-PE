@@ -1,5 +1,5 @@
 {
-  "_leia_me": "Catalogo SINTETICO do modulo de recomendacao (RNF-02: nenhum dado pessoal real). Segue as 4 tabelas do Modelo_Logico.md usadas pelo modulo (artesao, produto, item_pedido, avaliacao). Os produtos p1 a p7 e os artesaos a1 a a6 espelham lib/dadosFalsos.ts do app. Os produtos p8 a p12 e o artesao a7 foram criados so para este mockup (o catalogo do app tem 7 itens e a entrega exige pelo menos 8). Vendas e avaliacoes sao inventadas. O produto p10 esta com estoque zero de proposito, para mostrar a regra de elegibilidade.",
+  "_leia_me": "Catalogo SINTETICO do modulo de recomendacao (RNF-02: nenhum dado pessoal real). Segue as 4 tabelas do Modelo_Logico.md usadas pelo modulo (artesao, produto, item_pedido, avaliacao). Os produtos p1 a p7 e os artesaos a1 a a6 espelham a carga db/05_dados_raizes_pe.sql do app. Os produtos p8 a p12 e o artesao a7 foram criados so para este mockup (o catalogo do app tem 7 itens e a entrega exige pelo menos 8). Vendas e avaliacoes sao inventadas. O produto p10 esta com estoque zero de proposito, para mostrar a regra de elegibilidade.",
   "artesao": [
     {"id": "a1", "regiao_origem": "Alto do Moura, Caruaru"},
     {"id": "a2", "regiao_origem": "Tacaratu"},
