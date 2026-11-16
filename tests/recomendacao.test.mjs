@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
 import { createRequire } from "node:module";
+import { COMPRADORES, COMPRAS, NOTAS, PRODUTO, PRODUTOS } from "./fixtures/cargaDemo.mjs";
 const require = createRequire(import.meta.url);
 
 // Configura o carregamento sob demanda de arquivos TypeScript para o runtime Node.js
@@ -24,39 +25,20 @@ require.extensions[".ts"] = function (module, filename) {
   module._compile(transpiled, filename);
 };
 
-// O motor agora lê do PostgreSQL; a regra de pontuação (lib/rankingRecomendacao.ts) não
-// depende do banco. Os testes alimentam essa regra com os dados falsos, que têm o mesmo
-// conteúdo da carga db/05_dados_raizes_pe.sql.
+// O motor lê do PostgreSQL; a regra de pontuação (lib/rankingRecomendacao.ts) não depende do
+// banco. Os testes alimentam essa regra com um recorte da carga db/05_dados_raizes_pe.sql
+// (tests/fixtures/cargaDemo.mjs). A consulta ao banco é testada no backend
+// (backend/test/rankingRecomendacao.test.ts e catalogoAuthPainel.test.ts).
 const { rankearRecomendacoes } = require(path.join(rootDir, "lib", "rankingRecomendacao.ts"));
-const dados = require(path.join(rootDir, "lib", "dadosFalsos.ts"));
 
 function montarEntrada(compradorId) {
-  const produtos = dados.produtos.map((p) => {
-    const artesao = dados.artesaos.find((a) => a.id === p.artesaoId);
-    const usuario = dados.usuarios.find((u) => u.id === artesao?.usuarioId);
-    return {
-      ...p,
-      artesaoNome: usuario?.nome ?? "Artesão de Pernambuco",
-      artesaoRegiao: artesao?.regiaoOrigem ?? "Pernambuco",
-    };
-  });
-
-  const avaliacoes = dados.produtos.flatMap((p) => {
-    const notas = dados.avaliacoes.filter((a) => a.produtoId === p.id).map((a) => a.nota);
+  const avaliacoes = PRODUTOS.flatMap((p) => {
+    const notas = NOTAS[p.id] ?? [];
     if (notas.length === 0) return [];
     return [{ produtoId: p.id, media: notas.reduce((s, n) => s + n, 0) / notas.length, qtd: notas.length }];
   });
-
-  const idsPedidos = new Set(
-    dados.pedidos.filter((ped) => ped.compradorId === compradorId).map((ped) => ped.id)
-  );
-  const quantidades = new Map();
-  for (const item of dados.itensPedido.filter((i) => idsPedidos.has(i.pedidoId))) {
-    quantidades.set(item.produtoId, (quantidades.get(item.produtoId) ?? 0) + item.quantidade);
-  }
-  const comprados = Array.from(quantidades, ([produtoId, quantidade]) => ({ produtoId, quantidade }));
-
-  return { produtos, avaliacoes, comprados };
+  const comprados = compradorId ? (COMPRAS[compradorId] ?? []) : [];
+  return { produtos: PRODUTOS.map((p) => ({ ...p })), avaliacoes, comprados };
 }
 
 async function calcularRecomendacoes(compradorId, limite) {
@@ -75,12 +57,12 @@ test("Garante que nenhum produto com estoque zerado é recomendado (PI4-82)", as
 });
 
 test("Respeita o limite máximo de recomendações solicitado", async () => {
-  const recomendacoes = await calcularRecomendacoes("u7", 2);
+  const recomendacoes = await calcularRecomendacoes(COMPRADORES.anaBeatriz, 2);
   assert.equal(recomendacoes.length, 2, "Deveria retornar exatamente 2 itens");
 });
 
-test("Personaliza recomendações por técnica para comprador com histórico (u7 - Ana Beatriz) (PI4-83)", async () => {
-  const recomendacoes = await calcularRecomendacoes("u7", 4);
+test("Personaliza recomendações por técnica para comprador com histórico (Ana Beatriz) (PI4-83)", async () => {
+  const recomendacoes = await calcularRecomendacoes(COMPRADORES.anaBeatriz, 4);
   const tecnicasNoTopo = recomendacoes.slice(0, 2).map((p) => p.tecnica);
 
   // Ana Beatriz comprou Cerâmica e Têxtil no histórico
@@ -95,9 +77,9 @@ test("Personaliza recomendações por técnica para comprador com histórico (u7
 });
 
 test("Desprioriza produtos que o comprador já adquiriu para evitar repetição (PI4-83)", async () => {
-  const recomendacoes = await calcularRecomendacoes("u7", 10);
-  const produtoInedito = recomendacoes.find((p) => p.id === "p6"); // Jarro Cerâmica Fosco (não comprado)
-  const produtoJaComprado = recomendacoes.find((p) => p.id === "p1"); // Vaso Cerâmica Maragogi (comprado)
+  const recomendacoes = await calcularRecomendacoes(COMPRADORES.anaBeatriz, 10);
+  const produtoInedito = recomendacoes.find((p) => p.id === PRODUTO.jarroFosco); // não comprado
+  const produtoJaComprado = recomendacoes.find((p) => p.id === PRODUTO.vasoMaragogi); // comprado
 
   assert.ok(produtoInedito, "Produto inédito de cerâmica deve estar presente");
   assert.ok(produtoJaComprado, "Produto já comprado pode estar presente no final");
@@ -120,7 +102,7 @@ test("Aplica estratégia de Cold Start para novos visitantes sem histórico (PI4
 });
 
 test("Explicabilidade (XAI): Todos os itens possuem justificativa textual legível e dados do artesão", async () => {
-  const recomendacoes = await calcularRecomendacoes("u7", 5);
+  const recomendacoes = await calcularRecomendacoes(COMPRADORES.anaBeatriz, 5);
   for (const item of recomendacoes) {
     assert.ok(item.motivo && item.motivo.length > 10, "Motivo deve ser detalhado e legível");
     assert.ok(item.artesaoNome, "Nome do artesão deve estar preenchido");

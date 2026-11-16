@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import test from "node:test";
+import { beforeEach, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { PRODUTO, PRODUTOS } from "./fixtures/cargaDemo.mjs";
 
 const require = createRequire(import.meta.url);
 const rootDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -21,198 +22,166 @@ require.extensions[".ts"] = function (module, filename) {
   module._compile(transpiled, filename);
 };
 
-// Desde o PR #23 as funções de lib/apiFalsa.ts chamam as rotas /api (PostgreSQL) via fetch.
-// Nestes testes unitários não há servidor nem banco, então o fetch é trocado por um
-// simulador em memória que responde como as rotas, usando os dados de lib/dadosFalsos.ts.
-// As rotas em si são cobertas pelos testes de integração com banco real.
-const dados = require(path.join(rootDir, "lib", "dadosFalsos.ts"));
+// lib/apiCatalogo.ts é o que a vitrine, a página do produto e o perfil do artesão chamam.
+// Aqui o fetch é um dublê que registra cada chamada e devolve a resposta escolhida pelo teste:
+// confere a URL montada, as opções do fetch e o tratamento de 404 e de erro. Os filtros, a busca
+// sem acento, os relacionados e as avaliações em si são das rotas, testadas no backend
+// (backend/test/catalogoAuthPainel.test.ts, com banco).
 
-function normalizar(texto) {
-  return String(texto).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const chamadas = [];
+let proximaResposta;
+
+function responder(status, corpo) {
+  proximaResposta = { ok: status >= 200 && status < 300, status, json: async () => structuredClone(corpo) };
 }
 
-function comArtesao(p) {
-  const artesao = dados.artesaos.find((a) => a.id === p.artesaoId);
-  const usuario = dados.usuarios.find((u) => u.id === artesao?.usuarioId);
-  return { ...p, artesaoNome: usuario?.nome ?? "Artesão desconhecido", artesaoRegiao: artesao?.regiaoOrigem ?? "" };
-}
-
-function json(corpo, status = 200) {
-  return { ok: status >= 200 && status < 300, status, json: async () => corpo };
-}
-
-globalThis.fetch = async (entrada) => {
-  const url = new URL(String(entrada), "http://teste.local");
-  const partes = url.pathname.split("/").filter(Boolean).slice(1); // remove "api"
-  const q = url.searchParams;
-
-  if (partes[0] === "produtos" && partes.length === 1) {
-    const termo = q.get("busca") ? normalizar(q.get("busca")) : "";
-    const lista = dados.produtos.map(comArtesao).filter(
-      (p) =>
-        (!q.get("tecnica") || p.tecnica === q.get("tecnica")) &&
-        (!q.get("regiao") || p.artesaoRegiao === q.get("regiao")) &&
-        (!q.get("categoria") || p.categoria === q.get("categoria")) &&
-        (!termo ||
-          [p.nome, p.tecnica, p.categoria, p.artesaoNome, p.artesaoRegiao].some((c) => normalizar(c).includes(termo)))
-    );
-    return json(lista);
-  }
-
-  if (partes[0] === "produtos") {
-    const produto = dados.produtos.find((p) => p.id === decodeURIComponent(partes[1]));
-    if (partes[2] === "relacionados") {
-      if (!produto) return json([]);
-      const limite = Number(q.get("limite") ?? 3);
-      return json(
-        dados.produtos.filter((p) => p.id !== produto.id && p.tecnica === produto.tecnica).slice(0, limite).map(comArtesao)
-      );
-    }
-    if (partes[2] === "avaliacoes") {
-      const notas = dados.avaliacoes.filter((a) => a.produtoId === decodeURIComponent(partes[1])).map((a) => a.nota);
-      const media = notas.length ? notas.reduce((x, y) => x + y, 0) / notas.length : 0;
-      return json({ media, quantidade: notas.length });
-    }
-    return produto ? json(comArtesao(produto)) : json({ erro: "Produto não encontrado." }, 404);
-  }
-
-  if (partes[0] === "artesaos") {
-    const artesao = dados.artesaos.find((a) => a.id === decodeURIComponent(partes[1]));
-    if (!artesao) return json({ erro: "Artesão não encontrado." }, 404);
-    const usuario = dados.usuarios.find((u) => u.id === artesao.usuarioId);
-    return json({
-      id: artesao.id,
-      nome: usuario?.nome ?? "",
-      regiaoOrigem: artesao.regiaoOrigem,
-      biografia: artesao.biografia ?? "",
-      produtos: dados.produtos.filter((p) => p.artesaoId === artesao.id).map(comArtesao),
-    });
-  }
-
-  return json({ erro: "Rota não simulada." }, 404);
+globalThis.fetch = async (url, init) => {
+  chamadas.push({ url: String(url), init });
+  return proximaResposta;
 };
 
-const {
-  categorias,
-  getEstatisticasPainel,
-  getPerfilArtesao,
-  getProdutoPorId,
-  getProdutos,
-  getProdutosDoArtesao,
-  getProdutosRelacionados,
-  getResumoAvaliacoes,
-  regioes,
-  tecnicas,
-} = require(path.join(rootDir, "lib", "apiFalsa.ts"));
+const API_CATALOGO = path.join(rootDir, "lib", "apiCatalogo.ts");
+const API_URL = path.join(rootDir, "lib", "apiUrl.ts");
 
-const {
-  ARTE_POR_TECNICA,
-  PADRAO_RENDA,
-  estiloFundoProduto,
-} = require(path.join(rootDir, "lib", "arteProduto.ts"));
+// apiUrl.ts lê NEXT_PUBLIC_API_URL ao ser carregado: cada valor exige uma cópia nova do módulo.
+function carregarCatalogo(baseApi) {
+  if (baseApi === undefined) delete process.env.NEXT_PUBLIC_API_URL;
+  else process.env.NEXT_PUBLIC_API_URL = baseApi;
+  delete require.cache[API_CATALOGO];
+  delete require.cache[API_URL];
+  return require(API_CATALOGO);
+}
 
-test("Lista todos os produtos da vitrine enriquecidos com nome e região do artesão", async () => {
-  const lista = await getProdutos();
-  assert.equal(lista.length, 7, "Catálogo base deve conter 7 produtos");
-  for (const item of lista) {
-    assert.ok(item.id, "Produto deve possuir id");
-    assert.ok(item.artesaoNome && item.artesaoNome !== "Artesão desconhecido", "Deve resolver nome do artesão");
-    assert.ok(item.artesaoRegiao && item.artesaoRegiao.length > 0, "Deve resolver região do artesão");
-  }
+const catalogo = carregarCatalogo(undefined);
+const { ARTE_POR_TECNICA, PADRAO_RENDA, estiloFundoProduto } = require(path.join(rootDir, "lib", "arteProduto.ts"));
+const { TECNICAS } = require(path.join(rootDir, "lib", "tipos.ts"));
+
+const VASO = PRODUTOS.find((p) => p.id === PRODUTO.vasoMaragogi);
+const JARRO = PRODUTOS.find((p) => p.id === PRODUTO.jarroFosco);
+
+beforeEach(() => {
+  chamadas.length = 0;
+  responder(200, []);
 });
 
-test("Filtra produtos corretamente por técnica artesanal, região e categoria", async () => {
-  const ceramicas = await getProdutos("Cerâmica");
-  assert.equal(ceramicas.length, 2);
-  assert.ok(ceramicas.every((p) => p.tecnica === "Cerâmica"));
+describe("getProdutos (vitrine)", () => {
+  it("sem filtro chama GET /api/produtos sem cache, com o cookie, e devolve a lista da rota", async () => {
+    responder(200, PRODUTOS);
+    const lista = await catalogo.getProdutos();
+    assert.deepEqual(lista, PRODUTOS);
+    assert.equal(chamadas.length, 1);
+    assert.equal(chamadas[0].url, "/api/produtos");
+    assert.deepEqual(chamadas[0].init, { credentials: "include", cache: "no-store" });
+  });
 
-  const caruaruDecoracao = await getProdutos(undefined, undefined, "Alto do Moura, Caruaru", "Decoração");
-  assert.equal(caruaruDecoracao.length, 2);
-  assert.ok(caruaruDecoracao.every((p) => p.artesaoRegiao === "Alto do Moura, Caruaru" && p.categoria === "Decoração"));
+  it("monta a query na ordem técnica, busca, região e categoria, com os valores codificados", async () => {
+    await catalogo.getProdutos("Renda e Bordado", "  bilro  ", "Alto do Moura, Caruaru", "Decoração");
+    const url = new URL(chamadas[0].url, "http://teste.local");
+    assert.equal(url.pathname, "/api/produtos");
+    assert.deepEqual([...url.searchParams], [
+      ["tecnica", "Renda e Bordado"],
+      ["busca", "bilro"],
+      ["regiao", "Alto do Moura, Caruaru"],
+      ["categoria", "Decoração"],
+    ]);
+    assert.ok(!chamadas[0].url.includes(" "), "a URL vai codificada");
+  });
+
+  it("omite os filtros vazios e a busca só com espaços", async () => {
+    await catalogo.getProdutos(undefined, "   ", undefined, "Casa");
+    assert.equal(chamadas[0].url, "/api/produtos?categoria=Casa");
+    await catalogo.getProdutos("Cerâmica", "", "", undefined);
+    assert.equal(new URL(chamadas[1].url, "http://teste.local").search, `?tecnica=${encodeURIComponent("Cerâmica")}`);
+  });
+
+  it("404 vira lista vazia; outro erro é lançado para a tela mostrar 'tentar de novo'", async () => {
+    responder(404, { erro: "não encontrado" });
+    assert.deepEqual(await catalogo.getProdutos(), []);
+    responder(500, { erro: "falhou" });
+    await assert.rejects(catalogo.getProdutos("Palha"), /Falha ao consultar \/api\/produtos\?tecnica=Palha \(500\)/);
+  });
+
+  it("com NEXT_PUBLIC_API_URL, chama a API em outra origem (sem barra dupla)", async () => {
+    try {
+      const outraOrigem = carregarCatalogo("http://localhost:4000/ ");
+      await outraOrigem.getProdutos("Têxtil");
+      assert.equal(chamadas[0].url, `http://localhost:4000/api/produtos?tecnica=${encodeURIComponent("Têxtil")}`);
+    } finally {
+      carregarCatalogo(undefined);
+    }
+  });
 });
 
-test("Realiza busca textual insensível a acentos e maiúsculas/minúsculas", async () => {
-  const buscaSemAcento = await getProdutos(undefined, "ceramica");
-  assert.equal(buscaSemAcento.length, 2, "Busca por 'ceramica' sem acento deve retornar os 2 produtos de Cerâmica");
+describe("página do produto", () => {
+  it("getProdutoPorId codifica o id e devolve o produto da rota", async () => {
+    responder(200, VASO);
+    assert.deepEqual(await catalogo.getProdutoPorId(PRODUTO.vasoMaragogi), VASO);
+    assert.equal(chamadas[0].url, `/api/produtos/${PRODUTO.vasoMaragogi}`);
+    await catalogo.getProdutoPorId("p1/../x y");
+    assert.equal(chamadas[1].url, "/api/produtos/p1%2F..%2Fx%20y");
+  });
 
-  const buscaPorArtesao = await getProdutos(undefined, "VITALINO");
-  assert.equal(buscaPorArtesao.length, 1);
-  assert.equal(buscaPorArtesao[0].id, "p1");
+  it("getProdutoPorId: 404 vira undefined ('produto não encontrado'); 500 é lançado", async () => {
+    responder(404, { erro: "Produto não encontrado." });
+    assert.equal(await catalogo.getProdutoPorId("p999"), undefined);
+    responder(500, { erro: "falhou" });
+    await assert.rejects(catalogo.getProdutoPorId("p1"), /\(500\)/);
+  });
 
-  const buscaPorRegiao = await getProdutos(undefined, "tracunhaem");
-  assert.equal(buscaPorRegiao.length, 1);
-  assert.equal(buscaPorRegiao[0].id, "p4");
+  it("getProdutosRelacionados usa limite 3 por padrão e devolve [] no 404", async () => {
+    responder(200, [JARRO]);
+    assert.deepEqual(await catalogo.getProdutosRelacionados(PRODUTO.vasoMaragogi), [JARRO]);
+    assert.equal(chamadas[0].url, `/api/produtos/${PRODUTO.vasoMaragogi}/relacionados?limite=3`);
+    await catalogo.getProdutosRelacionados("p1", 6);
+    assert.equal(chamadas[1].url, "/api/produtos/p1/relacionados?limite=6");
+    responder(404, {});
+    assert.deepEqual(await catalogo.getProdutosRelacionados("p999"), []);
+  });
+
+  it("getResumoAvaliacoes devolve média e quantidade da rota e zero no 404", async () => {
+    responder(200, { media: 4.5, quantidade: 2 });
+    assert.deepEqual(await catalogo.getResumoAvaliacoes(PRODUTO.vasoMaragogi), { media: 4.5, quantidade: 2 });
+    assert.equal(chamadas[0].url, `/api/produtos/${PRODUTO.vasoMaragogi}/avaliacoes`);
+    responder(404, {});
+    assert.deepEqual(await catalogo.getResumoAvaliacoes("p999"), { media: 0, quantidade: 0 });
+    responder(503, {});
+    await assert.rejects(catalogo.getResumoAvaliacoes("p1"), /\(503\)/);
+  });
 });
 
-test("Consulta produto por ID existente e retorna undefined para ID inexistente", async () => {
-  const vaso = await getProdutoPorId("p1");
-  assert.ok(vaso);
-  assert.equal(vaso.nome, "Vaso de Cerâmica Maragogi");
-  assert.equal(vaso.artesaoNome, "Vitalino Neto");
-
-  const inexistente = await getProdutoPorId("p999");
-  assert.equal(inexistente, undefined);
+describe("perfil do artesão", () => {
+  it("getPerfilArtesao chama /api/artesaos/:id e devolve undefined no 404", async () => {
+    const perfil = {
+      id: "20000000-0000-4000-8000-000000000002",
+      nome: "Cooperativa de Tacaratu",
+      regiaoOrigem: "Tacaratu",
+      biografia: "",
+      produtos: PRODUTOS.filter((p) => p.artesaoId === "20000000-0000-4000-8000-000000000002"),
+    };
+    responder(200, perfil);
+    assert.deepEqual(await catalogo.getPerfilArtesao("a2"), perfil);
+    assert.equal(chamadas[0].url, "/api/artesaos/a2");
+    responder(404, { erro: "Artesão não encontrado." });
+    assert.equal(await catalogo.getPerfilArtesao("a999"), undefined);
+  });
 });
 
-test("Retorna produtos relacionados da mesma técnica excluindo o próprio produto", async () => {
-  const relacionados = await getProdutosRelacionados("p1", 3);
-  assert.equal(relacionados.length, 1);
-  assert.equal(relacionados[0].id, "p6");
-  assert.equal(relacionados[0].tecnica, "Cerâmica");
+describe("domínio das técnicas e arte padrão", () => {
+  it("TECNICAS tem as 5 técnicas, na ordem do CHECK do banco", () => {
+    assert.deepEqual([...TECNICAS], ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"]);
+  });
 
-  const relInexistente = await getProdutosRelacionados("p999");
-  assert.deepEqual(relInexistente, []);
-});
+  it("usa a foto quando existe e a arte da técnica quando não existe", () => {
+    const comFoto = estiloFundoProduto({ tecnica: "Cerâmica", imagemUrl: "/produtos/p1.svg" });
+    assert.equal(comFoto.backgroundImage, "url(/produtos/p1.svg)");
+    assert.equal(comFoto.backgroundPosition, "center");
 
-test("Calcula média e quantidade de avaliações por produto com exatidão", async () => {
-  const resumoP1 = await getResumoAvaliacoes("p1");
-  assert.equal(resumoP1.quantidade, 2);
-  assert.equal(resumoP1.media, 4.5);
+    const semFotoCeramica = estiloFundoProduto({ tecnica: "Cerâmica" });
+    assert.equal(semFotoCeramica.backgroundImage, ARTE_POR_TECNICA["Cerâmica"]);
 
-  const resumoP4 = await getResumoAvaliacoes("p4");
-  assert.equal(resumoP4.quantidade, 2);
-  assert.equal(resumoP4.media, 5.0);
-
-  const semAvaliacao = await getResumoAvaliacoes("p3");
-  assert.deepEqual(semAvaliacao, { media: 0, quantidade: 0 });
-});
-
-test("Recupera perfil público do artesão com seus produtos vinculados", async () => {
-  const perfil = await getPerfilArtesao("a2");
-  assert.ok(perfil);
-  assert.equal(perfil.nome, "Cooperativa de Tacaratu");
-  assert.equal(perfil.regiaoOrigem, "Tacaratu");
-  assert.equal(perfil.produtos.length, 2);
-
-  const perfilInexistente = await getPerfilArtesao("a999");
-  assert.equal(perfilInexistente, undefined);
-});
-
-test("Calcula produtos e estatísticas financeiras do painel do artesão", async () => {
-  const produtosArtesao = await getProdutosDoArtesao("u2");
-  assert.equal(produtosArtesao.length, 2);
-
-  const estatisticas = await getEstatisticasPainel("u2");
-  assert.equal(estatisticas.vendasDoMes, 320.0);
-  assert.equal(estatisticas.pedidosPendentes, 1);
-  assert.equal(estatisticas.historicoMensal.length, 6);
-  assert.equal(estatisticas.vendasPorTecnica.length, 3);
-});
-
-test("Expõe domínios válidos de filtros e aplica fallback visual por técnica", () => {
-  assert.deepEqual(tecnicas, ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"]);
-  assert.ok(regioes.includes("Alto do Moura, Caruaru"));
-  assert.ok(categorias.includes("Decoração"));
-
-  const comFoto = estiloFundoProduto({ tecnica: "Cerâmica", imagemUrl: "/produtos/p1.svg" });
-  assert.equal(comFoto.backgroundImage, "url(/produtos/p1.svg)");
-  assert.equal(comFoto.backgroundPosition, "center");
-
-  const semFotoCeramica = estiloFundoProduto({ tecnica: "Cerâmica" });
-  assert.equal(semFotoCeramica.backgroundImage, ARTE_POR_TECNICA["Cerâmica"]);
-
-  const semFotoRenda = estiloFundoProduto({ tecnica: "Renda e Bordado" });
-  assert.equal(semFotoRenda.bg, "secondary");
-  assert.equal(semFotoRenda.backgroundImage, PADRAO_RENDA);
-  assert.equal(semFotoRenda.backgroundSize, "14px 14px");
+    const semFotoRenda = estiloFundoProduto({ tecnica: "Renda e Bordado" });
+    assert.equal(semFotoRenda.bg, "secondary");
+    assert.equal(semFotoRenda.backgroundImage, PADRAO_RENDA);
+    assert.equal(semFotoRenda.backgroundSize, "14px 14px");
+  });
 });

@@ -3,7 +3,7 @@
 -- Pré-requisito: 01_ddl_origem.sql e 04_migracao_front.sql.
 --
 -- ATENÇÃO: este script APAGA os dados de exemplo anteriores (02) e carrega
--- o catálogo que o front-end usa hoje (lib/dadosFalsos.ts): 9 usuários,
+-- o catálogo de demonstração que as telas mostram: 9 usuários,
 -- 6 artesãos, 7 produtos, 3 pedidos, 6 avaliações.
 -- Os ids do front ("u1", "p1"...) viram UUIDs. Tudo roda em uma transação.
 -- =====================================================================

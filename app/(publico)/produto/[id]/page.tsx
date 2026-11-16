@@ -22,7 +22,7 @@ import {
   getProdutoPorId,
   getProdutosRelacionados,
   getResumoAvaliacoes,
-} from "@/lib/apiFalsa";
+} from "@/lib/apiCatalogo";
 import { estiloFundoProduto } from "@/lib/arteProduto";
 import { useCarrinho } from "@/lib/contextoCarrinho";
 import type { ProdutoComArtesao, ResumoAvaliacoes } from "@/lib/tipos";
