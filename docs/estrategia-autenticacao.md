@@ -102,7 +102,7 @@ Sem login, o usuário vai para `/login?proxima=<rota>` e volta para a página pe
 
 | Rota | Quem pode |
 |---|---|
-| `GET /api/produtos`, `GET /api/produtos/:id` (e `relacionados`, `avaliacoes`), `GET /api/artesaos/:id`, `GET /api/recomendacoes`, `GET /api/saude-bd` | público |
+| `GET /api/produtos`, `GET /api/produtos/:id` (e `relacionados`, `avaliacoes`), `GET /api/artesaos/:id`, `GET /api/filtros`, `GET /api/recomendacoes`, `GET /api/saude-bd` | público |
 | `POST /api/auth/login`, `POST /api/auth/cadastro`, `POST /api/auth/logout`, `GET /api/auth/me` | público (o `me` devolve o usuário ou `null`) |
 | `GET /api/pedidos` | qualquer usuário logado; cada perfil vê só o que é seu (comprador, os próprios; artesão, os que contêm produtos dele; admin, todos) |
 | `POST /api/pedidos` | comprador (o comprador é o usuário da sessão) |
@@ -110,6 +110,7 @@ Sem login, o usuário vai para `/login?proxima=<rota>` e volta para a página pe
 | `POST /api/produtos` | artesão (o artesão é o usuário da sessão) |
 | `PATCH /api/produtos/:id` | artesão dono do produto ou admin |
 | `GET /api/painel/estatisticas` | artesão ou admin |
+| `GET /api/artesaos` | admin |
 
 ### Onde a regra é aplicada
 
