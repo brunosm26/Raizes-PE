@@ -20,6 +20,7 @@
     "prisma:verificar": "tsx scripts/verificar-prisma.ts",
     "db:comparar": "tsx scripts/comparar-esquemas.ts",
     "db:migrar-descartavel": "tsx scripts/migrar-descartavel.ts",
+    "db:ddl": "tsx scripts/gerar-ddl.ts",
     "openapi:conferir": "tsx scripts/conferir-openapi.ts",
     "openapi:lint": "npx --yes @redocly/cli@2.74.0 lint openapi.yaml",
     "test": "tsx scripts/rodar-testes.ts"
