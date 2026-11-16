@@ -1,30 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Box, Heading, SimpleGrid } from "@chakra-ui/react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import CartaoEstatistica from "@/components/CartaoEstatistica";
-import { getArtesaos } from "@/lib/apiFalsa";
-import { Artesao } from "@/lib/tipos";
+import MensagemErro from "@/components/MensagemErro";
 import { usePedidos } from "@/lib/contextoPedidos";
 import { useProdutos } from "@/lib/contextoProdutos";
+import { useArtesaosAdmin } from "@/lib/useArtesaosAdmin";
 
 export default function AdminDashboard() {
   const { todosOsPedidos } = usePedidos();
   const { produtosDoArtesao } = useProdutos();
-  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
-
-  useEffect(() => {
-    let ativo = true;
-    getArtesaos().then((todosArtesaos) => {
-      if (ativo) setArtesaos(todosArtesaos);
-    });
-    return () => {
-      ativo = false;
-    };
-  }, []);
+  // Artesãos do banco (GET /api/artesaos): um artesão novo entra na contagem e no agrupamento.
+  const { artesaos, carregando, erro, tentarDeNovo } = useArtesaosAdmin();
 
   const pedidos = useMemo(() => todosOsPedidos(), [todosOsPedidos]);
+  // Produtos agrupados por artesão: cada artesão da lista contribui com os seus.
   const produtos = useMemo(
     () => artesaos.flatMap((a) => produtosDoArtesao(a.usuarioId)),
     [artesaos, produtosDoArtesao]
@@ -50,6 +42,14 @@ export default function AdminDashboard() {
       <Heading fontSize="1.9rem" mb={6}>
         Visão Geral da Plataforma
       </Heading>
+      {erro && (
+        <Box mb={6}>
+          <MensagemErro
+            mensagem="Não foi possível carregar os artesãos. Os números de artesãos e produtos ficam incompletos."
+            aoTentarNovamente={tentarDeNovo}
+          />
+        </Box>
+      )}
 
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 4 }} spacing={5} mb={10}>
         <CartaoEstatistica
@@ -59,7 +59,7 @@ export default function AdminDashboard() {
         />
         <CartaoEstatistica
           rotulo="Artesãos Ativos"
-          valor={String(artesaos.length)}
+          valor={carregando ? "…" : erro ? "—" : String(artesaos.length)}
           variacao="cadastrados na plataforma"
         />
         <CartaoEstatistica

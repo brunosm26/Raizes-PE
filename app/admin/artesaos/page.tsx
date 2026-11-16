@@ -1,117 +1,153 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Box, Button, Flex, Heading, Table, Tbody, Td, Th, Thead, Tr } from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { getArtesaos, getUsuarios } from "@/lib/apiFalsa";
-import { Artesao, Usuario } from "@/lib/tipos";
-import { useProdutos } from "@/lib/contextoProdutos";
+import MensagemErro from "@/components/MensagemErro";
+import {
+  aprovarArtesao,
+  lerAprovacoes,
+  salvarAprovacoes,
+  statusArtesao,
+  type Aprovacoes,
+  type StatusArtesao,
+} from "@/lib/estadoAdmin";
+import { useArtesaosAdmin } from "@/lib/useArtesaosAdmin";
+
+const ROTULO_STATUS: Record<StatusArtesao, string> = {
+  "com-login": "Aprovado (tem login)",
+  "aprovado-navegador": "Aprovado neste navegador",
+  pendente: "Pendente (sem login)",
+};
+
+const COR_STATUS: Record<StatusArtesao, { bg: string; color: string }> = {
+  "com-login": { bg: "accent", color: "accentFg" },
+  "aprovado-navegador": { bg: "muted", color: "fg" },
+  pendente: { bg: "secondary", color: "secondaryFg" },
+};
 
 export default function GestaoArtesaosPage() {
-  const { produtosDoArtesao } = useProdutos();
-  const [aprovado, setAprovado] = useState<boolean | null>(null);
-  const [artesaos, setArtesaos] = useState<Artesao[]>([]);
-  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  const { artesaos, carregando, erro, tentarDeNovo } = useArtesaosAdmin();
+  // null até ler o localStorage (só existe no navegador).
+  const [aprovacoes, setAprovacoes] = useState<Aprovacoes | null>(null);
 
   useEffect(() => {
-    setAprovado(localStorage.getItem("raizes-pe:artesao-aprovado") === "true");
+    try {
+      setAprovacoes(lerAprovacoes(window.localStorage));
+    } catch {
+      setAprovacoes({});
+    }
   }, []);
 
-  useEffect(() => {
-    let ativo = true;
-    Promise.all([getArtesaos(), getUsuarios()]).then(([todosArtesaos, todosUsuarios]) => {
-      if (!ativo) return;
-      setArtesaos(todosArtesaos);
-      setUsuarios(todosUsuarios);
-      setCarregando(false);
+  function aprovar(artesaoId: string) {
+    setAprovacoes((atuais) => {
+      const novas = aprovarArtesao(atuais ?? {}, artesaoId);
+      try {
+        salvarAprovacoes(window.localStorage, novas);
+      } catch {
+        // sem localStorage: vale só enquanto a tela está aberta
+      }
+      return novas;
     });
-    return () => {
-      ativo = false;
-    };
-  }, []);
+  }
 
-  const aprovarArtesao = () => {
-    localStorage.setItem("raizes-pe:artesao-aprovado", "true");
-    setAprovado(true);
-  };
+  const pronto = !carregando && aprovacoes !== null;
+  const pendentes = pronto ? artesaos.filter((artesao) => statusArtesao(artesao, aprovacoes) === "pendente").length : 0;
 
   return (
     <Box>
-      <Heading fontSize="1.9rem" mb={6}>
+      <Heading fontSize="1.9rem" mb={3}>
         Gestão de Artesãos
       </Heading>
+      <Text color="mutedFg" fontSize="sm" mb={1}>
+        Lista do banco. <strong>Pendente</strong> é o artesão que ainda não tem login (sem senha cadastrada).
+      </Text>
+      <Text color="mutedFg" fontSize="sm" mb={4}>
+        Aprovação de demonstração: fica só neste navegador e não altera o banco.
+        {pronto && !erro && ` ${pendentes} ${pendentes === 1 ? "pendente" : "pendentes"}.`}
+      </Text>
 
-      <Box bg="card" border="1px solid" borderColor="border" borderRadius="10px" overflowX="auto">
-        <Table variant="simple">
-          <Thead>
-            <Tr>
-              <Th>Artesão</Th>
-              <Th>Região</Th>
-              <Th>Técnicas</Th>
-              <Th>Status</Th>
-              <Th>Ações</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {carregando && (
+      {erro ? (
+        <MensagemErro mensagem="Não foi possível carregar os artesãos." aoTentarNovamente={tentarDeNovo} />
+      ) : (
+        <Box bg="card" border="1px solid" borderColor="border" borderRadius="10px" overflowX="auto">
+          <Table variant="simple">
+            <Thead>
               <Tr>
-                <Td colSpan={5}>Carregando artesãos...</Td>
+                <Th>Artesão</Th>
+                <Th>Região</Th>
+                <Th>Técnicas</Th>
+                <Th isNumeric>Produtos</Th>
+                <Th>Login</Th>
+                <Th>Status</Th>
+                <Th>Ações</Th>
               </Tr>
-            )}
-            {!carregando && artesaos.map((artesao, indice) => {
-              const nome = usuarios.find((u) => u.id === artesao.usuarioId)?.nome ?? "Desconhecido";
-              // Técnicas que o artesão de fato trabalha = técnicas dos produtos dele.
-              const tecnicas = Array.from(
-                new Set(produtosDoArtesao(artesao.usuarioId).map((p) => p.tecnica))
-              );
-              // Ainda não existe status de aprovação no modelo: o primeiro aparece como
-              // pendente só para demonstrar o fluxo (igual à versão da branch mvp).
-              const carregandoAprovacao = indice === 0 && aprovado === null;
-              const pendente = indice === 0 && aprovado === false;
-
-              return (
-                <Tr key={artesao.id}>
-                  <Td fontWeight={500}>{nome}</Td>
-                  <Td>{artesao.regiaoOrigem}</Td>
-                  <Td>
-                    <Flex wrap="wrap" gap={1}>
-                      {tecnicas.map((tecnica) => (
-                        <Badge key={tecnica} bg="muted" color="mutedFg" textTransform="none">
-                          {tecnica}
-                        </Badge>
-                      ))}
-                    </Flex>
-                  </Td>
-                  <Td>
-                    <Badge
-                      bg={carregandoAprovacao ? "muted" : pendente ? "secondary" : "accent"}
-                      color={carregandoAprovacao ? "mutedFg" : pendente ? "secondaryFg" : "accentFg"}
-                      borderRadius="full"
-                      px={3}
-                      textTransform="none"
-                    >
-                      {carregandoAprovacao ? "Carregando..." : pendente ? "Pendente" : "Aprovado"}
-                    </Badge>
-                  </Td>
-                  <Td>
-                    <Flex gap={2}>
-                      <Button as={NextLink} href={`/artesao/${artesao.id}`} size="sm" variant="outline">
-                        Ver Perfil
-                      </Button>
-                      {pendente && (
-                        <Button size="sm" variant="solid" onClick={aprovarArtesao}>
-                          Aprovar
-                        </Button>
-                      )}
-                    </Flex>
-                  </Td>
+            </Thead>
+            <Tbody>
+              {!pronto && (
+                <Tr>
+                  <Td colSpan={7}>Carregando artesãos...</Td>
                 </Tr>
-              );
-            })}
-          </Tbody>
-        </Table>
-      </Box>
+              )}
+              {pronto && artesaos.length === 0 && (
+                <Tr>
+                  <Td colSpan={7}>Nenhum artesão cadastrado.</Td>
+                </Tr>
+              )}
+              {pronto &&
+                artesaos.map((artesao) => {
+                  const status = statusArtesao(artesao, aprovacoes);
+                  return (
+                    <Tr key={artesao.id}>
+                      <Td fontWeight={500}>{artesao.nome}</Td>
+                      <Td>{artesao.regiaoOrigem || "—"}</Td>
+                      <Td>
+                        {artesao.tecnicas.length === 0 ? (
+                          <Text as="span" color="mutedFg" fontSize="sm">
+                            Sem produtos
+                          </Text>
+                        ) : (
+                          <Flex wrap="wrap" gap={1}>
+                            {artesao.tecnicas.map((tecnica) => (
+                              <Badge key={tecnica} bg="muted" color="mutedFg" textTransform="none">
+                                {tecnica}
+                              </Badge>
+                            ))}
+                          </Flex>
+                        )}
+                      </Td>
+                      <Td isNumeric>{artesao.totalProdutos}</Td>
+                      <Td>{artesao.temLogin ? "Sim" : "Não"}</Td>
+                      <Td>
+                        <Badge
+                          bg={COR_STATUS[status].bg}
+                          color={COR_STATUS[status].color}
+                          borderRadius="full"
+                          px={3}
+                          textTransform="none"
+                        >
+                          {ROTULO_STATUS[status]}
+                        </Badge>
+                      </Td>
+                      <Td>
+                        <Flex gap={2}>
+                          <Button as={NextLink} href={`/artesao/${artesao.id}`} size="sm" variant="outline">
+                            Ver Perfil
+                          </Button>
+                          {status === "pendente" && (
+                            <Button size="sm" variant="solid" onClick={() => aprovar(artesao.id)}>
+                              Aprovar
+                            </Button>
+                          )}
+                        </Flex>
+                      </Td>
+                    </Tr>
+                  );
+                })}
+            </Tbody>
+          </Table>
+        </Box>
+      )}
     </Box>
   );
 }
