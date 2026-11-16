@@ -3,7 +3,7 @@ import { pool } from "@/lib/db";
 import { ehUuid, resolverId } from "@/lib/idsLegados";
 import { buscarProduto } from "@/lib/servidor/catalogo";
 import type { DadosSessao } from "@/lib/sessao";
-import type { ProdutoComArtesao, Tecnica } from "@/lib/tipos";
+import { TECNICAS, type ProdutoComArtesao, type Tecnica } from "@/lib/tipos";
 
 export class ErroProduto extends Error {
   constructor(mensagem: string, public status = 400) {
@@ -11,7 +11,6 @@ export class ErroProduto extends Error {
   }
 }
 
-const TECNICAS: Tecnica[] = ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"];
 const MAX_IMAGEM = 2_800_000; // data URL de ~2 MB (mesmo limite do banco)
 
 interface CamposEditaveis {
