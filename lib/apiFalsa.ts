@@ -150,15 +150,13 @@ export async function getEstatisticasPainel(usuarioId: string): Promise<Estatist
   });
 }
 
-// GET /artesaos — lista crua, sem juntar com usuários. Usado por telas que precisam
-// resolver nome/técnicas por conta própria (painel admin) em vez de um recorte pronto
-// como getPerfilArtesao/getProdutosDoArtesao.
+// Mock. Sem uso nas telas desde a PI4-143 (o admin lê GET /api/artesaos por
+// lib/apiAdminFiltros.ts); sai na limpeza da PI4-144.
 export async function getArtesaos(): Promise<Artesao[]> {
   return atraso(artesaos);
 }
 
-// GET /usuarios — lista crua. Usado junto com getArtesaos() para resolver nome do
-// artesão fora dos recortes prontos (ex.: tabela de Gestão de Artesãos do admin).
+// Mock. Sem uso nas telas desde a PI4-143 (GET /api/artesaos já traz o nome); sai na PI4-144.
 export async function getUsuarios(): Promise<Usuario[]> {
   return atraso(usuarios);
 }
@@ -187,6 +185,8 @@ export async function getAvaliacoesTodas(): Promise<Avaliacao[]> {
   return atraso(avaliacoes);
 }
 
+// Sem uso nas telas desde a PI4-143: técnicas vêm de TECNICAS (lib/tipos.ts); regiões e
+// categorias, de GET /api/filtros. As três saem na PI4-144.
 export const tecnicas: Tecnica[] = ["Cerâmica", "Têxtil", "Madeira", "Renda e Bordado", "Palha"];
 
 export const regioes: string[] = Array.from(new Set(artesaos.map((a) => a.regiaoOrigem))).sort();

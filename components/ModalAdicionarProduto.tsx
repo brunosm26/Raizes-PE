@@ -29,9 +29,8 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { FiImage, FiUpload } from "react-icons/fi";
-import { tecnicas } from "@/lib/apiFalsa";
 import { aplicarMascara, completarPreco, ehCaractereDePreco, formatarPreco } from "@/lib/mascaras";
-import type { Tecnica } from "@/lib/tipos";
+import { TECNICAS, type Tecnica } from "@/lib/tipos";
 
 // Tamanho máximo de imagem aceito no upload. Como não há backend, a foto vira um
 // data URL guardado no localStorage junto do produto — um arquivo grande demais
@@ -50,7 +49,7 @@ interface CamposFormulario {
 const CAMPOS_VAZIOS: CamposFormulario = {
   nome: "",
   descricao: "",
-  tecnica: tecnicas[0],
+  tecnica: TECNICAS[0],
   categoria: "",
   preco: "",
   estoqueQtd: "1",
@@ -262,7 +261,7 @@ export default function ModalAdicionarProduto({
                   value={campos.tecnica}
                   onChange={(e) => setCampos({ ...campos, tecnica: e.target.value as Tecnica })}
                 >
-                  {tecnicas.map((t) => (
+                  {TECNICAS.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>

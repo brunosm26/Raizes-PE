@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Box, Heading, Text, Button, HStack, Link as ChakraLink } from "@chakra-ui/react";
 import BarraNavegacao from "@/components/BarraNavegacao";
@@ -9,14 +9,13 @@ import SeletorFiltro from "@/components/SeletorFiltro";
 import GradeProdutos from "@/components/GradeProdutos";
 import SecaoRecomendados from "@/components/SecaoRecomendados";
 import MensagemErro from "@/components/MensagemErro";
-import { getProdutos, tecnicas, regioes, categorias } from "@/lib/apiFalsa";
-import type { ProdutoComArtesao, Tecnica } from "@/lib/tipos";
+import { getProdutos } from "@/lib/apiFalsa";
+import { getOpcoesFiltros } from "@/lib/apiAdminFiltros";
+import { TECNICAS, type ProdutoComArtesao, type Tecnica } from "@/lib/tipos";
 
-const OPCOES_TECNICA = ["Todas", ...tecnicas];
+const OPCOES_TECNICA = ["Todas", ...TECNICAS];
 const TODAS_REGIOES = "Todas as regiões";
 const TODAS_CATEGORIAS = "Todas as categorias";
-const OPCOES_REGIAO = [TODAS_REGIOES, ...regioes];
-const OPCOES_CATEGORIA = [TODAS_CATEGORIAS, ...categorias];
 
 export default function VisaoVitrine() {
   const parametrosBusca = useSearchParams();
@@ -28,6 +27,29 @@ export default function VisaoVitrine() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(false);
   const [tentativa, setTentativa] = useState(0);
+  // Regiões e categorias do banco (GET /api/filtros). Se a rota falhar, os filtros ficam só com
+  // "Todas..." e a vitrine continua funcionando.
+  const [regioes, setRegioes] = useState<string[]>([]);
+  const [categorias, setCategorias] = useState<string[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    getOpcoesFiltros()
+      .then((opcoes) => {
+        if (!ativo) return;
+        setRegioes(opcoes.regioes);
+        setCategorias(opcoes.categorias);
+      })
+      .catch(() => {
+        // sem as opções do banco: ficam só "Todas as regiões" e "Todas as categorias"
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const opcoesRegiao = useMemo(() => [TODAS_REGIOES, ...regioes], [regioes]);
+  const opcoesCategoria = useMemo(() => [TODAS_CATEGORIAS, ...categorias], [categorias]);
 
   useEffect(() => {
     let ativo = true;
@@ -98,10 +120,10 @@ export default function VisaoVitrine() {
           <FiltroTecnicas opcoes={OPCOES_TECNICA} valor={filtroTecnica} aoMudar={setFiltroTecnica} />
 
           <HStack spacing={4} mt={4} flexWrap="wrap" align="flex-end">
-            <SeletorFiltro rotulo="Região" opcoes={OPCOES_REGIAO} valor={filtroRegiao} aoMudar={setFiltroRegiao} />
+            <SeletorFiltro rotulo="Região" opcoes={opcoesRegiao} valor={filtroRegiao} aoMudar={setFiltroRegiao} />
             <SeletorFiltro
               rotulo="Categoria"
-              opcoes={OPCOES_CATEGORIA}
+              opcoes={opcoesCategoria}
               valor={filtroCategoria}
               aoMudar={setFiltroCategoria}
             />

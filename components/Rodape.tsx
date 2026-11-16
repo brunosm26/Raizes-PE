@@ -1,6 +1,6 @@
 import { Box, Flex, Text, VStack, Link as ChakraLink } from "@chakra-ui/react";
 import NextLink from "next/link";
-import { tecnicas } from "@/lib/apiFalsa";
+import { TECNICAS } from "@/lib/tipos";
 
 export default function Rodape() {
   return (
@@ -36,7 +36,7 @@ export default function Rodape() {
               Técnicas
             </Text>
             <VStack align="start" spacing={2} fontSize="0.85rem" color="mutedFg">
-              {tecnicas.map((tecnica) => (
+              {TECNICAS.map((tecnica) => (
                 <ChakraLink
                   key={tecnica}
                   as={NextLink}
