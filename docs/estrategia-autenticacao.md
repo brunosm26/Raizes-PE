@@ -1,9 +1,10 @@
 # Estratégia de autenticação: Raízes PE
 
-PI4-117, subtarefa da PI4-113 (W10, Preparação do ambiente para integração). Atualizado na PI4-135 e na PI4-130.
-**Situação em 27/10/2026:**
+PI4-117, subtarefa da PI4-113 (W10, Preparação do ambiente para integração). Atualizado na PI4-135, na PI4-130 e na PI4-143.
+**Situação em 15/11/2026:**
 
 - **Implementado:** sessão em **JWT (HS256, biblioteca `jose`) guardado no cookie `httpOnly` `raizes_sessao`**, assinado com o `SESSION_SECRET`, com a senha em scrypt. O mesmo token é emitido e aceito pelo app Next (`lib/sessao.ts`) e pelo backend Express (`backend/src/utils/tokenSessao.ts`). A troca do antigo cookie assinado próprio (HMAC-SHA256, "corpo.assinatura") pelo JWT é da PI4-130 (seção 12).
+- **Senha das contas de artesão (PI4-143):** os artesãos que estão no banco sem senha ganham uma pelo script `npm run contas:artesao`, rodado pelo responsável pelo banco do time (seção 13).
 - As seções 1 a 10 registram a decisão original da PI4-117; onde a PI4-130 mudou algo, há uma nota. A seção 11 descreve o Express.
 
 Este documento registra a decisão que está no código. Ele substitui a proposta inicial (Auth.js com bcrypt, PR #21); as diferenças estão na seção 10.
@@ -67,7 +68,7 @@ Com o PostgreSQL no Neon (PI4-114) e a conexão pronta (PI4-115), a autenticaç�
 - A senha nunca é guardada em texto, nunca é registrada em log e o hash nunca sai em resposta de API.
 - **E-mail:** comparado sem diferenciar maiúsculas (`lower(email)`) e gravado em minúsculas. Único no banco.
 - **Regras do cadastro:** nome de até 150 caracteres, e-mail válido, senha de 8 a 200 caracteres, sem exigência de símbolo (público com baixo letramento digital).
-- **Dados de exemplo:** `db/07_autenticacao.sql` define hashes para as três contas de demonstração (`ana.beatriz@raizespe.dev`, `tacaratu@raizespe.dev` e `admin@raizespe.dev`, senha `demo123`). Os demais artesãos do catálogo ainda não têm senha.
+- **Dados de exemplo:** `db/07_autenticacao.sql` define hashes para as três contas de demonstração (`ana.beatriz@raizespe.dev`, `tacaratu@raizespe.dev` e `admin@raizespe.dev`, senha `demo123`). Na carga de demonstração ficam sem senha os outros 5 artesãos e o comprador Carlos Andrade. Os artesãos ganham senha pelo script da seção 13; a senha deles não fica no repositório.
 
 ### Mensagens de erro
 
@@ -131,7 +132,7 @@ O cliente nunca decide permissão. Esconder botão na tela é só UX.
 1. O usuário informa nome, e-mail e senha em `/cadastro`.
 2. Validação no servidor (seção 4). O cadastro público **sempre cria um comprador**.
 3. Grava o hash e faz o login automático.
-4. Contas de artesão e admin não têm autocadastro: são criadas por quem administra a plataforma (hoje por script SQL; uma tela do admin está prevista na PI4-118).
+4. Contas de artesão e admin não têm autocadastro: são criadas por quem administra a plataforma (hoje por script SQL; a tela de criação de artesão no admin, prevista na PI4-118, continua no backlog). Os artesãos que já estão no banco sem senha ganham uma pelo `npm run contas:artesao` (seção 13).
 
 ### Logout
 `POST /api/auth/logout` apaga o cookie e a tela volta para a vitrine.
@@ -163,7 +164,8 @@ O cliente nunca decide permissão. Esconder botão na tela é só UX.
 
 Fora do escopo nesta etapa, e registrado para a próxima sprint (PI4-118 e backlog):
 
-- criação de contas de artesão (tela do admin) e senha para os artesãos do catálogo;
+- criação de contas de artesão (tela do admin). A senha dos artesãos que já estão no banco foi resolvida na PI4-143 pelo script da seção 13;
+- troca de senha pelo próprio usuário (os artesãos recebem do script a mesma senha inicial, seção 13.4);
 - recuperação de senha por e-mail, login social e confirmação de e-mail;
 - freio de tentativas em armazenamento persistente;
 - token CSRF dedicado;
@@ -240,3 +242,73 @@ A PI4-121 adotou a stack de referência da disciplina (Node.js, Express, Prisma 
 O freio de tentativas é coberto pelo teste com banco de `backend/test/catalogoAuthPainel.test.ts`, que só roda com `TEST_DATABASE_URL`.
 
 **Continua fora do escopo:** revogação imediata (lista de bloqueio ou tabela de sessões), rotação de chave e token CSRF dedicado (seção 9).
+
+## 13. Senha das contas de artesão (PI4-143): `npm run contas:artesao`
+
+Na carga de demonstração (`db/05` + `db/07`), só a Cooperativa de Tacaratu tem senha entre os 6 artesãos. Os outros 5 (Ateliê Barro Vivo, José Bezerra, Marlene Costa, Raimundo Silva e Vitalino Neto) não conseguem entrar no `/painel`. A decisão D3 da PI4-143 foi resolver isso com um script com dry-run, preparado e testado só em banco descartável. No banco do time, quem roda é o responsável pelo banco.
+
+### 13.1 O que o script faz
+
+| Item | Como funciona |
+|---|---|
+| Arquivo | `backend/scripts/contas-artesao.ts`, rodado com `npm run contas:artesao` na pasta `backend/` |
+| Banco | A `DATABASE_URL` do terminal ou, sem ela, a do `backend/.env` |
+| Padrão (`--dry-run`) | Só lê: lista pelo **nome** os usuários `tipo = 'artesao'` com `senha_hash IS NULL`, e o total. A consulta não seleciona `senha_hash` nem e-mail |
+| `--aplicar` | Numa transação, grava em cada um desses artesãos o hash da senha da variável `SENHA_ARTESAOS`, com o mesmo `hashSenha` do login (scrypt, seção 4) e um sal novo por conta. O `UPDATE` só alcança `tipo = 'artesao' AND senha_hash IS NULL`: o artesão que já tem senha, os compradores e o admin ficam como estão. Rodar de novo não muda nada (atualiza 0). Imprime só a contagem |
+| Banco fora de localhost | O `--aplicar` exige também `--sim-eu-tenho-autorizacao`. Sem ela, o script recusa, explica o motivo e não abre conexão. O dry-run não exige a flag |
+| `SENHA_ARTESAOS` | Vem só do terminal: o script não lê essa variável do `backend/.env`. Precisa ter de 8 a 200 caracteres. São recusados: valor vazio, `demo123`, espaço no começo ou no fim e valor entre aspas |
+| Saída | Nomes de artesãos e contagens. Nunca a senha, o hash, e-mails nem a connection string; numa falha de banco, só o código do erro. Código de saída: 0 deu certo, 1 falha no banco (nada é gravado), 2 recusado antes de conectar |
+
+**Testes:** `backend/test/contasArtesao.test.ts`.
+
+- Sem banco: validação da `SENHA_ARTESAOS`, a exigência da flag para host remoto e a saída sem a senha e sem nada com formato de hash.
+- Com banco (`TEST_DATABASE_URL` local; com host remoto, esses testes são pulados): o dry-run não grava; o `--aplicar` grava só nos 5 artesãos sem senha; a segunda execução não muda nada; e um desses artesãos entra com a senha de teste. No fim, a suíte devolve os 5 artesãos ao estado sem senha.
+
+### 13.2 Quem roda e por que a senha não está no repositório
+
+- **Quem roda no banco do time:** o responsável pelo banco, que tem a connection string do Neon e a autorização do time para gravar nele. O resto do time pode rodar o dry-run e testar o script num banco descartável, mas não roda o `--aplicar` no Neon.
+- **Por que a senha não está no repositório:** o repositório é público. O que é versionado fica no histórico do Git mesmo depois de apagado e pode ser lido por qualquer pessoa. O `demo123` aparece nos docs porque vale só para as três contas de demonstração. A senha dos artesãos dá acesso ao painel (cadastrar e editar produtos, marcar pedidos como enviados), por isso não vai para o código, o `db/`, o `.env.example`, o Jira nem a descrição de PR.
+- **Por que também não fica no `backend/.env`:** o arquivo continua no disco e, numa pasta sincronizada como o OneDrive, vai também para a nuvem. A variável do terminal some quando o terminal é fechado.
+- No banco fica só o hash scrypt, como em qualquer outra conta (seção 4).
+
+### 13.3 Passo a passo para o responsável pelo banco
+
+Na pasta `backend/`, com o `backend/.env` apontando para o banco do time (ou com a `DATABASE_URL` definida no terminal). Escolha uma senha nova, de 8 a 200 caracteres, que não seja `demo123` nem uma senha usada em outro lugar. Uma frase de três ou quatro palavras é fácil de digitar e difícil de adivinhar.
+
+1. **Defina a senha só no terminal.** Ela é digitada como resposta, então não fica no comando nem no histórico. No PowerShell e no cmd, o que você digita aparece na tela:
+
+   ```powershell
+   # PowerShell
+   $env:SENHA_ARTESAOS = Read-Host "Senha inicial dos artesaos"
+   ```
+
+   ```bat
+   :: cmd
+   set /p SENHA_ARTESAOS=Senha inicial dos artesaos:
+   ```
+
+   ```bash
+   # Mac/Linux (digite a senha e Enter; nada aparece na tela)
+   read -rs SENHA_ARTESAOS && export SENHA_ARTESAOS
+   ```
+
+2. **Rode o dry-run e confira:** `npm run contas:artesao`. A saída deve mostrar `Banco: fora de localhost`, os 5 nomes (Ateliê Barro Vivo, José Bezerra, Marlene Costa, Raimundo Silva e Vitalino Neto) e `Total: 5`. Se aparecer outro nome ou outro total, pare e confira com o time antes de seguir.
+3. **Grave:** `npm run contas:artesao -- --aplicar --sim-eu-tenho-autorizacao`. A saída deve ser `Contas de artesão atualizadas: 5`. O `--` antes das flags é necessário: sem ele, o npm não as repassa e o script roda só o dry-run.
+4. **Confira de novo:** `npm run contas:artesao` deve mostrar `Nenhum artesão sem senha.` e `Total: 0`.
+5. **Apague a variável e feche o terminal:** `Remove-Item Env:SENHA_ARTESAOS` (PowerShell), `set SENHA_ARTESAOS=` (cmd) ou `unset SENHA_ARTESAOS` (Mac/Linux).
+6. **Avise os artesãos** (13.4).
+
+Se o script recusar (código 2), nada foi gravado: a mensagem diz o que corrigir. Se falhar no banco (código 1), a transação é desfeita e também nada foi gravado.
+
+### 13.4 Como avisar os artesãos
+
+- As 5 contas são da carga de demonstração (e-mails `@raizespe.dev`, em `db/05_dados_raizes_pe.sql`). Hoje, quem precisa da senha são as pessoas do time que vão usar essas contas.
+- Passe a senha a cada pessoa individualmente, por um canal privado (pessoalmente, por ligação ou por mensagem direta). Nunca no grupo do time, no Jira ou Trello, em PR, em commit ou em e-mail com cópia.
+- Diga como entrar: em `/login`, aba **Artesão**, com o e-mail da conta e a senha recebida.
+- **Limitação:** as 5 contas recebem a mesma senha inicial e ainda não existe troca de senha (backlog, seção 9). Quem tem a senha e sabe o e-mail de outro artesão consegue entrar na conta dele; por isso a senha não deve ser repassada.
+- **Se a senha vazar:** o responsável pelo banco apaga a senha dessas contas e repete o passo a passo com uma senha nova. O comando abaixo, rodado no SQL Editor do Neon, apaga a senha de todos os artesãos, menos a conta de demonstração da Cooperativa de Tacaratu. Hoje isso alcança só as 5 contas; se o banco tiver outros artesãos com senha própria, restrinja o `WHERE` a essas contas:
+
+  ```sql
+  UPDATE origem.usuario SET senha_hash = NULL
+   WHERE tipo = 'artesao' AND lower(email) <> 'tacaratu@raizespe.dev';
+  ```

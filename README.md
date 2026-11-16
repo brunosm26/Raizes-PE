@@ -97,13 +97,16 @@ Para subir também a API Express, configurar o banco do zero ou ver os scripts d
 
 A tela `/cadastro` cria uma conta de comprador nova.
 
+Os outros artesãos do catálogo só entram depois que o responsável pelo banco grava a senha deles com `npm run contas:artesao`. Essa senha não fica no repositório: é passada a cada pessoa em particular ([`docs/estrategia-autenticacao.md`](docs/estrategia-autenticacao.md), seção 13).
+
 ## Estado atual
 
 - Catálogo, pedidos, produtos do painel, login e recomendações já usam o banco.
-- O admin ainda usa dados de exemplo (`lib/dadosFalsos.ts`), e a aprovação de artesãos, a moderação e as categorias ficam só no navegador.
+- **PI4-143:** a lista de artesãos do admin (`GET /api/artesaos`, só admin) e as opções dos filtros da vitrine (`GET /api/filtros`, com as categorias tiradas dos produtos) entram com o PR #50, no Express e no Next. As telas passam a usar essas rotas no PR2 da PI4-143. Os artesãos sem senha ganham uma pelo script `npm run contas:artesao`.
+- **Continua de demonstração:** a aprovação de artesãos e a moderação de produtos ficam só no navegador (`localStorage`), sem gravar no banco.
 - A API Express já tem as mesmas rotas do app, e o front a chama quando a `API_URL` está definida (PI4-132).
 
-**Próximos passos:** alerta de baixo estoque, moderação e categorias do admin no banco, criação de contas de artesão pelo admin e recomendação colaborativa. O plano está em [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md).
+**Próximos passos:** limpeza das funções sem uso de `lib/apiFalsa.ts` e de `lib/dadosFalsos.ts` (fase 8, PI4-144), alerta de baixo estoque e recomendação colaborativa. **Backlog:** tabela de categorias, colunas de aprovação de artesãos e de moderação de produtos no banco, tela de criação de artesão no admin e troca de senha pelo próprio usuário. O plano está em [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md).
 
 ## Documentação
 
