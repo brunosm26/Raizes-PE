@@ -1,174 +1,107 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  Box,
-  Button,
-  Flex,
-  FormControl,
-  FormLabel,
-  Heading,
-  Input,
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ModalOverlay,
-  Table,
-  Tbody,
-  Td,
-  Text,
-  Th,
-  Thead,
-  Tr,
-  useDisclosure,
-} from "@chakra-ui/react";
-import { FiEdit, FiPlus, FiTrash2 } from "react-icons/fi";
-import { categorias } from "@/lib/apiFalsa";
-import DialogoConfirmacao from "@/components/DialogoConfirmacao";
+import { useEffect, useMemo, useState } from "react";
+import { Badge, Box, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr } from "@chakra-ui/react";
+import MensagemErro from "@/components/MensagemErro";
+import { getOpcoesFiltros } from "@/lib/apiAdminFiltros";
+import { contarPorCategoria } from "@/lib/contagemCategorias";
+import { useProdutos } from "@/lib/contextoProdutos";
+import { apagarCategoriasAntigas } from "@/lib/estadoAdmin";
+import { TECNICAS } from "@/lib/tipos";
 
-const CHAVE_CATEGORIAS = "raizes-pe:categorias";
-
-// "Renda e Bordado" -> "renda-e-bordado"
-function gerarSlug(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
+// D1 da PI4-143: não há tabela de categorias. A lista é a das categorias dos produtos
+// (GET /api/filtros), só para leitura; a contagem usa os produtos já carregados no contexto.
 export default function GestaoCategoriasPage() {
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [lista, setLista] = useState<string[] | null>(null);
-  const [nome, setNome] = useState("");
-  const [editando, setEditando] = useState<string | null>(null);
-  const [erro, setErro] = useState("");
-  const [categoriaParaExcluir, setCategoriaParaExcluir] = useState<string | null>(null);
+  const { produtos } = useProdutos();
+  const [categorias, setCategorias] = useState<string[] | null>(null);
+  const [erro, setErro] = useState(false);
+  const [tentativa, setTentativa] = useState(0);
 
+  // A lista editável antiga ficava no localStorage; agora não é mais usada.
   useEffect(() => {
     try {
-      const salvo: unknown = JSON.parse(localStorage.getItem(CHAVE_CATEGORIAS) ?? "null");
-      setLista(Array.isArray(salvo) && salvo.every((item) => typeof item === "string") ? salvo : categorias);
+      apagarCategoriasAntigas(window.localStorage);
     } catch {
-      setLista(categorias);
+      // sem localStorage: nada a apagar
     }
   }, []);
 
   useEffect(() => {
-    if (lista === null) return;
-    try {
-      localStorage.setItem(CHAVE_CATEGORIAS, JSON.stringify(lista));
-    } catch {
-      // A lista continua editável nesta sessão.
-    }
-  }, [lista]);
+    let ativo = true;
+    setErro(false);
+    setCategorias(null);
+    getOpcoesFiltros()
+      .then((opcoes) => {
+        if (ativo) setCategorias(opcoes.categorias);
+      })
+      .catch(() => {
+        if (ativo) setErro(true);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [tentativa]);
 
-  function abrirFormulario(categoria?: string) {
-    setNome(categoria ?? "");
-    setEditando(categoria ?? null);
-    setErro("");
-    onOpen();
-  }
-
-  function salvar() {
-    const novoNome = nome.trim();
-    if (!novoNome) {
-      setErro("Informe o nome da categoria.");
-      return;
-    }
-    if (lista?.some((item) => item.toLocaleLowerCase() === novoNome.toLocaleLowerCase() && item !== editando)) {
-      setErro("Essa categoria já existe.");
-      return;
-    }
-    setLista((atual) => [...new Set([...(atual ?? []).filter((item) => item !== editando), novoNome])]);
-    onClose();
-  }
+  const contagem = useMemo(() => contarPorCategoria(categorias ?? [], produtos), [categorias, produtos]);
 
   return (
     <Box>
-      <Flex justify="space-between" align="center" mb={6} wrap="wrap" gap={4}>
-        <Heading fontSize="1.9rem">Categorias e Técnicas</Heading>
-        <Button variant="solid" leftIcon={<FiPlus />} onClick={() => abrirFormulario()} isDisabled={lista === null}>
-          Nova Categoria
-        </Button>
-      </Flex>
-      <Text color="mutedFg" fontSize="sm" mb={4}>Categorias de demonstração: mudanças nesta lista não alteram produtos já cadastrados.</Text>
+      <Heading fontSize="1.9rem" mb={3}>
+        Categorias e Técnicas
+      </Heading>
+      <Text color="mutedFg" fontSize="sm" mb={4}>
+        As categorias vêm dos produtos cadastrados: não há tabela de categorias, então esta lista é só de leitura.
+        Uma categoria nova aparece aqui quando um produto é cadastrado com ela.
+      </Text>
 
-      <Box bg="card" border="1px solid" borderColor="border" borderRadius="10px" overflowX="auto">
-        <Table variant="simple">
-          <Thead>
-            <Tr>
-              <Th>ID</Th>
-              <Th>Nome</Th>
-              <Th>Slug</Th>
-              <Th>Ações</Th>
-            </Tr>
-          </Thead>
-          <Tbody>
-            {lista === null && <Tr><Td colSpan={4}>Carregando categorias...</Td></Tr>}
-            {(lista ?? []).map((nome, indice) => (
-              <Tr key={nome}>
-                <Td fontWeight={500}>{indice + 1}</Td>
-                <Td>{nome}</Td>
-                <Td>{gerarSlug(nome)}</Td>
-                <Td>
-                  <Flex gap={2}>
-                    <Button size="sm" variant="ghost" aria-label={`Editar ${nome}`} onClick={() => abrirFormulario(nome)}>
-                      <FiEdit />
-                    </Button>
-                    <Button size="sm" variant="ghost" color="red.600" aria-label={`Excluir ${nome}`} onClick={() => setCategoriaParaExcluir(nome)}>
-                      <FiTrash2 />
-                    </Button>
-                  </Flex>
-                </Td>
+      {erro ? (
+        <MensagemErro mensagem="Não foi possível carregar as categorias." aoTentarNovamente={() => setTentativa((t) => t + 1)} />
+      ) : (
+        <Box bg="card" border="1px solid" borderColor="border" borderRadius="10px" overflowX="auto">
+          <Table variant="simple">
+            <Thead>
+              <Tr>
+                <Th>Categoria</Th>
+                <Th isNumeric>Produtos</Th>
               </Tr>
-            ))}
-          </Tbody>
-        </Table>
+            </Thead>
+            <Tbody>
+              {categorias === null && (
+                <Tr>
+                  <Td colSpan={2}>Carregando categorias...</Td>
+                </Tr>
+              )}
+              {categorias !== null && contagem.length === 0 && (
+                <Tr>
+                  <Td colSpan={2}>Nenhuma categoria: ainda não há produtos cadastrados.</Td>
+                </Tr>
+              )}
+              {contagem.map(({ categoria, totalProdutos }) => (
+                <Tr key={categoria}>
+                  <Td fontWeight={500}>{categoria}</Td>
+                  <Td isNumeric>{totalProdutos}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </Box>
+      )}
+
+      <Box mt={8}>
+        <Heading as="h3" fontSize="1.05rem" fontWeight={500} mb={2}>
+          Técnicas
+        </Heading>
+        <Text color="mutedFg" fontSize="sm" mb={3}>
+          Lista fixa da plataforma (a mesma regra do banco para a técnica do produto).
+        </Text>
+        <Flex wrap="wrap" gap={2}>
+          {TECNICAS.map((tecnica) => (
+            <Badge key={tecnica} bg="muted" color="mutedFg" textTransform="none" px={3} py={1} borderRadius="full">
+              {tecnica}
+            </Badge>
+          ))}
+        </Flex>
       </Box>
-
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <ModalOverlay />
-        <ModalContent bg="card">
-          <ModalHeader>{editando ? "Editar Categoria" : "Adicionar Categoria"}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            <FormControl isRequired>
-              <FormLabel>Nome da Categoria</FormLabel>
-              <Input placeholder="Ex: Renda" value={nome} onChange={(evento) => setNome(evento.target.value)} />
-            </FormControl>
-            <FormControl mt={4} isRequired>
-              <FormLabel>Slug</FormLabel>
-              <Input value={gerarSlug(nome)} isReadOnly />
-            </FormControl>
-            {erro && <Text color="red.500" mt={3}>{erro}</Text>}
-          </ModalBody>
-
-          <ModalFooter>
-            <Button variant="solid" mr={3} onClick={salvar}>
-              Salvar
-            </Button>
-            <Button variant="ghost" onClick={onClose}>
-              Cancelar
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-      <DialogoConfirmacao
-        aberto={categoriaParaExcluir !== null}
-        titulo="Excluir categoria?"
-        mensagem={`"${categoriaParaExcluir ?? ""}" será removida desta lista de demonstração.`}
-        rotuloConfirmar="Excluir"
-        aoCancelar={() => setCategoriaParaExcluir(null)}
-        aoConfirmar={() => {
-          setLista((atual) => (atual ?? []).filter((item) => item !== categoriaParaExcluir));
-          setCategoriaParaExcluir(null);
-        }}
-      />
     </Box>
   );
 }
