@@ -38,12 +38,16 @@ function responder(req: IncomingMessage): { status: number; corpo: unknown } {
   const protegida =
     (metodo !== "GET" && /^\/api\/(produtos|pedidos)/.test(caminho!)) ||
     caminho === "/api/pedidos" ||
-    caminho === "/api/painel/estatisticas";
+    caminho === "/api/painel/estatisticas" ||
+    caminho === "/api/artesaos";
   if (protegida) return { status: 401, corpo: { ok: false, erro: "Faça login para continuar." } };
 
   if (caminho === "/api/saude") return { status: 200, corpo: { ok: true } };
   if (caminho === "/api/saude-bd") return { status: 200, corpo: { ok: true, produtos: 1 } };
   if (caminho === "/api/auth/me") return { status: 200, corpo: { usuario: null } };
+  if (caminho === "/api/filtros") {
+    return { status: 200, corpo: { tecnicas: ["Cerâmica"], regioes: ["Caruaru"], categorias: ["Vasos"] } };
+  }
   if (caminho === "/api/recomendacoes") {
     return { status: 200, corpo: { sucesso: true, origem: "x", compradorId: null, total: 0, dados: [] } };
   }

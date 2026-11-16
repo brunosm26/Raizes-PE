@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { artesaoRoutes } from "./artesaoRoutes";
 import { authRoutes } from "./authRoutes";
+import { filtroRoutes } from "./filtroRoutes";
 import { painelRoutes } from "./painelRoutes";
 import { pedidoRoutes } from "./pedidoRoutes";
 import { produtoRoutes } from "./produtoRoutes";
@@ -15,6 +16,7 @@ rotas.use("/saude-bd", saudeBdRoutes);
 rotas.use("/auth", authRoutes);
 rotas.use("/produtos", produtoRoutes);
 rotas.use("/artesaos", artesaoRoutes);
+rotas.use("/filtros", filtroRoutes);
 rotas.use("/pedidos", pedidoRoutes);
 rotas.use("/recomendacoes", recomendacaoRoutes);
 rotas.use("/painel", painelRoutes);

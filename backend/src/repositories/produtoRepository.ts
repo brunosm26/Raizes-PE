@@ -157,6 +157,15 @@ export async function listarRelacionados(id: string, limite: number): Promise<Pr
   return rows.map(paraProduto);
 }
 
+// Categorias cadastradas, cruas: o service tira espaços, vazias e repetidas e ordena (D1 da
+// PI4-143: as categorias vêm dos produtos, não de uma tabela própria).
+export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL`;
+
+export async function listarCategorias(): Promise<string[]> {
+  const { rows } = await executorPadrao().query<{ valor: string }>(SQL_CATEGORIAS);
+  return rows.map((r) => r.valor);
+}
+
 export async function listarDoArtesao(artesaoId: string): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
     `${SELECT_PRODUTO} WHERE p.artesao_id = $1 ORDER BY p.data_cadastro DESC, p.nome`,

@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: API Raízes PE
-  version: 0.2.1
+  version: 0.3.0
   description: |
     API REST do marketplace de artesanato pernambucano Raízes PE (Express + TypeScript + PostgreSQL).
 
@@ -36,7 +36,7 @@ tags:
   - name: Autenticação
     description: Login, cadastro e sessão por cookie
   - name: Catálogo
-    description: Vitrine, página do produto e perfil do artesão (públicas)
+    description: Vitrine, filtros, página do produto e perfil do artesão (públicas)
   - name: Produtos
     description: Cadastro e edição de produtos pelo artesão
   - name: Pedidos
@@ -45,6 +45,8 @@ tags:
     description: Baseline de recomendação (IA)
   - name: Painel
     description: Estatísticas de vendas do artesão
+  - name: Administração
+    description: Consultas do painel do admin
 
 paths:
   /saude:
@@ -424,6 +426,55 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ResumoAvaliacoes" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /filtros:
+    get:
+      tags: [Catálogo]
+      summary: Opções dos filtros da vitrine
+      description: |
+        Pública. `tecnicas` é a lista fixa de técnicas da plataforma (mesma ordem do schema `Tecnica`).
+        `regioes` vem das regiões de origem dos artesãos e `categorias`, das categorias dos produtos
+        (não há tabela de categorias). Nas duas, os espaços das pontas são removidos, valores vazios ficam
+        de fora e grafias que só diferem em maiúsculas/minúsculas aparecem uma vez; a ordem é alfabética (pt-BR).
+      operationId: listarFiltros
+      security: []
+      responses:
+        "200":
+          description: Técnicas, regiões e categorias para os filtros
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OpcoesFiltros" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /artesaos:
+    get:
+      tags: [Administração]
+      summary: Listar artesãos (gestão pelo admin)
+      description: |
+        **Perfis exigidos:** `admin`. Sem sessão responde 401; com outro perfil, 403.
+        Todos os artesãos, em ordem alfabética do nome (pt-BR). `tecnicas` são as técnicas distintas dos produtos
+        do artesão e `totalProdutos`, quantos produtos ele tem. `temLogin` diz só se a conta tem senha cadastrada:
+        a consulta não lê o hash nem o e-mail, e nenhum dos dois sai na resposta.
+        `dataCadastro` é a data de cadastro do usuário do artesão.
+      operationId: listarArtesaosAdmin
+      security:
+        - cookieSessao: []
+      x-perfis: [admin]
+      responses:
+        "200":
+          description: Artesãos com resumo dos produtos
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ArtesaoAdmin" }
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -822,6 +873,40 @@ components:
         produtos:
           type: array
           items: { $ref: "#/components/schemas/ProdutoComArtesao" }
+
+    ArtesaoAdmin:
+      type: object
+      additionalProperties: false
+      required: [id, usuarioId, nome, regiaoOrigem, tecnicas, totalProdutos, temLogin, dataCadastro]
+      properties:
+        id: { type: string, format: uuid, description: Id do artesão (tabela `artesao`) }
+        usuarioId: { type: string, format: uuid, description: Id do usuário do artesão (tabela `usuario`) }
+        nome: { type: string, example: Tacaratu }
+        regiaoOrigem: { type: string, description: Vazia quando não informada, example: Tacaratu }
+        tecnicas:
+          type: array
+          description: Técnicas distintas dos produtos do artesão, em ordem alfabética (vazia se não há produtos)
+          items: { type: string, example: Têxtil }
+        totalProdutos: { type: integer, minimum: 0, example: 1 }
+        temLogin: { type: boolean, description: "true se a conta tem senha cadastrada (o hash nunca sai da API)" }
+        dataCadastro: { type: string, format: date, example: "2025-05-10" }
+
+    OpcoesFiltros:
+      type: object
+      additionalProperties: false
+      required: [tecnicas, regioes, categorias]
+      properties:
+        tecnicas:
+          type: array
+          items: { $ref: "#/components/schemas/Tecnica" }
+        regioes:
+          type: array
+          description: Regiões de origem dos artesãos, sem vazias nem repetidas, em ordem alfabética
+          items: { type: string, minLength: 1, example: Caruaru }
+        categorias:
+          type: array
+          description: Categorias dos produtos, sem vazias nem repetidas, em ordem alfabética
+          items: { type: string, minLength: 1, example: Decoração }
 
     ItemPedidoComProduto:
       type: object
