@@ -1,0 +1,58 @@
+TAP version 13
+# Subtest: checkout mantém a chave em memória após falha de acesso do storage
+ok 1 - checkout mantém a chave em memória após falha de acesso do storage
+  ---
+  duration_ms: 6.0597
+  type: 'test'
+  ...
+# Subtest: checkout mantém a chave em memória após falha de leitura do storage
+ok 2 - checkout mantém a chave em memória após falha de leitura do storage
+  ---
+  duration_ms: 1.3497
+  type: 'test'
+  ...
+# Subtest: checkout mantém a chave em memória após falha de escrita do storage
+ok 3 - checkout mantém a chave em memória após falha de escrita do storage
+  ---
+  duration_ms: 1.5381
+  type: 'test'
+  ...
+# Subtest: recarregar a aba recupera a chave e concluir permite uma nova compra igual
+ok 4 - recarregar a aba recupera a chave e concluir permite uma nova compra igual
+  ---
+  duration_ms: 3.8678
+  type: 'test'
+  ...
+# Subtest: JSON ou UUID inválido no storage não bloqueia a compra
+ok 5 - JSON ou UUID inválido no storage não bloqueia a compra
+  ---
+  duration_ms: 2.3988
+  type: 'test'
+  ...
+# Subtest: falha ao remover chave concluída não reutiliza o pedido nesta sessão
+ok 6 - falha ao remover chave concluída não reutiliza o pedido nesta sessão
+  ---
+  duration_ms: 1.0665
+  type: 'test'
+  ...
+# Subtest: falha ao persistir carrinho vazio preserva a recuperação após recarga
+ok 7 - falha ao persistir carrinho vazio preserva a recuperação após recarga
+  ---
+  duration_ms: 1.5297
+  type: 'test'
+  ...
+# Subtest: mudar comprador ou carrinho cria uma nova tentativa
+ok 8 - mudar comprador ou carrinho cria uma nova tentativa
+  ---
+  duration_ms: 1.1497
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3477.8624

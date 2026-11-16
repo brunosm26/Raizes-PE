@@ -23,7 +23,7 @@ interface ValorContextoProdutos {
   criarProduto: (usuarioId: string, dados: DadosNovoProduto) => Promise<ProdutoComArtesao>;
   editarProduto: (
     id: string,
-    dados: Pick<Produto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">
+    dados: Pick<Produto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl" | "estoqueVersao">
   ) => Promise<ProdutoComArtesao>;
 }
 
@@ -76,14 +76,24 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
   const editarProduto = useCallback(
     async (
       id: string,
-      dados: Pick<Produto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">
+      dados: Pick<Produto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl" | "estoqueVersao">
     ): Promise<ProdutoComArtesao> => {
       const res = await apiFetch(`/api/produtos/${encodeURIComponent(id)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(dados),
       });
-      if (!res.ok) throw new Error(await mensagemDeErro(res));
+      if (!res.ok) {
+        const mensagem = await mensagemDeErro(res);
+        if (res.status === 409) {
+          const atual = await apiFetch(`/api/produtos/${encodeURIComponent(id)}`).catch(() => null);
+          if (atual?.ok) {
+            const produto = (await atual.json()) as ProdutoComArtesao;
+            setProdutos((atuais) => atuais.map((p) => (p.id === produto.id ? produto : p)));
+          }
+        }
+        throw new Error(mensagem);
+      }
       const atualizado = (await res.json()) as ProdutoComArtesao;
       setProdutos((atuais) => atuais.map((p) => (p.id === atualizado.id ? atualizado : p)));
       return atualizado;

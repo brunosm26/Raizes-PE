@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { basename, join } from "node:path";
@@ -165,7 +165,7 @@ export async function subirApi(): Promise<Api> {
 
 export function json(corpo: unknown, cookie?: string): RequestInit {
   return {
-    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    headers: { "content-type": "application/json", "Idempotency-Key": randomUUID(), ...(cookie ? { cookie } : {}) },
     body: JSON.stringify(corpo),
   };
 }

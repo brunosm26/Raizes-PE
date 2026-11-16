@@ -1,0 +1,6 @@
+    # Subtest: recomendações: visitante recebe cold start, comprador recebe pela sessão
+    ok 7 - recomendações: visitante recebe cold start, comprador recebe pela sessão
+# tests 166
+# pass 166
+# fail 0
+# skipped 0

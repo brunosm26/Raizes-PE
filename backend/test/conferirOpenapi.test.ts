@@ -19,6 +19,7 @@ const PRODUTO = {
   categoria: "Vasos",
   preco: 10,
   estoqueQtd: 1,
+  estoqueVersao: "0",
   dataCadastro: "2025-05-10",
   artesaoNome: "Artesã",
   artesaoRegiao: "Caruaru",
@@ -45,7 +46,7 @@ function responder(req: IncomingMessage): { status: number; corpo: unknown } {
   if (caminho === "/api/saude-bd") return { status: 200, corpo: { ok: true, produtos: 1 } };
   if (caminho === "/api/auth/me") return { status: 200, corpo: { usuario: null } };
   if (caminho === "/api/recomendacoes") {
-    return { status: 200, corpo: { sucesso: true, origem: "x", compradorId: null, total: 0, dados: [] } };
+    return { status: 200, corpo: { sucesso: true, origem: "baseline_ia_v1", compradorId: null, total: 0, dados: [] } };
   }
   if (caminho === "/api/produtos") {
     const semResultado = query.includes("valor-que-nao-existe") || query.includes("%00");

@@ -34,6 +34,7 @@ export interface Produto {
   categoria: string;
   preco: number;
   estoqueQtd: number;
+  estoqueVersao: string;
   dataCadastro: string;
   // Opcional: produtos antigos (ou cadastrados sem foto) continuam mostrando o
   // padrão visual da técnica, em vez de quebrar a tela.
