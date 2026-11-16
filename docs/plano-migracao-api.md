@@ -115,6 +115,7 @@ Princípio: **leitura primeiro, escrita depois, autenticação antes de qualquer
 | 11 | Front chamando o Express em vez de `app/api/*` (URL base, CORS e cookie): `lib/apiUrl.ts`, `rewrites` com `API_URL`, `CORS_ORIGIN` e `COOKIE_SAMESITE` | **Concluída**, opcional por variável de ambiente (PI4-132) |
 | 12 | Sessão com JWT (HS256, `jose`) em cookie `httpOnly`, no Next e no Express, com o mesmo `SESSION_SECRET` (ver `docs/estrategia-autenticacao.md`, seção 12) | Concluída (PI4-130) |
 | 13 | Remoção de `app/api/*`, `lib/servidor/*` e `lib/db.ts` | **Pendente** (depois de o time adotar o Express como padrão e validar login e escrita com o banco do time) |
+| 14 | Migrations do Prisma versionadas (`backend/prisma/migrations`: `0_init` do `schema.prisma` e `1_regras_sql` com CHECK, gatilhos, funções, view, perfis e comentários) e DDL final gerado (`db/ddl_final.sql`, `npm run db:ddl`). Um banco vazio migrado fica igual, pelo comparador de catálogo, ao montado pelos scripts de `db/` (PI4-147) | **Concluída** em banco local. Falta o responsável marcar a baseline no Neon (`migrate resolve --applied`, ver `backend/README.md`, seção Migrations) |
 
 Fases 1 a 6 vieram do PR #23, que só chegou à `main` pelo PR #29.
 
