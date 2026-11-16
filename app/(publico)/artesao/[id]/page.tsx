@@ -8,7 +8,7 @@ import { FiArrowLeft, FiMapPin } from "react-icons/fi";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import GradeProdutos from "@/components/GradeProdutos";
 import MensagemErro from "@/components/MensagemErro";
-import { getPerfilArtesao } from "@/lib/apiFalsa";
+import { getPerfilArtesao } from "@/lib/apiCatalogo";
 import type { PerfilArtesao } from "@/lib/tipos";
 
 export default function Pagina() {

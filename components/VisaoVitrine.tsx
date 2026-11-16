@@ -9,7 +9,7 @@ import SeletorFiltro from "@/components/SeletorFiltro";
 import GradeProdutos from "@/components/GradeProdutos";
 import SecaoRecomendados from "@/components/SecaoRecomendados";
 import MensagemErro from "@/components/MensagemErro";
-import { getProdutos } from "@/lib/apiFalsa";
+import { getProdutos } from "@/lib/apiCatalogo";
 import { getOpcoesFiltros } from "@/lib/apiAdminFiltros";
 import { TECNICAS, type ProdutoComArtesao, type Tecnica } from "@/lib/tipos";
 

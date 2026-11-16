@@ -152,7 +152,7 @@ export default function Pagina() {
                 variacao={`${estatisticas.vendasDeltaPct >= 0 ? "+" : ""}${estatisticas.vendasDeltaPct}% em relação ao mês anterior`}
                 tom={estatisticas.vendasDeltaPct >= 0 ? "bom" : "atencao"}
               />
-              {/* Vem do contexto, não da apiFalsa: precisa cair na hora em que o
+              {/* Vem do contexto, não das estatísticas da API: precisa cair na hora em que o
                   artesão marca um pedido como enviado, logo abaixo nesta mesma tela. */}
               <CartaoEstatistica
                 rotulo="Pedidos Pendentes"

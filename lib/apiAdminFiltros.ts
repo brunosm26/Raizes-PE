@@ -1,5 +1,5 @@
 // Leituras do front nas rotas da PI4-143 (PR #50): GET /api/artesaos (só admin) e GET /api/filtros
-// (público). Ficam fora de lib/apiFalsa.ts, que só guarda o que ainda é mock (sai na PI4-144).
+// (público). As leituras do catálogo ficam em lib/apiCatalogo.ts.
 import { apiFetch } from "./apiUrl";
 import type { ArtesaoAdmin, OpcoesFiltros } from "./tipos";
 
