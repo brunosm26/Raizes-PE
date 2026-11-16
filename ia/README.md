@@ -235,7 +235,7 @@ Registrado em resultados/metricas_baseline.json
 
 ## Catálogo sintético e regras do baseline
 
-O catálogo está em `ia/dados/catalogo_sintetico.json`, com a estrutura das tabelas do Modelo Lógico usadas pelo módulo: 12 produtos, 7 artesãos, 20 linhas de `item_pedido` e 18 avaliações. Os produtos `p1` a `p7` vêm do app (`lib/dadosFalsos.ts`); `p8` a `p12` foram criados para o mockup, porque o app tem só 7 produtos. Vendas e avaliações são inventadas.
+O catálogo está em `ia/dados/catalogo_sintetico.json`, com a estrutura das tabelas do Modelo Lógico usadas pelo módulo: 12 produtos, 7 artesãos, 20 linhas de `item_pedido` e 18 avaliações. Os produtos `p1` a `p7` e os artesãos `a1` a `a6` espelham a carga de demonstração do app (`db/05_dados_raizes_pe.sql`); `p8` a `p12` foram criados para o mockup, porque o app tem só 7 produtos. Vendas e avaliações são inventadas.
 
 Regras do motor (`ia/motor_recomendacao.py`):
 
