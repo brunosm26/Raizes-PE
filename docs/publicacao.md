@@ -90,7 +90,7 @@ Só quem administra o Neon do time faz estes passos, com autorização, a partir
 
 ## Pontos de atenção
 
-- **Plano gratuito dorme.** O Render free suspende o serviço após alguns minutos sem requisições, e a primeira chamada depois disso demora dezenas de segundos (em 16/11/2026, cerca de 20 s). Isso pode estourar o tempo do proxy da Vercel. Antes de apresentar ou tirar os prints, abra `/api/saude` uma vez para "acordar" a API.
+- **Plano gratuito dorme.** O Render free suspende o serviço após alguns minutos sem requisições, e a primeira chamada depois disso demora dezenas de segundos (em 16/11/2026, entre 20 e 35 s pelo site). Isso pode estourar o tempo do proxy da Vercel. Antes de apresentar ou tirar os prints, abra `/api/saude` uma vez para "acordar" a API.
 - **Região.** O Render não tem região em São Paulo e o Neon está em `sa-east-1`: cada consulta ganha latência. Para a demonstração é aceitável.
 - **Limite de tentativas de login** fica em memória (some ao reiniciar o serviço e não vale entre várias instâncias).
 - **Segredos.** `SESSION_SECRET` e `DATABASE_URL` só nos painéis do Render e da Vercel. Trocar o `SESSION_SECRET` derruba as sessões abertas, e ele precisa ser trocado nos dois painéis ao mesmo tempo.
