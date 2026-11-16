@@ -245,7 +245,7 @@ O freio de tentativas é coberto pelo teste com banco de `backend/test/catalogoA
 
 ## 13. Senha das contas de artesão (PI4-143): `npm run contas:artesao`
 
-Na carga de demonstração (`db/05` + `db/07`), só a Cooperativa de Tacaratu tem senha entre os 6 artesãos. Os outros 5 (Ateliê Barro Vivo, José Bezerra, Marlene Costa, Raimundo Silva e Vitalino Neto) não conseguem entrar no `/painel`. A decisão D3 da PI4-143 foi resolver isso com um script com dry-run, preparado e testado só em banco descartável. No banco do time, quem roda é o responsável pelo banco.
+Na carga de demonstração (`db/05` + `db/07`), só a Cooperativa de Tacaratu tem senha entre os 6 artesãos. Os outros 5 (Ateliê Barro Vivo, José Bezerra, Marlene Costa, Raimundo Silva e Vitalino Neto) não conseguem entrar no `/painel`. Em `/admin/artesaos` (PR #52), eles aparecem como "Pendente (sem login)" e, depois do script, como "Aprovado (tem login)". O botão "Aprovar" dessa tela é só demonstração no navegador e não cria login. A decisão D3 da PI4-143 foi resolver isso com um script com dry-run, preparado e testado só em banco descartável. No banco do time, quem roda é o responsável pelo banco.
 
 ### 13.1 O que o script faz
 

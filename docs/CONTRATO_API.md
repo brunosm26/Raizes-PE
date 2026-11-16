@@ -376,6 +376,6 @@ Valores previstos:
 
 ## 9. Situação atual (15/11/2026)
 
-As rotas estão implementadas nos dois lados, com o mesmo contrato: no app Next (`app/api`) e no backend Express (`backend/`), que o front usa quando a `API_URL` está definida. Catálogo, pedidos, produtos do painel, login e recomendações já leem e gravam no banco. Na PI4-143, a lista de artesãos do admin e os filtros da vitrine ganham as rotas `GET /api/artesaos` e `GET /api/filtros` (entram com o PR #50), e as telas passam a usá-las no PR2 da PI4-143. A aprovação de artesãos e a moderação de produtos continuam só no navegador, como demonstração.
+As rotas estão implementadas nos dois lados, com o mesmo contrato: no app Next (`app/api`) e no backend Express (`backend/`), que o front usa quando a `API_URL` está definida. Catálogo, pedidos, produtos do painel, login e recomendações já leem e gravam no banco. Na PI4-143, a lista de artesãos do admin e os filtros da vitrine ganham as rotas `GET /api/artesaos` e `GET /api/filtros` (entram com o PR #50), e as telas passam a usá-las com o PR #52. A aprovação de artesãos e a moderação de produtos continuam só no navegador, como demonstração.
 
 O contrato completo do Express, conferido por testes, está em `backend/openapi.yaml`. Este documento guarda a proposta inicial, com as partes atualizadas na PI4-143 indicadas no topo.

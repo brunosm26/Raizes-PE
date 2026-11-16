@@ -102,8 +102,8 @@ Os outros artesãos do catálogo só entram depois que o responsável pelo banco
 ## Estado atual
 
 - Catálogo, pedidos, produtos do painel, login e recomendações já usam o banco.
-- **PI4-143:** a lista de artesãos do admin (`GET /api/artesaos`, só admin) e as opções dos filtros da vitrine (`GET /api/filtros`, com as categorias tiradas dos produtos) entram com o PR #50, no Express e no Next. As telas passam a usar essas rotas no PR2 da PI4-143. Os artesãos sem senha ganham uma pelo script `npm run contas:artesao`.
-- **Continua de demonstração:** a aprovação de artesãos e a moderação de produtos ficam só no navegador (`localStorage`), sem gravar no banco.
+- **PI4-143:** a lista de artesãos do admin (`GET /api/artesaos`, só admin) e as opções dos filtros da vitrine (`GET /api/filtros`, com as categorias tiradas dos produtos) entram com o PR #50, no Express e no Next. As telas do admin e os filtros da vitrine passam a usar essas rotas com o PR #52, e `/admin/categorias` fica só de leitura, com as categorias tiradas dos produtos. Os artesãos sem senha ganham uma pelo script `npm run contas:artesao`.
+- **Continua de demonstração:** a aprovação de artesãos (pendente é quem ainda não tem login) e a moderação de produtos (em revisão é o produto sem foto ou cadastrado nos últimos 7 dias) ficam só no navegador (`localStorage`), guardadas pelo UUID do banco, sem gravar no banco.
 - A API Express já tem as mesmas rotas do app, e o front a chama quando a `API_URL` está definida (PI4-132).
 
 **Próximos passos:** limpeza das funções sem uso de `lib/apiFalsa.ts` e de `lib/dadosFalsos.ts` (fase 8, PI4-144), alerta de baixo estoque e recomendação colaborativa. **Backlog:** tabela de categorias, colunas de aprovação de artesãos e de moderação de produtos no banco, tela de criação de artesão no admin e troca de senha pelo próprio usuário. O plano está em [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md).
