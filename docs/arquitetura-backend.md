@@ -1,7 +1,7 @@
 # Arquitetura em camadas do backend: Raízes PE
 
 **Subtarefa:** PI4-122 (história PI4-119, W13: organizar as camadas do backend e documentar a API)
-**Situação em:** 22/10/2026
+**Situação em:** 16/11/2026 (revisão da PI4-146; a camada e o mapa são os de 22/10/2026, com as rotas da PI4-143)
 **Documentos relacionados:** `docs/plano-migracao-api.md` (PI4-116), `docs/estrategia-autenticacao.md` (PI4-117), `backend/README.md` (PI4-127)
 
 ## 1. Onde fica o backend
@@ -106,7 +106,7 @@ Os caminhos à esquerda são os do app Next (a integração com o banco do PR #2
 |---|---|
 | `middleware.ts` | Protege **páginas** (redireciona para `/login`). Lê o mesmo cookie; continua no Next |
 | `lib/apiUrl.ts` | Ponto único das chamadas do front à API (`apiFetch`): URL base (`NEXT_PUBLIC_API_URL`) e `credentials: "include"` |
-| `lib/apiFalsa.ts`, `lib/contexto*.tsx`, `app/painel`, `SecaoRecomendados` | Clientes da API. Chamam sempre por `apiFetch` (PI4-132) |
+| `lib/apiCatalogo.ts`, `lib/apiAdminFiltros.ts`, `lib/contexto*.tsx`, `app/painel`, `SecaoRecomendados` | Clientes da API. Chamam sempre por `apiFetch` (PI4-132) |
 | `app/api/*`, `lib/servidor/*`, `lib/db.ts` | Ficam como alternativa quando não há `API_URL`; saem quando o Express virar o padrão |
 
 ### 3.5 Ligação do front ao Express (PI4-132)
@@ -126,7 +126,7 @@ Por isso o proxy é o modo recomendado: é o que mantém o `middleware.ts` útil
 
 Verificação rápida: com `API_URL` definida, `GET http://localhost:3000/api/saude` responde `{"ok":true}`; essa rota só existe no Express.
 
-## 4. Estado da migração (22/10/2026)
+## 4. Estado da migração (atualizado em 16/11/2026)
 
 | Grupo de rotas | Subtarefa | Situação no Express |
 |---|---|---|
@@ -145,8 +145,8 @@ Pendências, todas fora do escopo da PI4-119:
 
 - **Prisma (PI4-128)**: já configurado (PR #28), mas os repositories das rotas continuam em `pg`; passar para o Prisma é decisão pendente do time e troca só `repositories/`.
 - **JWT (PI4-130)**: concluído; no backend, a troca ficou em `utils/tokenSessao.ts`, com o `authController` e o `sessaoService` passando a aguardar o token assíncrono (ver `docs/estrategia-autenticacao.md`, seção 12).
-- **Front apontando para o Express (PI4-132)**: concluído por variável de ambiente (seção 3.5). Sem `API_URL`, o front continua usando os route handlers do Next, que respondem igual.
-- **`GET /api/artesaos` (lista) e `GET /api/filtros`**: nunca existiram no Next (fase 7 do `plano-migracao-api.md`), então não são migração; entram como rotas novas.
+- **Front apontando para o Express (PI4-132)**: concluído por variável de ambiente (seção 3.5). É o modo do site publicado: a API roda no Render e o front da Vercel a usa pelo proxy (PI4-134, `docs/publicacao.md`). Sem `API_URL`, o front usa os route handlers do Next, que respondem igual.
+- **`GET /api/artesaos` (lista) e `GET /api/filtros`**: não eram migração. Foram criadas como rotas novas na PI4-143, no Express e no `app/api` do Next, com o mesmo contrato (fase 7 do `plano-migracao-api.md`).
 
 ### Testes
 

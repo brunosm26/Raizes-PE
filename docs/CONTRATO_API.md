@@ -1,16 +1,16 @@
 # Contrato da API — Raízes PE
 
-**Versão:** 0.2 (PI4-143, 15/11/2026)  
+**Versão:** 0.3 (PI4-146, 16/11/2026)  
 **Status:** Proposta inicial para integração entre frontend e backend, com partes já atualizadas para o que está implementado  
 **Projeto:** Raízes PE — Marketplace da Economia Criativa
 
-> **Atualização da PI4-143.** Descrevem o que está implementado: o formato de erro (seção 2), o `POST /api/auth/cadastro` (seção 3), o `GET /api/filtros` (seção 4) e o `GET /api/artesaos` (seção 5). As duas rotas novas entram com o PR #50. Os outros exemplos ainda são da proposta inicial: as rotas implementadas devolvem o JSON direto, sem o envelope `{ "sucesso", "dados" }`. O contrato completo e atualizado do Express está em `backend/openapi.yaml` (Swagger UI em `/api-docs`).
+> **Atualização da PI4-143.** Descrevem o que está implementado: o formato de erro (seção 2), o `POST /api/auth/cadastro` (seção 3), o `GET /api/filtros` (seção 4) e o `GET /api/artesaos` (seção 5). As duas rotas novas existem no Express e no Next. Os outros exemplos ainda são da proposta inicial: as rotas implementadas devolvem o JSON direto, sem o envelope `{ "sucesso", "dados" }`. O contrato completo e atualizado do Express está em `backend/openapi.yaml` (Swagger UI em `/api-docs`).
 
 ## 1. Objetivo
 
 Este documento define o contrato inicial de comunicação entre o frontend e a API do projeto Raízes PE. A intenção é estabelecer rotas, parâmetros, estruturas de requisição e formatos de resposta antes da integração com um backend e banco de dados reais.
 
-Quando a proposta foi escrita, a maior parte dos dados ainda era simulada por arquivos locais (`lib/dadosFalsos.ts` e `lib/apiFalsa.ts`). A situação atual está na seção 9.
+Hoje todos os dados vêm do PostgreSQL pelas rotas da API. A situação atual está na seção 9.
 
 ## 2. Padrões gerais
 
@@ -32,7 +32,7 @@ Na API Express, todo erro responde neste formato, com a mensagem em português. 
 ```
 
 - **Express (`backend/`):** sempre `{ "ok": false, "erro": "..." }`. Erro inesperado responde 500 com `"Erro interno do servidor"`, sem expor a mensagem interna.
-- **Rotas do Next (`app/api`, usadas quando a `API_URL` não está definida):** as duas rotas da PI4-143 (`GET /api/artesaos` e `GET /api/filtros`, que entram com o PR #50) usam o mesmo `{ "ok": false, "erro" }`. As rotas de autenticação e de escrita do Next respondem só `{ "erro": "..." }`, e as de leitura mais antigas, `{ "mensagem": "..." }`, com os mesmos status.
+- **Rotas do Next (`app/api`, usadas quando a `API_URL` não está definida):** as duas rotas da PI4-143 (`GET /api/artesaos` e `GET /api/filtros`) usam o mesmo `{ "ok": false, "erro" }`. As rotas de autenticação e de escrita do Next respondem só `{ "erro": "..." }`, e as de leitura mais antigas, `{ "mensagem": "..." }`, com os mesmos status.
 
 ## 3. Usuários e autenticação
 
@@ -166,7 +166,7 @@ Retorna os detalhes de um produto específico.
 
 ### GET `/api/filtros`
 
-> Implementada na PI4-143 (entra com o PR #50), no Express e no `app/api` do Next, com o mesmo contrato.
+> Implementada na PI4-143, no Express e no `app/api` do Next, com o mesmo contrato.
 
 Opções dos filtros da vitrine. **Pública**, sem parâmetros.
 
@@ -195,7 +195,7 @@ Com a carga de demonstração (`db/05_dados_raizes_pe.sql`):
 
 ### GET `/api/artesaos`
 
-> Implementada na PI4-143 (entra com o PR #50), no Express e no `app/api` do Next, com o mesmo contrato.
+> Implementada na PI4-143, no Express e no `app/api` do Next, com o mesmo contrato.
 
 Lista todos os artesãos para a gestão pelo admin. **Só o perfil `admin`**, pelo cookie de sessão `raizes_sessao`.
 
@@ -374,8 +374,8 @@ Valores previstos:
 | 429 | Muitas tentativas de login (5 falhas por e-mail e IP a cada 15 minutos) |
 | 500 | Erro interno do servidor |
 
-## 9. Situação atual (15/11/2026)
+## 9. Situação atual (16/11/2026)
 
-As rotas estão implementadas nos dois lados, com o mesmo contrato: no app Next (`app/api`) e no backend Express (`backend/`), que o front usa quando a `API_URL` está definida. Catálogo, pedidos, produtos do painel, login e recomendações já leem e gravam no banco. Na PI4-143, a lista de artesãos do admin e os filtros da vitrine ganham as rotas `GET /api/artesaos` e `GET /api/filtros` (entram com o PR #50), e as telas passam a usá-las com o PR #52. A aprovação de artesãos e a moderação de produtos continuam só no navegador, como demonstração.
+As rotas estão implementadas nos dois lados, com o mesmo contrato: no backend Express (`backend/`), que o front usa quando a `API_URL` está definida (é assim no site publicado), e no app Next (`app/api`), que responde sem ela. Todas as telas leem e gravam no banco por essas rotas, inclusive a lista de artesãos do admin (`GET /api/artesaos`) e os filtros da vitrine (`GET /api/filtros`), criadas na PI4-143. A aprovação de artesãos e a moderação de produtos continuam só no navegador, como demonstração.
 
 O contrato completo do Express, conferido por testes, está em `backend/openapi.yaml`. Este documento guarda a proposta inicial, com as partes atualizadas na PI4-143 indicadas no topo.

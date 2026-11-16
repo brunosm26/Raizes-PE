@@ -29,11 +29,10 @@ O módulo de IA opera de forma totalmente desacoplada e integrada ao ecossistema
 
 ```mermaid
 flowchart TD
-    subgraph Dados ["Camada de Dados & Simulação"]
-        D1[apiFalsa.ts / getProdutosBase]
-        D2[apiFalsa.ts / getPedidos & getItensPedido]
-        D3[apiFalsa.ts / getAvaliacoesTodas]
-        D4[apiFalsa.ts / getArtesaos & getUsuarios]
+    subgraph Dados ["Camada de Dados (PostgreSQL, schema origem)"]
+        D1["produto + artesao + usuario"]
+        D2["pedido + item_pedido"]
+        D3["avaliacao"]
     end
 
     subgraph MotorIA ["Motor de Recomendação (lib/motorRecomendacao.ts)"]
@@ -55,6 +54,8 @@ flowchart TD
     API --> UI
     UI --> Carrinho
 ```
+
+> Diagrama atualizado na PI4-146. Na AV1, a camada de dados era simulada por dados de exemplo no front, removidos na PI4-144. Hoje o motor lê essas tabelas do PostgreSQL: no Express, pelos repositories de produto, pedido e avaliação (`backend/src/services/recomendacaoService.ts`); sem a `API_URL`, por `lib/motorRecomendacao.ts`.
 
 ### Componentes Chave:
 1. **`lib/motorRecomendacao.ts`**: Núcleo algorítmico responsável pelo scoring, filtragem e geração de justificativas.
