@@ -11,7 +11,7 @@ npm install
 
 O `npm install` já gera o client do Prisma (não precisa de `.env` nem de banco).
 
-Crie o `.env` a partir do modelo e preencha `DATABASE_URL` e `SESSION_SECRET` com os **mesmos valores** do `.env.local` do front (sem eles, só a rota `/api/saude` funciona; valem `PORT=4000` e `NODE_ENV=development`).
+Crie o `.env` a partir do modelo e preencha a `DATABASE_URL` (a do Neon ou a de um banco local, veja [`docs/desenvolvimento.md`](../docs/desenvolvimento.md#banco-local-em-docker)) e o `SESSION_SECRET`, com o **mesmo valor** do `.env.local` do front. Sem eles, só a rota `/api/saude` funciona. Os padrões são `PORT=4000` e `NODE_ENV=development`. A tabela de todas as variáveis está em [`docs/desenvolvimento.md`](../docs/desenvolvimento.md#variáveis-de-ambiente).
 
 ```bash
 # Windows (cmd)
@@ -209,6 +209,10 @@ O `openapi:conferir` é **somente leitura** e só aceita host local: chama os GE
 
 O `openapi:conferir:sessao` entra **uma vez** em cada conta de demonstração do [README principal](../README.md#logins-de-demonstração) (comprador, artesão e admin; o login só lê o banco) e, com o cookie guardado só na memória, repete os GETs que dependem de sessão (`/auth/me`, `/recomendacoes`, `/pedidos` e `/painel/estatisticas`), esperando 200 ou 403 conforme o `x-perfis`. Se um login falhar, ele não tenta de novo, para não gastar o freio de 5 falhas. O cookie nunca vai em POST, PATCH ou DELETE, e não há logout (o cookie só expira).
 
+## Senha das contas de artesão (`contas:artesao`)
+
+`npm run contas:artesao` grava uma senha nos artesãos que estão no banco sem login (na carga de demonstração, 5 dos 6). O padrão é o dry-run, que só lista os nomes. Com `-- --aplicar`, grava a senha da `SENHA_ARTESAOS`, que é lida só do terminal. Em banco fora de localhost, exige também `--sim-eu-tenho-autorizacao`. No Neon do time, só o responsável pelo banco roda. Passo a passo em [`docs/estrategia-autenticacao.md`](../docs/estrategia-autenticacao.md), seção 13.
+
 ## Camadas
 
 `routes/` → `middlewares/` → `controllers/` → `services/` → `repositories/`. Services e repositories não importam `express`; só os repositories falam com o banco. Detalhes e o mapa da migração em [`docs/arquitetura-backend.md`](../docs/arquitetura-backend.md).
@@ -233,7 +237,7 @@ O `npm test` roda `scripts/rodar-testes.ts`, que lista os `test/**/*.test.ts` e 
 
 O `test/tokenSessao.test.ts` confere a compatibilidade com o `lib/sessao.ts` do front, que usa a `jose` instalada na raiz. Por isso o `npm test` e o `npm run typecheck` do backend precisam também do `npm install` na raiz do repositório.
 
-Testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pontuação das recomendações) e `utilitarios.test.ts` (cookies, ids, query, limite, senha e `ErroHttp`).
+Alguns testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pontuação das recomendações), `utilitarios.test.ts` (cookies, ids, query, limite, senha e `ErroHttp`), `artesaosFiltrosSemBanco.test.ts` (as rotas `/artesaos` e `/filtros` com um dublê do banco), `migrations.test.ts` (o `db/ddl_final.sql` em dia com as migrations) e `travaBanco.test.ts` (a trava que impede usar o banco do time).
 
 Os testes de integração sobem o app numa porta livre e chamam as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
 
