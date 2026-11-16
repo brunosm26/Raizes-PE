@@ -87,16 +87,19 @@ Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver
 
 Com o servidor rodando, abra <http://localhost:4000/api-docs>. Lá estão todas as rotas, com parâmetros, corpos, respostas e erros. Para chamar as rotas protegidas pelo "Try it out", execute antes `POST /auth/login` (por exemplo `ana.beatriz@raizespe.dev` / `demo123`): o navegador guarda o cookie de sessão.
 
-A especificação fica em `openapi.yaml` (versionada) e também é servida crua em <http://localhost:4000/api-docs.json>. Ao criar ou mudar uma rota, atualize o `openapi.yaml`: o `npm test` falha se uma rota do Express não estiver documentada (ou o contrário), se a sessão e os perfis (`x-perfis`) diferirem do `exigirSessao` da rota, ou se os limites da spec diferirem da validação dos services.
+A especificação fica em `openapi.yaml` (versionada) e também é servida crua em <http://localhost:4000/api-docs.json>. Ao criar ou mudar uma rota, atualize o `openapi.yaml`: o `npm test` falha se uma rota do Express não estiver documentada (ou o contrário), se a sessão e os perfis (`x-perfis`) diferirem do `exigirSessao` da rota, ou se os limites da spec diferirem da validação dos services. Ele também falha se uma rota protegida não abrir a descrição com a linha **Perfis exigidos** (é o que o Swagger UI mostra; o `x-perfis` não aparece na tela) ou se algum erro fugir do schema `Erro`.
 
 Para conferir a spec contra a API de verdade, com o servidor rodando em outro terminal:
 
 ```bash
-npm run openapi:lint      # lint da spec com o Redocly (baixa a CLI na hora; regras em redocly.yaml)
-npm run openapi:conferir  # compara status e corpos reais com os schemas
+npm run openapi:lint             # lint da spec com o Redocly (baixa a CLI na hora; regras em redocly.yaml)
+npm run openapi:conferir         # compara status e corpos reais com os schemas, sem login
+npm run openapi:conferir:sessao  # o mesmo e, com login nas contas de demonstração, os GETs por perfil
 ```
 
-O `openapi:conferir` é **somente leitura** e só aceita host local: chama os GETs públicos com ids reais, inexistentes e inválidos e, sem cookie e sem corpo, as rotas protegidas (401). Nunca faz login, cadastro ou escrita, e a saída traz status e nomes de campos, não valores. Linhas `CODIGO` são divergências conhecidas do código, que não reprovam a conferência; linhas `FALHA` reprovam. Para outra porta, use `OPENAPI_CONFERIR_URL` (padrão `http://localhost:4000/api`).
+O `openapi:conferir` é **somente leitura** e só aceita host local: chama os GETs públicos com ids reais, inexistentes e inválidos e, sem cookie e sem corpo, as rotas protegidas (401). Nunca faz cadastro ou escrita, e a saída é uma tabela (rota, perfil, status, resultado, detalhe) com status e nomes de campos, não valores. Linhas `CODIGO` são divergências conhecidas do código, que não reprovam a conferência; linhas `FALHA` reprovam. Para outra porta, use `OPENAPI_CONFERIR_URL` (padrão `http://localhost:4000/api`).
+
+O `openapi:conferir:sessao` entra **uma vez** em cada conta de demonstração do [README principal](../README.md#logins-de-demonstração) (comprador, artesão e admin; o login só lê o banco) e, com o cookie guardado só na memória, repete os GETs que dependem de sessão (`/auth/me`, `/recomendacoes`, `/pedidos` e `/painel/estatisticas`), esperando 200 ou 403 conforme o `x-perfis`. Se um login falhar, ele não tenta de novo, para não gastar o freio de 5 falhas. O cookie nunca vai em POST, PATCH ou DELETE, e não há logout (o cookie só expira).
 
 ## Camadas
 

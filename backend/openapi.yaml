@@ -9,8 +9,9 @@ info:
     As rotas protegidas leem esse cookie; no Swagger UI basta fazer o login pelo próprio "Try it out",
     porque o navegador guarda o cookie e o reenvia nas chamadas seguintes.
 
-    **Perfis:** `comprador`, `artesao` e `admin`. Cada rota protegida informa quem pode chamá-la
-    na descrição e na extensão `x-perfis` (conferida por teste contra o `exigirSessao` da rota).
+    **Perfis:** `comprador`, `artesao` e `admin`. Cada rota protegida (com cadeado) abre a descrição com a
+    linha **Perfis exigidos** e repete a lista na extensão `x-perfis`; as duas são conferidas por teste contra
+    o `exigirSessao` da rota.
     Sem sessão a resposta é **401**; com sessão de outro perfil, **403**.
 
     **Erros:** todo erro responde `{ "ok": false, "erro": "<mensagem em português>" }`.
@@ -291,7 +292,10 @@ paths:
     post:
       tags: [Produtos]
       summary: Cadastrar produto
-      description: Só **artesão**. O produto é sempre criado na loja do artesão da sessão.
+      description: |
+        **Perfis exigidos:** `artesao`. Sem sessão responde 401; com outro perfil, 403.
+
+        Só **artesão**. O produto é sempre criado na loja do artesão da sessão.
       operationId: criarProduto
       security:
         - cookieSessao: []
@@ -350,6 +354,8 @@ paths:
       tags: [Produtos]
       summary: Editar produto
       description: |
+        **Perfis exigidos:** `artesao`, `admin`. Sem sessão responde 401; com outro perfil, 403.
+
         **Artesão** dono da loja ou **admin**. Técnica e categoria não mudam na edição.
         Todos os campos editáveis são obrigatórios (a tela envia o formulário completo), e `imagemUrl` ausente
         também remove a foto. A validação do corpo (400) vem antes da checagem do dono (403 e 404).
@@ -459,6 +465,8 @@ paths:
       tags: [Pedidos]
       summary: Listar pedidos visíveis para a sessão
       description: |
+        **Perfis exigidos:** `comprador`, `artesao`, `admin`. Sem sessão responde 401.
+
         Qualquer perfil logado. **Comprador** vê os próprios pedidos; **artesão** vê os pedidos que contêm
         produto dele; **admin** vê todos. Mais recentes primeiro, cada um já com seus itens.
       operationId: listarPedidos
@@ -481,6 +489,8 @@ paths:
       tags: [Pedidos]
       summary: Criar pedido (checkout)
       description: |
+        **Perfis exigidos:** `comprador`. Sem sessão responde 401; com outro perfil, 403.
+
         Só **comprador**; o comprador é sempre o da sessão. Itens repetidos do mesmo produto são somados, e o limite
         de `quantidade` vale por linha: a soma das linhas pode passar de 99.
         Preço e total vêm do banco (o cliente não envia valores). Pedido, itens e baixa de estoque são gravados
@@ -540,6 +550,8 @@ paths:
       tags: [Pedidos]
       summary: Atualizar status do pedido
       description: |
+        **Perfis exigidos:** `artesao`, `admin`. Sem sessão responde 401; com outro perfil, 403.
+
         **Admin** muda para qualquer status. **Artesão** só marca como `enviado`, e só pedidos que contêm produto dele.
         A sequência de status não é conferida: qualquer um dos quatro pode vir depois de qualquer outro.
         Para o artesão, um pedido inexistente responde 403 (não contém produto dele), não 404.
@@ -634,6 +646,8 @@ paths:
       tags: [Painel]
       summary: Estatísticas de vendas do artesão logado
       description: |
+        **Perfis exigidos:** `artesao`, `admin`. Sem sessão responde 401; com outro perfil, 403.
+
         **Artesão** ou **admin** (o admin não tem loja, então recebe tudo zerado).
         O histórico mostra os 6 meses até a venda mais recente (ou até o mês atual, se ainda não há vendas).
       operationId: estatisticasPainel
@@ -722,6 +736,7 @@ components:
     Erro:
       type: object
       required: [ok, erro]
+      additionalProperties: false
       properties:
         ok: { type: boolean, enum: [false] }
         erro: { type: string, description: "Mensagem em português, pronta para mostrar ao usuário" }
