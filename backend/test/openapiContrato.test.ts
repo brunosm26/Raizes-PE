@@ -12,13 +12,21 @@ import { json, subirApi, USUARIOS, type Api } from "./ajudantes";
 // de cada rota, os erros que todo corpo pode gerar estão documentados e os limites escritos na
 // spec são os mesmos que os services aplicam. Só o buscarNomeETipo é um dublê em memória.
 
+interface RespostaCrua {
+  $ref?: string;
+  content?: Record<string, { schema?: { $ref?: string } }>;
+}
 interface Op {
+  description?: string;
   security?: Record<string, unknown>[];
-  responses: Record<string, unknown>;
+  responses: Record<string, RespostaCrua>;
   "x-perfis"?: TipoUsuario[];
 }
 interface Esquema {
-  enum?: string[];
+  type?: string;
+  required?: string[];
+  additionalProperties?: boolean;
+  enum?: (string | boolean)[];
   minimum?: number;
   maximum?: number;
   minLength?: number;
@@ -27,7 +35,7 @@ interface Esquema {
 }
 interface Spec {
   paths: Record<string, Record<string, Op>>;
-  components: { schemas: Record<string, Esquema> };
+  components: { schemas: Record<string, Esquema>; responses: Record<string, RespostaCrua> };
 }
 
 const raiz = join(__dirname, "..");
@@ -118,6 +126,43 @@ describe("openapi.yaml: segurança x middleware", () => {
       assert.equal(Boolean(op.responses["403"]), limitaPerfis);
     });
   }
+
+  // O Swagger UI não mostra o x-perfis; o que aparece na tela é a descrição. Os perfis vêm do código.
+  for (const rota of PROTEGIDAS) {
+    it(`${rota.chave} abre a descrição com os perfis do exigirSessao`, () => {
+      const primeira = (opDa(rota.chave).description ?? "").split("\n")[0]!;
+      const esperada = `**Perfis exigidos:** ${rota.perfis.map((p) => `\`${p}\``).join(", ")}.`;
+      assert.ok(primeira.startsWith(esperada), `a descrição devia começar com: ${esperada}`);
+      assert.equal(primeira.includes("403"), rota.perfis.length < TODOS_OS_PERFIS.length, "403 citado sem limite de perfil, ou o contrário");
+    });
+  }
+
+  for (const rota of ROTAS) {
+    it(`${rota.chave} responde todo erro com o schema Erro comum`, () => {
+      for (const [status, resposta] of Object.entries(opDa(rota.chave).responses)) {
+        if (Number(status) < 400) continue;
+        const nome = resposta.$ref?.replace("#/components/responses/", "");
+        const real = nome ? spec.components.responses[nome] : resposta;
+        assert.ok(real, `${status}: ${resposta.$ref} não existe`);
+        const tipos = Object.keys(real.content ?? {});
+        assert.deepEqual(tipos, ["application/json"], `${status}: erro precisa ser só application/json`);
+        assert.equal(real.content!["application/json"]!.schema?.$ref, "#/components/schemas/Erro", `${status} fora do schema Erro`);
+      }
+    });
+  }
+
+  it("o schema Erro é { ok: false, erro: string }, sem outros campos, como o tratadorDeErros responde", () => {
+    const erro = schemas.Erro!;
+    assert.deepEqual(erro.required, ["ok", "erro"]);
+    assert.equal(erro.additionalProperties, false);
+    assert.deepEqual(Object.keys(erro.properties), ["ok", "erro"]);
+    assert.deepEqual(erro.properties.ok!.enum, [false]);
+    assert.equal(erro.properties.erro!.type, "string");
+    const codigo = readFileSync(join(raiz, "src", "middlewares", "erros.ts"), "utf8");
+    const corpos = [...codigo.matchAll(/\.json\((\{[^)]*\})\)/g)].map(([, c]) => c!.replace(/:\s*[^,}]+/g, ""));
+    assert.ok(corpos.length > 0);
+    for (const corpo of corpos) assert.equal(corpo.replace(/\s/g, ""), "{ok,erro}");
+  });
 
   for (const rota of COM_CORPO) {
     it(`${rota.chave} documenta 400 e 413, que vêm da leitura do corpo`, () => {
