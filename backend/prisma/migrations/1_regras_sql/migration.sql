@@ -3,7 +3,8 @@
 -- A 0_init (gerada do schema.prisma) cria tabelas, colunas, PK, FK, índices e defaults.
 -- Esta migration completa o schema `origem` até ficar igual ao criado pelos scripts
 -- db/01, 04, 06 e 07. Fonte: esses scripts (não um dump). Todos os nomes vão
--- qualificados com `origem.` porque o migrate não usa search_path.
+-- qualificados com `origem.` porque o migrate roda com o search_path padrão da conexão
+-- (public), e nome sem schema iria para lá.
 -- Escrita à mão: não gere de novo com migrate diff (o Prisma não enxerga estes objetos).
 -- =====================================================================
 

@@ -148,7 +148,13 @@ foreach ($f in "05_dados_raizes_pe.sql", "07_autenticacao.sql") {
 
    Também aceita `npm run db:comparar -- env:VAR_A env:VAR_B`. Não passe a URL direto no comando, porque o npm ecoa a linha de comando. O dono e as permissões da conexão aparecem como `<conexao>`, para dois bancos com donos diferentes não divergirem só por isso.
 
-3. **`npm run prisma:verificar`** com `$env:DATABASE_URL` apontando para o banco descartável (só leitura).
+3. **`npm run prisma:verificar`** apontando para o banco descartável (só leitura). Depois, remova a variável: com a `DATABASE_URL` igual à `MIGRATE_DATABASE_URL`, a trava do `db:migrar-descartavel` trata o banco como o do time e recusa.
+
+   ```powershell
+   $env:DATABASE_URL = $env:MIGRATE_DATABASE_URL
+   npm run prisma:verificar
+   Remove-Item Env:DATABASE_URL
+   ```
 
 ### Criar uma nova migration
 
@@ -159,11 +165,11 @@ Sempre num banco descartável, nunca no do time. O `prisma migrate dev` não ser
 
    ```powershell
    $env:DIRECT_URL = $env:MIGRATE_DATABASE_URL
-   npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/2_<nome>/migration.sql
+   npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/<AAAAMMDDHHMMSS>_<nome>/migration.sql
    Remove-Item Env:DIRECT_URL
    ```
 
-   Mudança que o Prisma não expressa (CHECK, gatilho, função, view, GRANT): crie `prisma/migrations/2_<nome>/migration.sql` à mão. As pastas são aplicadas em ordem alfabética, então use o próximo número.
+   Mudança que o Prisma não expressa (CHECK, gatilho, função, view, GRANT): crie `prisma/migrations/<AAAAMMDDHHMMSS>_<nome>/migration.sql` à mão. As pastas são aplicadas em ordem **alfabética**, não numérica: `10_x` viria antes de `2_x`. Por isso, a partir da próxima migration, use prefixo com data e hora, que é o padrão do Prisma e sempre ordena depois de `0_init` e `1_regras_sql`. Exemplo: `20261120143000_nome`.
 3. Rode `npm run db:migrar-descartavel` de novo, confira com o comparador e o `validacao_resumo.sql`, regenere o DDL (`npm run db:ddl`) e faça o commit da migration junto com o `db/ddl_final.sql`.
 4. Depois de aplicada em qualquer banco, uma migration **não** deve ser editada: o Prisma guarda o checksum de cada arquivo. As migrations são gravadas sempre com LF (`.gitattributes`) para o checksum não mudar entre Windows e Linux.
 
