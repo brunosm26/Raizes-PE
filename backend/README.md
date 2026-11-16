@@ -67,14 +67,14 @@ npm run prisma:verificar  # SÓ LEITURA: conta as linhas das 8 tabelas e da view
 npm run prisma:pull       # SÓ LEITURA: reintrospecta o banco e reescreve prisma/schema.prisma
 ```
 
-Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver diferença, o schema bate com o banco. Não use `prisma migrate` nem `prisma db push`: o banco é compartilhado, e o esquema é mantido pelos scripts de `db/`.
+Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver diferença, o schema bate com o banco. **No Neon do time, nunca rode `prisma migrate deploy/dev/reset/resolve`, `prisma db push` nem `prisma db execute`**: o banco é compartilhado. As migrations só rodam em banco local descartável (seção [Migrations](#migrations)).
 
 ### Decisões
 
-- **O banco é a fonte da verdade.** O `schema.prisma` vem do `db pull`. Os modelos foram renomeados para PascalCase (`ItemPedido`) e os campos para camelCase (`precoUnitario`), e os nomes reais ficam em `@@map`/`@map`. Um novo `db pull` preserva esses nomes.
+- **As migrations são a fonte da verdade do DDL** (PI4-147, em `prisma/migrations`). O `schema.prisma` veio do `db pull` e continua batendo com o banco: um `migrate diff` entre um banco migrado e o `schema.prisma` dá migration vazia. Os modelos foram renomeados para PascalCase (`ItemPedido`) e os campos para camelCase (`precoUnitario`), e os nomes reais ficam em `@@map`/`@map`. Um novo `db pull` preserva esses nomes.
 - **Relações com nomes claros:** `Pedido.comprador`, `Pedido.itens`, `Produto.itensPedido`, `Usuario.pedidos` etc.
 - **Sem enums no Prisma:** `usuario.tipo` e `pedido.status` são `VARCHAR` com `CHECK` no banco, não enums do Postgres, por isso ficam `String`.
-- **CHECKs, gatilhos e `SELECT ... FOR UPDATE` ficam no SQL**, e não são replicados no Prisma.
+- **CHECKs, gatilhos, funções, a view, os perfis de acesso e os comentários ficam no SQL** da migration `1_regras_sql`, e não são replicados no `schema.prisma`. O `SELECT ... FOR UPDATE` fica nos repositories.
 - **A view `vw_popularidade_produto` não é modelo Prisma.** Ela é lida com `$queryRaw` em `src/repositories/popularidadeRepository.ts`, com o resultado tipado. Hoje as consultas pesadas das rotas (agregações, ranking, recomendação) estão em SQL direto com o `pg` nos repositories; se forem para o Prisma, a orientação é usar `$queryRaw`, também nos repositories.
 - **Há um único client**, em `src/config/prisma.ts`. Ele é criado no primeiro uso (o servidor sobe sem `DATABASE_URL`) e desconectado quando o servidor é encerrado.
 
@@ -82,6 +82,114 @@ Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver
 
 - **`EPERM: operation not permitted, rmdir ...src\generated...`:** acontece quando o projeto está no OneDrive, que trava a pasta. Rode `npm run prisma:generate`, que apaga `src/generated` antes de gerar.
 - **`DATABASE_URL não configurada`:** falta o `.env` (veja acima).
+
+## Migrations
+
+> **Nada desta seção roda no Neon do time.** Os comandos abaixo usam um PostgreSQL local descartável (Docker). Os scripts `db:migrar-descartavel` e `db:comparar` **recusam** host que não seja `localhost`, `127.0.0.1` ou `::1`, e recusam URL igual à `DATABASE_URL` ou à `DIRECT_URL` do `process.env`, do `backend/.env` ou do `.env.local`/`.env` da raiz. A trava fica em `scripts/travaBanco.ts`, a mesma dos testes.
+
+As migrations ficam em `prisma/migrations` (configurado em `prisma.config.ts`) e recriam o schema `origem` do zero:
+
+| Migration | Origem | O que cria |
+|---|---|---|
+| `0_init` | gerada do `schema.prisma` (`prisma migrate diff --from-empty`) | schema `origem`, 8 tabelas, colunas, defaults, PK, FK e índices |
+| `1_regras_sql` | escrita à mão a partir de `db/01`, `04`, `06` e `07` | o que o Prisma não expressa: UNIQUE como constraint, 13 CHECK, 5 funções, 7 gatilhos (2 adiados para o COMMIT), a view `vw_popularidade_produto`, os perfis `origem_app` e `origem_recomendacao` com os GRANTs, e os comentários |
+
+**Perfis de acesso:** roles são globais do servidor PostgreSQL, não de um banco, e podem já existir porque outro banco do mesmo servidor os criou. Por isso a `1_regras_sql` só faz `CREATE ROLE` se o role não existir (`DO $$ ... IF NOT EXISTS (SELECT FROM pg_roles ...)`) e nunca altera um role existente. Os GRANTs são aplicados sempre.
+
+O `db/ddl_final.sql` é a concatenação das migrations em SQL puro, gerada por `npm run db:ddl`. Não edite esse arquivo à mão. O teste `test/migrations.test.ts` falha se ele ficar desatualizado.
+
+### Subir o Postgres descartável (Windows, PowerShell)
+
+```powershell
+# senha aleatória, só nesta janela do terminal (não vai para arquivo)
+$env:PG_SENHA = [guid]::NewGuid().ToString("N")
+docker run -d --rm --name raizes-pg -e POSTGRES_PASSWORD=$env:PG_SENHA -p 127.0.0.1:15433:5432 postgres:16
+docker exec raizes-pg pg_isready -U postgres
+docker exec raizes-pg createdb -U postgres raizes_mig
+```
+
+No cmd, troque a primeira linha por `set PG_SENHA=<uma senha aleatória>` e use `%PG_SENHA%` no lugar de `$env:PG_SENHA`. Se o Docker disser `ports are not available ... bind`, a porta está numa faixa reservada pelo Windows. Veja as faixas com `netsh int ipv4 show excludedportrange protocol=tcp` e troque a porta (`15433`) nos comandos. No fim, `docker rm -f raizes-pg` apaga o container e todos os bancos dele.
+
+### Aplicar as migrations num banco vazio
+
+```powershell
+cd backend
+$env:MIGRATE_DATABASE_URL = "postgresql://postgres:$($env:PG_SENHA)@127.0.0.1:15433/raizes_mig"
+npm run db:migrar-descartavel   # imprime só host/porta/banco, roda migrate deploy e migrate status
+```
+
+O script passa `DIRECT_URL` e `DATABASE_URL` para o processo do Prisma apontando para esse banco. O `backend/.env` não muda o alvo. A tabela de controle `_prisma_migrations` fica no schema `public`, fora do `origem`.
+
+Para carregar a carga de demonstração por cima (só dados: `05` e `07`). No PowerShell o redirecionamento `<` não funciona, por isso o arquivo vai com `docker cp`:
+
+```powershell
+foreach ($f in "05_dados_raizes_pe.sql", "07_autenticacao.sql") {
+  docker cp "..\db\$f" "raizes-pg:/tmp/$f"
+  docker exec raizes-pg psql -q -U postgres -d raizes_mig -v ON_ERROR_STOP=1 -f "/tmp/$f"
+}
+```
+
+### Validar
+
+1. **`db/validacao_resumo.sql`:** todas as 8 linhas com `esperado` = `obtido`.
+
+   ```powershell
+   docker cp ..\db\validacao_resumo.sql raizes-pg:/tmp/validacao.sql
+   docker exec raizes-pg psql -U postgres -d raizes_mig -f /tmp/validacao.sql
+   ```
+
+2. **Comparador de esquemas:** compara o schema `origem` de dois bancos pelo catálogo (tabelas, colunas, constraints, índices, gatilhos, funções, views, sequences, extensões, permissões e comentários) e ignora `_prisma_migrations`. Ele não depende da ordem do `pg_dump`. Para conferir as migrations contra os scripts antigos, monte um banco de referência com `db/01`, `04`, `05`, `06` e `07` (com o mesmo `docker cp` + `psql`, num banco `raizes_ref`) e rode:
+
+   ```powershell
+   $env:COMPARAR_URL_A = "postgresql://postgres:$($env:PG_SENHA)@127.0.0.1:15433/raizes_ref"
+   $env:COMPARAR_URL_B = "postgresql://postgres:$($env:PG_SENHA)@127.0.0.1:15433/raizes_mig"
+   npm run db:comparar   # "Nenhuma diferença." = iguais (código 0); senão lista as diferenças (código 1)
+   ```
+
+   Também aceita `npm run db:comparar -- env:VAR_A env:VAR_B`. Não passe a URL direto no comando, porque o npm ecoa a linha de comando. O dono e as permissões da conexão aparecem como `<conexao>`, para dois bancos com donos diferentes não divergirem só por isso.
+
+3. **`npm run prisma:verificar`** apontando para o banco descartável (só leitura). Depois, remova a variável: com a `DATABASE_URL` igual à `MIGRATE_DATABASE_URL`, a trava do `db:migrar-descartavel` trata o banco como o do time e recusa.
+
+   ```powershell
+   $env:DATABASE_URL = $env:MIGRATE_DATABASE_URL
+   npm run prisma:verificar
+   Remove-Item Env:DATABASE_URL
+   ```
+
+### Criar uma nova migration
+
+Sempre num banco descartável, nunca no do time. O `prisma migrate dev` não serve aqui: ele pede shadow database e pode propor `reset`. Além disso, o Prisma não enxerga CHECK, gatilhos e a view, então um diff contra o schema do time não é confiável.
+
+1. Suba um banco descartável e aplique as migrations atuais (`npm run db:migrar-descartavel`).
+2. Mudança que o Prisma expressa (coluna, tabela, índice): edite o `schema.prisma` e gere o SQL contra o banco descartável migrado:
+
+   ```powershell
+   $env:DIRECT_URL = $env:MIGRATE_DATABASE_URL
+   npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script -o prisma/migrations/<AAAAMMDDHHMMSS>_<nome>/migration.sql
+   Remove-Item Env:DIRECT_URL
+   ```
+
+   Mudança que o Prisma não expressa (CHECK, gatilho, função, view, GRANT): crie `prisma/migrations/<AAAAMMDDHHMMSS>_<nome>/migration.sql` à mão. As pastas são aplicadas em ordem **alfabética**, não numérica: `10_x` viria antes de `2_x`. Por isso, a partir da próxima migration, use prefixo com data e hora, que é o padrão do Prisma e sempre ordena depois de `0_init` e `1_regras_sql`. Exemplo: `20261120143000_nome`.
+3. Rode `npm run db:migrar-descartavel` de novo, confira com o comparador e o `validacao_resumo.sql`, regenere o DDL (`npm run db:ddl`) e faça o commit da migration junto com o `db/ddl_final.sql`.
+4. Depois de aplicada em qualquer banco, uma migration **não** deve ser editada: o Prisma guarda o checksum de cada arquivo. As migrations são gravadas sempre com LF (`.gitattributes`) para o checksum não mudar entre Windows e Linux.
+
+Aplicar uma migration nova no Neon do time é decisão do responsável pelo banco.
+
+### Baseline no Neon do time (só o responsável pelo banco, com autorização)
+
+O Neon já tem o schema criado pelos scripts de `db/`, então as migrations **não** devem rodar lá. Elas só precisam ser marcadas como já aplicadas. Isto **cria a tabela `_prisma_migrations`** no banco do time, no schema padrão da conexão (`public` quando a URL não tem `?schema=`). Por isso exige autorização do responsável. Ninguém mais deve rodar estes comandos.
+
+```powershell
+cd backend
+# no terminal do responsável, com a DIRECT_URL do Neon no backend/.env
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code   # só leitura: deve dar vazio
+npx prisma migrate status                        # deve listar 0_init e 1_regras_sql como não aplicadas
+npx prisma migrate resolve --applied 0_init
+npx prisma migrate resolve --applied 1_regras_sql
+npx prisma migrate status                        # esperado: "Database schema is up to date!"
+```
+
+O `migrate resolve` não executa o SQL das migrations: só grava na `_prisma_migrations` que elas já estão aplicadas. Depois disso, um `migrate deploy` no Neon aplicaria só as migrations novas.
 
 ## Documentação da API (Swagger)
 
@@ -129,7 +237,7 @@ Testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pontuação
 
 Os testes de integração sobem o app numa porta livre e chamam as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
 
-Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`. **Nunca** aponte para o Neon do time. A variável vai **no terminal**, não no `backend/.env` (os testes não leem o `.env` para ela):
+Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`, ou com as migrations (`npm run db:migrar-descartavel`) mais as cargas `05` e `07` (seção [Migrations](#migrations)). A suíte completa passa nos dois casos (PI4-147). **Nunca** aponte para o Neon do time. A variável vai **no terminal**, não no `backend/.env` (os testes não leem o `.env` para ela):
 
 ```bash
 # cmd
@@ -139,4 +247,4 @@ $env:TEST_DATABASE_URL="postgresql://postgres@127.0.0.1:5432/raizes_teste"
 npm test
 ```
 
-Trava (`test/ajudantes.ts`): os testes abortam se a `TEST_DATABASE_URL` for o mesmo banco (host sem `-pooler`, porta e nome; a query é ignorada) de alguma `DATABASE_URL` ou `DIRECT_URL` do ambiente, do `backend/.env` ou do `.env.local`/`.env` da raiz. Para host que não seja `localhost`, `127.0.0.1` ou `::1` (por exemplo, uma branch do Neon criada só para testes), defina também `TEST_DB_REMOTO_DESCARTAVEL=1`. A suíte de pedidos e produtos apaga, no fim, o que criou e restaura o estoque. A de auth ainda deixa as contas de cadastro criadas.
+Trava (`scripts/travaBanco.ts`, usada por `test/ajudantes.ts` e pelos scripts de banco descartável): os testes abortam se a `TEST_DATABASE_URL` for o mesmo banco (host sem `-pooler`, porta e nome; a query é ignorada) de alguma `DATABASE_URL` ou `DIRECT_URL` do ambiente, do `backend/.env` ou do `.env.local`/`.env` da raiz. Para host que não seja `localhost`, `127.0.0.1` ou `::1` (por exemplo, uma branch do Neon criada só para testes), defina também `TEST_DB_REMOTO_DESCARTAVEL=1`. A suíte de pedidos e produtos apaga, no fim, o que criou e restaura o estoque. A de auth ainda deixa as contas de cadastro criadas.

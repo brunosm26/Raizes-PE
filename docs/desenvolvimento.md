@@ -42,7 +42,9 @@ Cada projeto tem o seu arquivo, e nenhum dos dois vai para o GitHub:
 
 ## Banco de dados (Neon)
 
-Os scripts SQL ficam na pasta `db/`. Para montar um banco do zero (por exemplo, um projeto novo no Neon), abra o **SQL Editor** do Neon e execute os arquivos **um por vez, nesta ordem**:
+Desde a PI4-147, a estrutura do banco é definida pelas **migrations do Prisma** (`backend/prisma/migrations`), e o `db/ddl_final.sql` é gerado a partir delas. Os scripts de dados de `db/` continuam sendo a carga de demonstração. Para montar um banco local descartável com as migrations, veja [`backend/README.md`, seção Migrations](../backend/README.md#migrations), e [`db/README.md`](../db/README.md).
+
+Os scripts SQL ficam na pasta `db/`. Para montar um banco do zero só pelos scripts antigos (por exemplo, um projeto novo no Neon), abra o **SQL Editor** do Neon e execute os arquivos **um por vez, nesta ordem**:
 
 | Ordem | Arquivo | O que faz |
 |---|---|---|
