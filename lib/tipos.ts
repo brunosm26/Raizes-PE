@@ -139,8 +139,9 @@ export interface PedidoComItens extends Pedido {
   itens: ItemPedidoComProduto[];
 }
 
-// Aviso mostrado ao comprador quando o artesão marca o pedido como enviado.
-// Sem backend de notificações, vive no mesmo estado local dos pedidos.
+// Aviso de pedido mostrado ao usuário. Vem de GET /api/notificacoes (gerado pelo worker da fila
+// assíncrona do backend); sem a API, cai no fallback do localStorage com o aviso de envio.
+// compradorId é o dono do aviso (o usuário logado), mesmo quando ele é artesão.
 export interface NotificacaoEnvio {
   id: string;
   pedidoId: string;
@@ -148,6 +149,10 @@ export interface NotificacaoEnvio {
   mensagem: string;
   data: string;
   lida: boolean;
+  // Só nos avisos do servidor: pedido.recebido, pedido.nova_venda, pedido.enviado...
+  tipo?: string;
+  // Só em pedido.nova_venda: texto pronto para o artesão mandar pelo WhatsApp.
+  resumoWhatsapp?: string;
 }
 
 export interface PontoSerieVendas {

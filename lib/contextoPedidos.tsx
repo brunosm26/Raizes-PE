@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { resolverId } from "./idsLegados";
 import { useSessao } from "./contextoSessao";
 import { apiFetch } from "./apiUrl";
@@ -12,6 +12,9 @@ import type {
 } from "./tipos";
 
 const CHAVE_ARMAZENAMENTO = "raizes-pe:pedidos";
+// Com a aba visível, os avisos são buscados de novo nesse intervalo (e sempre que a aba ganha foco):
+// é assim que o comprador vê o "enviado" que o artesão marcou em outro navegador.
+const INTERVALO_NOTIFICACOES_MS = 30_000;
 
 interface ValorContextoPedidos {
   pedidos: PedidoComItens[];
@@ -27,6 +30,8 @@ interface ValorContextoPedidos {
   criarPedido: (compradorId: string, itens: ItemCarrinhoComProduto[]) => Promise<PedidoComItens>;
   marcarComoEnviado: (pedidoId: string) => Promise<void>;
   marcarNotificacoesComoLidas: (compradorId: string) => void;
+  // Busca de novo as notificações processadas pelo worker do backend (GET /api/notificacoes).
+  atualizarNotificacoes: () => Promise<void>;
 }
 
 const ContextoPedidos = createContext<ValorContextoPedidos | null>(null);
@@ -38,8 +43,10 @@ function novoId(): string {
   return `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// Os pedidos agora vivem no banco; no navegador sobram só os avisos de envio.
-// O localStorage é editável, então qualquer coisa fora do formato é descartada.
+// Os avisos vêm do backend (GET /api/notificacoes), gerados pelo worker da fila assíncrona.
+// O localStorage é só o fallback para quando a API de notificações não responde: o aviso fica
+// no navegador de quem marcou o envio, como era antes. Por ser editável, o que estiver fora do
+// formato é descartado.
 function ehNotificacaoValida(valor: unknown): valor is NotificacaoEnvio {
   if (typeof valor !== "object" || valor === null) return false;
   const n = valor as Record<string, unknown>;
@@ -66,6 +73,58 @@ function lerNotificacoesSalvas(): NotificacaoEnvio[] {
   }
 }
 
+// Formato de cada item de GET /api/notificacoes (schema Notificacao do backend/openapi.yaml).
+interface NotificacaoDaApi {
+  id: string;
+  usuarioId: string;
+  pedidoId: string;
+  tipo: string;
+  mensagem: string;
+  resumoWhatsapp?: string;
+  data: string;
+  lida: boolean;
+}
+
+function ehNotificacaoDaApi(valor: unknown): valor is NotificacaoDaApi {
+  if (typeof valor !== "object" || valor === null) return false;
+  const n = valor as Record<string, unknown>;
+  return (
+    typeof n.id === "string" &&
+    typeof n.usuarioId === "string" &&
+    typeof n.pedidoId === "string" &&
+    typeof n.tipo === "string" &&
+    typeof n.mensagem === "string" &&
+    typeof n.data === "string" &&
+    typeof n.lida === "boolean"
+  );
+}
+
+// Na tela o aviso continua indexado por compradorId: no servidor ele é sempre do usuário logado.
+function daApi(n: NotificacaoDaApi): NotificacaoEnvio {
+  return {
+    id: n.id,
+    pedidoId: n.pedidoId,
+    compradorId: n.usuarioId,
+    mensagem: n.mensagem,
+    data: n.data,
+    lida: n.lida,
+    tipo: n.tipo,
+    ...(n.resumoWhatsapp ? { resumoWhatsapp: n.resumoWhatsapp } : {}),
+  };
+}
+
+// null = a API de notificações não respondeu (a tela cai no fallback local).
+async function buscarNotificacoes(): Promise<NotificacaoEnvio[] | null> {
+  try {
+    const res = await apiFetch("/api/notificacoes", { cache: "no-store" });
+    if (!res.ok) return null;
+    const corpo = (await res.json()) as { dados?: unknown };
+    return Array.isArray(corpo.dados) ? corpo.dados.filter(ehNotificacaoDaApi).map(daApi) : null;
+  } catch {
+    return null;
+  }
+}
+
 async function mensagemDeErro(res: Response): Promise<string> {
   try {
     const json = (await res.json()) as { erro?: string };
@@ -83,8 +142,13 @@ function porDataDecrescente(a: PedidoComItens, b: PedidoComItens): number {
 
 export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
   const [pedidos, setPedidos] = useState<PedidoComItens[]>([]);
-  const [notificacoes, setNotificacoes] = useState<NotificacaoEnvio[]>([]);
+  const [notificacoesLocais, setNotificacoesLocais] = useState<NotificacaoEnvio[]>([]);
+  // null enquanto a API de notificações não respondeu nenhuma vez para este usuário.
+  const [notificacoesServidor, setNotificacoesServidor] = useState<NotificacaoEnvio[] | null>(null);
   const [hidratado, setHidratado] = useState(false);
+  const usandoServidor = useRef(false);
+  usandoServidor.current = notificacoesServidor !== null;
+  const notificacoes = notificacoesServidor ?? notificacoesLocais;
 
   const { usuario } = useSessao();
   const usuarioId = usuario?.id;
@@ -110,20 +174,50 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
     };
   }, [usuarioId]);
 
+  // Uma falha no meio do caminho não apaga o que já veio da API (fica a última lista boa).
+  const atualizarNotificacoes = useCallback(async (): Promise<void> => {
+    const lista = await buscarNotificacoes();
+    if (lista) setNotificacoesServidor(lista);
+  }, []);
+
+  useEffect(() => {
+    setNotificacoesServidor(null);
+    if (!usuarioId) return;
+    let ativo = true;
+    const atualizar = () => {
+      void buscarNotificacoes().then((lista) => {
+        if (ativo && lista) setNotificacoesServidor(lista);
+      });
+    };
+    const aoVoltarParaAba = () => {
+      if (document.visibilityState === "visible") atualizar();
+    };
+    atualizar();
+    const intervalo = window.setInterval(aoVoltarParaAba, INTERVALO_NOTIFICACOES_MS);
+    window.addEventListener("focus", atualizar);
+    document.addEventListener("visibilitychange", aoVoltarParaAba);
+    return () => {
+      ativo = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", atualizar);
+      document.removeEventListener("visibilitychange", aoVoltarParaAba);
+    };
+  }, [usuarioId]);
+
   // Só lemos depois da montagem, senão o HTML do servidor divergiria do cliente.
   useEffect(() => {
-    setNotificacoes(lerNotificacoesSalvas());
+    setNotificacoesLocais(lerNotificacoesSalvas());
     setHidratado(true);
   }, []);
 
   useEffect(() => {
     if (!hidratado) return;
     try {
-      window.localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify({ notificacoes }));
+      window.localStorage.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify({ notificacoes: notificacoesLocais }));
     } catch {
       // Sem persistência: os avisos valem só nesta sessão.
     }
-  }, [notificacoes, hidratado]);
+  }, [notificacoesLocais, hidratado]);
 
   // Chamado ao confirmar o checkout: o servidor grava pedido e itens numa transação,
   // confere o estoque e calcula o total com os preços do banco.
@@ -163,7 +257,10 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       setPedidos((atuais) =>
         atuais.map((p) => (p.id === pedidoId ? { ...p, status: "enviado" } : p))
       );
-      setNotificacoes((anteriores) => [
+      // Com a API de notificações no ar, quem avisa o comprador é o worker do backend
+      // (job pedido.status_atualizado). Sem ela, o aviso fica neste navegador, como antes.
+      if (usandoServidor.current) return;
+      setNotificacoesLocais((anteriores) => [
         {
           id: novoId(),
           pedidoId,
@@ -178,12 +275,28 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
     [pedidos]
   );
 
-  const marcarNotificacoesComoLidas = useCallback((compradorId: string) => {
-    const alvo = resolverId(compradorId);
-    setNotificacoes((atuais) =>
-      atuais.map((n) => (resolverId(n.compradorId) === alvo ? { ...n, lida: true } : n))
-    );
-  }, []);
+  const marcarNotificacoesComoLidas = useCallback(
+    (compradorId: string) => {
+      const alvo = resolverId(compradorId);
+      const marcar = (lista: NotificacaoEnvio[]) =>
+        lista.map((n) => (resolverId(n.compradorId) === alvo ? { ...n, lida: true } : n));
+      setNotificacoesLocais(marcar);
+      if (!usandoServidor.current) return;
+
+      // Otimista: some da tela na hora. Se o servidor recusar, a lista volta a ser a dele.
+      setNotificacoesServidor((atuais) => (atuais ? marcar(atuais) : atuais));
+      apiFetch("/api/notificacoes/ler", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+        .then((res) => {
+          if (!res.ok) return atualizarNotificacoes();
+        })
+        .catch(() => atualizarNotificacoes());
+    },
+    [atualizarNotificacoes]
+  );
 
   // Visão do administrador: todos os pedidos da plataforma.
   const todosOsPedidos = useCallback(() => [...pedidos].sort(porDataDecrescente), [pedidos]);
@@ -252,6 +365,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       criarPedido,
       marcarComoEnviado,
       marcarNotificacoesComoLidas,
+      atualizarNotificacoes,
     }),
     [
       pedidos,
@@ -265,6 +379,7 @@ export function ProvedorPedidos({ children }: { children: React.ReactNode }) {
       criarPedido,
       marcarComoEnviado,
       marcarNotificacoesComoLidas,
+      atualizarNotificacoes,
     ]
   );
 

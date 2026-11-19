@@ -48,6 +48,8 @@ tags:
     description: Estatísticas de vendas do artesão
   - name: Administração
     description: Consultas do painel do admin
+  - name: Notificações
+    description: Avisos de pedido gerados pela fila assíncrona em memória
 
 paths:
   /saude:
@@ -562,6 +564,10 @@ paths:
         de `quantidade` vale por linha: a soma das linhas pode passar de 99.
         Preço e total vêm do banco (o cliente não envia valores). Pedido, itens e baixa de estoque são gravados
         na mesma transação, com o estoque travado contra compras simultâneas. O pedido nasce `pendente`.
+
+        **Processamento assíncrono:** depois do COMMIT, enfileira o job `pedido.criado` e responde sem esperá-lo.
+        Em background, o worker avisa o comprador, avisa cada artesão com o resumo para o WhatsApp e recalcula as
+        recomendações do comprador (o próximo `GET /recomendacoes` dele sai como `X-Cache: HIT`). Veja `GET /notificacoes`.
       operationId: criarPedido
       security:
         - cookieSessao: []
@@ -622,6 +628,10 @@ paths:
         **Admin** muda para qualquer status. **Artesão** só marca como `enviado`, e só pedidos que contêm produto dele.
         A sequência de status não é conferida: qualquer um dos quatro pode vir depois de qualquer outro.
         Para o artesão, um pedido inexistente responde 403 (não contém produto dele), não 404.
+
+        **Processamento assíncrono:** depois de gravar, enfileira o job `pedido.status_atualizado` e responde sem
+        esperá-lo. Em background, o worker avisa o comprador do pedido (`pago`, `enviado` ou `entregue`; `pendente`
+        não gera aviso). Veja `GET /notificacoes`.
       operationId: atualizarStatusPedido
       security:
         - cookieSessao: []
@@ -739,6 +749,86 @@ paths:
           $ref: "#/components/responses/NaoAutenticado"
         "403":
           $ref: "#/components/responses/SemPermissao"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /notificacoes:
+    get:
+      tags: [Notificações]
+      summary: Notificações processadas pela fila assíncrona
+      description: |
+        **Perfis exigidos:** `comprador`, `artesao`, `admin`. Sem sessão responde 401.
+
+        Devolve só as notificações do usuário da sessão, mais recentes primeiro, já processadas pelo worker da
+        fila em memória. **Comprador** recebe os avisos dos próprios pedidos (recebido, pago, enviado, entregue);
+        **artesão** recebe as novas vendas, cada uma com o `resumoWhatsapp` pronto para mandar ao comprador;
+        **admin** recebe também `fila`, com a contagem de jobs por status e os jobs recentes.
+
+        Os jobs nascem em `POST /pedidos` (`pedido.criado`) e `PATCH /pedidos/{id}` (`pedido.status_atualizado`),
+        depois do COMMIT e sem atrasar essas respostas: logo depois delas, um job pode ainda estar `pendente`.
+        Tudo fica na memória do processo (sem tabela no banco) e some quando a API reinicia.
+        Responde sempre com `Cache-Control: no-store`.
+      operationId: listarNotificacoes
+      security:
+        - cookieSessao: []
+      x-perfis: [comprador, artesao, admin]
+      responses:
+        "200":
+          description: Caixa de notificações do usuário (e, para o admin, o resumo da fila)
+          headers:
+            Cache-Control:
+              description: Sempre `no-store`, a lista muda a cada job processado
+              schema: { type: string, enum: [no-store] }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CaixaNotificacoes" }
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /notificacoes/ler:
+    post:
+      tags: [Notificações]
+      summary: Marcar notificações como lidas
+      description: |
+        **Perfis exigidos:** `comprador`, `artesao`, `admin`. Sem sessão responde 401.
+
+        Sem corpo (ou sem `ids`), marca todas as notificações do usuário da sessão. Com `ids`, só essas;
+        ids de outro usuário ou inexistentes são ignorados (nunca marcam a caixa de outra pessoa).
+      operationId: marcarNotificacoesComoLidas
+      security:
+        - cookieSessao: []
+      x-perfis: [comprador, artesao, admin]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  maxItems: 100
+                  description: Até 100 ids de notificação. Ausente marca todas.
+                  items: { type: string, minLength: 1, maxLength: 64 }
+      responses:
+        "200":
+          description: Quantas mudaram e quantas continuam não lidas
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [marcadas, naoLidas]
+                properties:
+                  marcadas: { type: integer, minimum: 0, example: 2 }
+                  naoLidas: { type: integer, minimum: 0, example: 0 }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -1024,3 +1114,72 @@ components:
               tecnica: { type: string }
               totalVendido: { type: number, format: double }
               porcentagem: { type: integer, minimum: 0, maximum: 100 }
+
+    StatusJob:
+      type: string
+      enum: [pendente, processando, concluido, erro]
+
+    Notificacao:
+      type: object
+      required: [id, usuarioId, pedidoId, tipo, mensagem, data, lida]
+      properties:
+        id: { type: string, format: uuid }
+        usuarioId: { type: string, format: uuid, description: Dono da notificação (sempre o usuário da sessão) }
+        pedidoId: { type: string, format: uuid }
+        tipo:
+          type: string
+          enum: [pedido.recebido, pedido.nova_venda, pedido.pago, pedido.enviado, pedido.entregue]
+        mensagem: { type: string, example: "Seu pedido #4A1B2C3D foi enviado pelo artesão e está a caminho." }
+        resumoWhatsapp:
+          type: string
+          description: Só em `pedido.nova_venda` - texto pronto para o artesão mandar ao comprador pelo WhatsApp
+        data: { type: string, format: date-time, description: Quando o worker processou o aviso }
+        lida: { type: boolean }
+
+    JobFila:
+      type: object
+      description: Job da fila em memória, sem o payload (que carrega dados do pedido)
+      required: [id, tipo, referencia, status, tentativas, maxTentativas, criadoEm, iniciadoEm, concluidoEm, ultimoErro]
+      properties:
+        id: { type: string, format: uuid }
+        tipo: { type: string, enum: [pedido.criado, pedido.status_atualizado] }
+        referencia: { type: string, nullable: true, description: Id do pedido que gerou o job }
+        status: { $ref: "#/components/schemas/StatusJob" }
+        tentativas: { type: integer, minimum: 0, description: Quantas vezes o worker já executou o job }
+        maxTentativas: { type: integer, minimum: 1, example: 3 }
+        criadoEm: { type: string, format: date-time }
+        iniciadoEm: { type: string, format: date-time, nullable: true }
+        concluidoEm: { type: string, format: date-time, nullable: true }
+        ultimoErro: { type: string, nullable: true }
+
+    ResumoFila:
+      type: object
+      required: [contagem, jobsRecentes]
+      properties:
+        contagem:
+          type: object
+          required: [pendente, processando, concluido, erro]
+          properties:
+            pendente: { type: integer, minimum: 0 }
+            processando: { type: integer, minimum: 0 }
+            concluido: { type: integer, minimum: 0 }
+            erro: { type: integer, minimum: 0 }
+        jobsRecentes:
+          type: array
+          maxItems: 20
+          description: Até 20 jobs, mais recentes primeiro
+          items: { $ref: "#/components/schemas/JobFila" }
+
+    CaixaNotificacoes:
+      type: object
+      required: [naoLidas, total, dados]
+      properties:
+        naoLidas: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 0 }
+        dados:
+          type: array
+          items: { $ref: "#/components/schemas/Notificacao" }
+        fila:
+          allOf:
+            - $ref: "#/components/schemas/ResumoFila"
+          description: Só para o admin
