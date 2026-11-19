@@ -1,6 +1,6 @@
 # Módulo de IA: documento final (recomendação)
 
-Documento final do módulo de IA do Raízes PE (PI4-155). Descreve o que existe hoje no repositório: objetivo, dados, regras dos dois motores de recomendação, métricas do baseline e como o módulo se integra à aplicação. O ponto de partida foram [`BASELINE_IA.md`](BASELINE_IA.md) (entrega da Unidade 1) e [`ia/README.md`](../ia/README.md) (mockup executável da AV2). Onde os dois divergem do código atual, vale este documento.
+Documento final do módulo de IA do Raízes PE (PI4-155, revisado na entrega final da U2). Na aplicação publicada, a recomendação é o motor integrado à API Express e ao PostgreSQL/Neon (`GET /api/recomendacoes`); o serviço BentoML de `ia/` é o artefato complementar de experimentação offline da disciplina de IA. Descreve o que existe hoje no repositório: objetivo, dados, regras dos dois motores de recomendação, métricas do baseline e como o módulo se integra à aplicação. O ponto de partida foram [`BASELINE_IA.md`](BASELINE_IA.md) (entrega da Unidade 1) e [`ia/README.md`](../ia/README.md) (mockup executável da AV2). Onde os dois divergem do código atual, vale este documento.
 
 ## 1. Objetivo
 
@@ -89,6 +89,7 @@ Vitrine (components/SecaoRecomendados.tsx)
    → rewrite do Next para a API Express     (Render)
    → recomendacaoController → recomendacaoService → repositories → Neon
    → rankingRecomendacao (regra pura, sem banco)
+   ↳ cache em memória (TTL + invalidação; header X-Cache)
 ```
 
 - O **comprador vem da sessão** (cookie `raizes_sessao`), nunca da URL. Comprador logado recebe recomendações pelo histórico; visitante e outros perfis recebem o *cold start*.
@@ -155,7 +156,7 @@ Com o site e a API publicados, estas chamadas devolvem dados que vêm do Neon:
 - **Poucos dados.** São 7 produtos, 3 pedidos e 6 avaliações na partida. Com `limite` 4, a lista é mais da metade do catálogo, e a diferença entre "personalizado" e "popular" é pequena. Não há volume para validar a qualidade da recomendação.
 - ***Cold start*.** Visitante e comprador sem compras recebem o mesmo ranking, por nota. Um produto novo, sem avaliação, entra com nota 4,0 e nenhuma avaliação (pontuação base 40), então fica atrás de produtos bem avaliados até receber as primeiras notas. O bônus de novidade (+5) compensa só em parte e usa uma data de referência fixa (`2025-06-30`).
 - **Sem recomendação colaborativa.** O motor usa só o conteúdo (técnica e região) e a popularidade. Não há "quem comprou isto também comprou aquilo", fatoração de matriz nem *embeddings*.
-- **Latência.** Cada chamada ao motor do app consulta o Neon (três consultas, duas para visitante), carrega todos os produtos e recalcula o *score* de tudo, sem cache. O Render no plano gratuito dorme quando parado, e a primeira chamada depois disso demora. O Render não tem região em São Paulo, e o Neon está em `sa-east-1`, o que soma latência entre a API e o banco. A latência não foi medida de forma sistemática: o Network do navegador mostra o tempo de cada chamada.
+- **Latência.** Cada chamada ao motor do app consulta o Neon (três consultas, duas para visitante), carrega todos os produtos e recalcula o *score* de tudo. Desde a entrega final da U2, a resposta fica num **cache em memória com TTL** (`CACHE_TTL_SEGUNDOS`, padrão 60 s), com uma entrada por comprador da sessão e `limite` (visitantes dividem a do *cold start*), e é **invalidada na hora** por `POST /api/pedidos`, `PATCH /api/pedidos/:id` e pelas escritas de produto. Depois do checkout, o worker da fila assíncrona já recalcula a lista do comprador, então a próxima leitura sai como `X-Cache: HIT`. O custo do cálculo fica só no `MISS` (detalhes em [`cache.md`](cache.md)). O Render no plano gratuito dorme quando parado, e a primeira chamada depois disso demora. O Render não tem região em São Paulo, e o Neon está em `sa-east-1`, o que soma latência entre a API e o banco. A latência não foi medida de forma sistemática: o Network do navegador mostra o tempo de cada chamada e o header `X-Cache` de cada uma.
 
 **Do desenho atual:**
 

@@ -1,4 +1,4 @@
-# Raízes PE - Marketplace da Economia Criativa
+# Raízes PE (Projeto Origem) - Marketplace da Economia Criativa
 
 ![Artesã trabalhando em uma oficina de cerâmica](public/hero-oficina-ceramica.webp)
 
@@ -8,7 +8,13 @@ O projeto foi pensado para quem tem pouca familiaridade com compras online: tela
 
 **Acesse:** <https://raizes-pe-gules.vercel.app> (use os [logins de demonstração](#logins-de-demonstração)). A API fica em <https://raizes-pe-api.onrender.com>, com o Swagger em `/api-docs`. No plano gratuito do Render, a primeira chamada depois de um tempo parado demora alguns segundos.
 
-Projeto Integrador do 4º período de Análise e Desenvolvimento de Sistemas, CESAR School.
+Projeto Integrador do 4º período de Análise e Desenvolvimento de Sistemas, CESAR School. No Notion da disciplina, o projeto aparece como **Raízes PE (Projeto Origem)**; `origem` também é o nome do schema no PostgreSQL.
+
+## Demonstração em Vídeo (Screencast)
+
+> **[Assistir ao Screencast End-to-End](LINK_DO_VIDEO_AQUI)**
+>
+> Fluxo completo no site publicado, com o F12 aberto: vitrine, recomendações, cache (`X-Cache: MISS -> HIT`), checkout, notificações assíncronas, painel do artesão e admin. O roteiro da gravação está em [`docs/publicacao.md`](docs/publicacao.md#passo-3-testar-os-fluxos-com-o-network-aberto).
 
 ## Funcionalidades
 
@@ -36,7 +42,8 @@ Projeto Integrador do 4º período de Análise e Desenvolvimento de Sistemas, CE
 | Front | Next.js (App Router), TypeScript, Chakra UI, Recharts |
 | API | Express 5 + TypeScript em camadas, OpenAPI/Swagger, Prisma 7 |
 | Banco | PostgreSQL no Neon |
-| IA | Motor de recomendação em TypeScript no app e serviço em BentoML (Python) |
+| IA | Motor de recomendação no backend (TypeScript, `GET /api/recomendacoes`); serviço BentoML (Python) para experimentação offline |
+| Cache e fila | Cache em memória com TTL e fila de jobs em memória com worker, sem serviço externo |
 
 ## Como funciona
 
@@ -44,26 +51,46 @@ Projeto Integrador do 4º período de Análise e Desenvolvimento de Sistemas, CE
 flowchart LR
     U[Comprador, artesão ou admin] --> N[App Next.js na Vercel<br/>páginas + middleware.ts]
     N -- "/api/* (proxy por API_URL)" --> E[API Express no Render<br/>backend/]
+    E --> C[Cache em memória<br/>TTL + X-Cache]
+    E --> F[Fila assíncrona<br/>worker de notificações]
     E --> B[(PostgreSQL<br/>Neon)]
     N -. "sem API_URL: rotas app/api" .-> B
-    I[Serviço de IA<br/>BentoML, ia/] --> J[Catálogo sintético<br/>JSON]
+    I[ia/ BentoML<br/>experimentação offline] -.-> J[Catálogo sintético<br/>JSON]
 ```
 
 - O **app Next.js** serve as páginas e protege as áreas logadas no `middleware.ts`. Todas as telas leem e gravam pela API (`/api/...`).
 - Com a `API_URL` definida, o Next repassa todo `/api/*` para a **API Express** (`backend/`, em camadas e documentada no Swagger). É assim que o site publicado funciona. O navegador só fala com o domínio do site, então o cookie de sessão continua first-party e não precisa de CORS.
 - Sem a `API_URL`, respondem as rotas `app/api/*` do próprio Next, com o mesmo contrato (linha tracejada). Elas ficam como alternativa para rodar só o front.
-- O **serviço de IA** da AV2 roda separado, com dados sintéticos, e mostra o módulo de recomendação especificado na AV1.
+- A **recomendação em produção** é o motor integrado à API Express: `GET /api/recomendacoes` lê produtos, avaliações e o histórico do comprador no PostgreSQL/Neon e alimenta a seção de recomendados da vitrine, que adiciona direto ao carrinho.
+- As leituras mais repetidas da vitrine passam pelo **cache** e o checkout dispara a **fila assíncrona** (seções abaixo).
+- O diretório `ia/` (BentoML) é o artefato complementar da disciplina de IA, para experimentação offline com dados sintéticos. Não está no caminho das telas.
 
 ## Inteligência artificial
 
-São dois motores de recomendação:
+- **Solução principal, em produção:** o motor integrado ao backend Express + PostgreSQL/Neon ([`backend/src/services/recomendacaoService.ts`](backend/src/services/recomendacaoService.ts), com a regra pura em [`rankingRecomendacao.ts`](backend/src/services/rankingRecomendacao.ts)). Responde em `GET /api/recomendacoes` e é o que a seção de recomendados da vitrine mostra, com o botão de adicionar direto ao carrinho. Recomenda pelo histórico de compras do comprador da sessão (técnica e região preferidas), ignora peças sem estoque e explica cada sugestão. Para visitantes sem histórico, mostra peças populares e bem avaliadas. A resposta passa pelo [cache](#cache) e é pré-calculada pelo worker depois do checkout. Regras em [`docs/BASELINE_IA.md`](docs/BASELINE_IA.md) e documento final em [`docs/MODULO_IA.md`](docs/MODULO_IA.md). No fallback sem `API_URL`, o mesmo motor roda em [`lib/motorRecomendacao.ts`](lib/motorRecomendacao.ts).
+- **Artefato complementar da disciplina de IA** ([`ia/`](ia/README.md)): serviço BentoML para experimentação offline, com catálogo sintético. Recomenda a partir de um produto ou de um filtro de técnica e região, com popularidade, cold start e 30% da lista reservada para diversificação. Serve para medir o baseline e testar variações de regra antes de levá-las ao motor do backend.
 
-- **No app** ([`lib/motorRecomendacao.ts`](lib/motorRecomendacao.ts)): recomenda pelo histórico de compras (técnica e região preferidas), ignora peças sem estoque e explica cada sugestão. Para visitantes sem histórico, mostra peças populares e bem avaliadas. Regras em [`docs/BASELINE_IA.md`](docs/BASELINE_IA.md).
-- **Serviço da AV2** ([`ia/`](ia/README.md)): recomenda a partir de um produto ou de um filtro de técnica e região, com popularidade, cold start e 30% da lista reservada para diversificação. Tem contrato, testes de copiar e colar e métricas do baseline.
+## Cache
+
+- **Onde:** `GET /api/filtros`, `GET /api/produtos` (uma entrada por combinação de filtros) e `GET /api/recomendacoes` (uma entrada por comprador da sessão e `limite`; visitantes dividem a do cold start).
+- **Por quê:** a API roda no Render e o banco no Neon (`sa-east-1`), então cada consulta paga a latência entre os dois. Essas três leituras se repetem a cada visita à vitrine, e a de recomendações é a mais cara (lê todos os produtos, avaliações e o histórico).
+- **Estratégia:** cache em memória com **TTL** (`CACHE_TTL_SEGUNDOS`, padrão 60 s; `0` desliga) e **invalidação automática** em toda escrita bem-sucedida que muda catálogo, estoque ou histórico (`POST`/`PATCH /api/produtos`, `POST /api/pedidos`, `PATCH /api/pedidos/:id`). Rotas com dado pessoal (`/pedidos`, `/painel`, `/auth/me`) ficam fora.
+- **Como verificar:** F12 > Network > Fetch/XHR, clique em `produtos`, `filtros` ou `recomendacoes` e veja o header `X-Cache`: `MISS` na primeira leitura (consultou o PostgreSQL) e `HIT` nas seguintes dentro do TTL. Depois de editar um produto ou fazer um pedido, volta `MISS` com o dado novo.
+
+Detalhes, limites e testes em [`docs/cache.md`](docs/cache.md).
+
+## Processamento Assíncrono
+
+- **Onde:** `POST /api/pedidos` (job `pedido.criado`) e `PATCH /api/pedidos/:id` (job `pedido.status_atualizado`). Os jobs são enfileirados depois do COMMIT, numa fila em memória com worker em background.
+- **O que o worker faz:** avisa o comprador (pedido recebido, pago, enviado, entregue), avisa cada artesão da nova venda com um resumo pronto para o WhatsApp e recalcula as recomendações do comprador, que já ficam no cache.
+- **Por que não bloquear o checkout:** o pedido já está gravado quando a resposta sai. Notificar e recalcular recomendações é trabalho secundário: se demorar ou falhar (o worker tenta de novo até 3 vezes), o comprador não espera nem vê erro.
+- **Como inspecionar:** F12 > Network. O `POST /api/pedidos` responde `201` na hora; em seguida, `GET /api/notificacoes` (do comprador e do artesão) traz os avisos já processados. O admin vê também o resumo da fila (`fila.contagem` e `fila.jobsRecentes`). `POST /api/notificacoes/ler` marca como lidas.
+
+Fluxo, limites e testes em [`docs/processamento-assincrono.md`](docs/processamento-assincrono.md).
 
 ## Qualidade
 
-- Testes automatizados com `node:test` no front (`tests/`) e na API (`backend/test/`): regras de recomendação, sessão, máscaras, rotas e permissões.
+- Testes automatizados com `node:test` no front (`tests/`) e na API (`backend/test/`): regras de recomendação, sessão, máscaras, rotas, permissões, cache e fila assíncrona. Números atuais em [`docs/regressao-u2.md`](docs/regressao-u2.md).
 - Um teste da API falha se alguma rota não estiver documentada no `backend/openapi.yaml`.
 - Lint (ESLint) e typecheck (TypeScript) nos dois projetos. Os comandos estão no [guia de desenvolvimento](docs/desenvolvimento.md#scripts-úteis).
 
@@ -127,13 +154,14 @@ Os outros artesãos do catálogo só entram depois que o responsável pelo banco
 
 ## Estado atual
 
-- **Todas as telas leem e gravam pela API**, com os dados no PostgreSQL: vitrine e filtros, produto, perfil do artesão, carrinho e checkout, pedidos, painel do artesão, login e cadastro, recomendações e as telas do admin. Os dados de exemplo do front foram removidos na PI4-144.
+- **Todas as telas leem e gravam pela API**, com os dados no PostgreSQL: vitrine e filtros, produto, perfil do artesão, checkout, pedidos, painel do artesão, login e cadastro, recomendações e as telas do admin. Os dados de exemplo do front foram removidos na PI4-144. O carrinho, antes do checkout, fica no navegador para aceitar visitantes sem login ([nota no DER](docs/der-e-modelo-logico.md#1-der)).
 - **API Express publicada** no Render, e o front da Vercel a usa pelo proxy da `API_URL` (PI4-132 e PI4-134). As rotas `app/api` do Next continuam como alternativa para rodar só o front.
 - **Admin (PI4-143):** a gestão de artesãos usa `GET /api/artesaos` (só admin) e mostra quem já tem login. `/admin/categorias` é só leitura, com as categorias tiradas dos produtos (`GET /api/filtros`, a mesma rota dos filtros da vitrine). Os artesãos da carga sem senha ganham uma pelo `npm run contas:artesao`, rodado pelo responsável pelo banco.
 - **Continua de demonstração:** a aprovação de artesãos (pendente é quem ainda não tem login) e a moderação de produtos (em revisão é o produto sem foto ou cadastrado nos últimos 7 dias) ficam só no navegador (`localStorage`), sem gravar no banco.
-- **Banco:** a estrutura é definida pelas migrations do Prisma (`backend/prisma/migrations`, PI4-147), e o `db/ddl_final.sql` é gerado a partir delas.
+- **Banco:** a estrutura é definida pelas migrations do Prisma (`backend/prisma/migrations`, PI4-147), e o `db/ddl_final.sql` é gerado a partir delas. Os repositories das rotas usam `pg`, com SQL otimizado e controle de transação (uso híbrido intencional, ver [`backend/README.md`](backend/README.md#prisma)).
+- **Cache e processamento assíncrono:** em memória, sem Redis e sem tabela nova no banco ([`docs/cache.md`](docs/cache.md) e [`docs/processamento-assincrono.md`](docs/processamento-assincrono.md)).
 
-**Próximos passos:** alerta de baixo estoque e recomendação colaborativa. Do lado do banco, o responsável ainda marca a baseline das migrations no Neon e roda o `contas:artesao` (veja [`docs/publicacao.md`](docs/publicacao.md)). **Backlog:** tabela de categorias, colunas de aprovação de artesãos e de moderação de produtos no banco, tela de criação de artesão no admin, troca de senha pelo próprio usuário e remoção das rotas `app/api` do Next quando o Express for o único caminho. O histórico da migração está em [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md).
+**Evoluções futuras (pós-PI):** alerta de baixo estoque, recomendação colaborativa, cache e fila compartilhados (Redis) para várias instâncias. Do lado do banco, o responsável ainda marca a baseline das migrations no Neon e roda o `contas:artesao` (veja [`docs/publicacao.md`](docs/publicacao.md)). **Backlog:** tabela de categorias, colunas de aprovação de artesãos e de moderação de produtos no banco, tela de criação de artesão no admin, troca de senha pelo próprio usuário e remoção das rotas `app/api` do Next quando o Express for o único caminho. O histórico da migração está em [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md).
 
 ## Documentação
 
@@ -142,18 +170,20 @@ Os outros artesãos do catálogo só entram depois que o responsável pelo banco
 | [`docs/desenvolvimento.md`](docs/desenvolvimento.md) | Front e API juntos, variáveis de ambiente, banco local, testes, scripts, problemas comuns e estrutura de pastas |
 | [`backend/README.md`](backend/README.md) | API Express: instalação, Prisma, migrations, Swagger e testes |
 | [`docs/publicacao.md`](docs/publicacao.md) | Site na Vercel, API no Render, roteiro de testes no ambiente publicado e pendências do responsável pelo banco |
-| [`ia/README.md`](ia/README.md) | Módulo de IA da AV2: serviço BentoML, contrato e testes |
+| [`ia/README.md`](ia/README.md) | Artefato complementar da disciplina de IA: serviço BentoML offline, contrato e testes |
 | [`docs/MODULO_IA.md`](docs/MODULO_IA.md) | Documento final do módulo de IA: objetivo, dados, regras, métricas e integração |
 | [`docs/arquitetura-backend.md`](docs/arquitetura-backend.md) | Camadas do backend e ligação do front ao Express |
 | [`docs/cache.md`](docs/cache.md) | Cache em memória da API: onde foi aplicado e por quê, TTL, invalidação, header `X-Cache` e demonstração no F12 |
+| [`docs/processamento-assincrono.md`](docs/processamento-assincrono.md) | Fila assíncrona em memória: jobs do checkout e do status, worker, `/api/notificacoes` e demonstração no F12 |
 | [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md) | Histórico da migração dos dados de exemplo para a API real |
 | [`docs/estrategia-autenticacao.md`](docs/estrategia-autenticacao.md) | Sessão, senha, perfis de acesso e senha das contas de artesão |
 | [`docs/dicionario-de-dados.md`](docs/dicionario-de-dados.md) | Dicionário de dados do schema `origem`: tabelas, colunas, chaves, restrições, domínios e view de popularidade |
 | [`docs/der-e-modelo-logico.md`](docs/der-e-modelo-logico.md) | DER e modelo lógico do schema final, com diagramas em `docs/diagramas/` |
 | [`docs/BASELINE_IA.md`](docs/BASELINE_IA.md) | Regras do motor de recomendação do app |
-| [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md) | Contrato inicial da API (o contrato real está em `backend/openapi.yaml`) |
+| [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md) | Contrato da API, versão 1.0 (Entrega Final U2), alinhado ao `backend/openapi.yaml` |
 | [`docs/RELATORIO_TESTES_W12.md`](docs/RELATORIO_TESTES_W12.md) | Relatório de testes e rastreabilidade |
-| [`docs/regressao-w14.md`](docs/regressao-w14.md) | Regressão pós-migração na versão publicada |
+| [`docs/regressao-u2.md`](docs/regressao-u2.md) | Regressão da entrega final da U2: testes automatizados e checklist de todas as rotas |
+| [`docs/regressao-w14.md`](docs/regressao-w14.md) | Regressão pós-migração da W14 (histórico) |
 | [`docs/analise-code-smell-pedro.md`](docs/analise-code-smell-pedro.md) | Análise de code smell (Magic Numbers) e refatoração do ranking de recomendações |
 
 ## Autoria

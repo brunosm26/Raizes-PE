@@ -169,6 +169,8 @@ Restrições: `pk_avaliacao`, `fk_avaliacao_produto`, `fk_avaliacao_usuario`, `c
 
 Carrinho de compras de um comprador, antes de fechar o pedido. Cada comprador tem no máximo um.
 
+> Compõe o modelo relacional completo. No MVP, o carrinho antes do checkout fica no navegador (`localStorage`) para suportar visitantes anônimos, e o checkout persiste em `pedido` e `item_pedido`. Ver a nota em [`der-e-modelo-logico.md`](der-e-modelo-logico.md#1-der).
+
 | Coluna | Tipo | Obrig. | Padrão | Chave | Descrição |
 |---|---|---|---|---|---|
 | `id` | `uuid` | Sim | `gen_random_uuid()` | PK | Identificador do carrinho |

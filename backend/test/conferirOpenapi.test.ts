@@ -60,12 +60,18 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
 
   const perfil = metodo === "GET" ? perfilDoCookie(req.headers.cookie) : null;
   const protegida =
-    (metodo !== "GET" && /^\/api\/(produtos|pedidos)/.test(caminho!)) ||
+    (metodo !== "GET" && /^\/api\/(produtos|pedidos|notificacoes)/.test(caminho!)) ||
     caminho === "/api/pedidos" ||
+    caminho === "/api/notificacoes" ||
     caminho === "/api/painel/estatisticas" ||
     caminho === "/api/artesaos";
   if (protegida && !perfil) return { status: 401, corpo: { ok: false, erro: "Faça login para continuar." } };
   if (caminho === "/api/pedidos") return { status: 200, corpo: [] };
+  if (caminho === "/api/notificacoes") {
+    const caixa = { naoLidas: 0, total: 0, dados: [] };
+    const fila = { contagem: { pendente: 0, processando: 0, concluido: 0, erro: 0 }, jobsRecentes: [] };
+    return { status: 200, corpo: perfil === "admin" ? { ...caixa, fila } : caixa };
+  }
   if (caminho === "/api/painel/estatisticas") {
     return perfisDoPainel.includes(perfil!)
       ? { status: 200, corpo: ESTATISTICAS }
@@ -162,7 +168,13 @@ describe("conferir-openapi", () => {
     await rodar(PRODUTO);
     assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined || r.bytes > 0), []);
     const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}$/, "/{id}")}`);
-    assert.deepEqual(escritas.sort(), ["PATCH /api/pedidos/{id}", "PATCH /api/produtos/{id}", "POST /api/pedidos", "POST /api/produtos"]);
+    assert.deepEqual(escritas.sort(), [
+      "PATCH /api/pedidos/{id}",
+      "PATCH /api/produtos/{id}",
+      "POST /api/notificacoes/ler",
+      "POST /api/pedidos",
+      "POST /api/produtos",
+    ]);
     assert.equal(recebidas.some((r) => r.url.includes("/auth/login") || r.url.includes("/auth/cadastro")), false);
   });
 
@@ -198,7 +210,7 @@ describe("conferir-openapi", () => {
       assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined && r.metodo !== "GET"), []);
       const escritas = recebidas.filter((r) => r.metodo !== "GET" && r.url !== "/api/auth/login");
       assert.equal(escritas.every((r) => r.cookie === undefined && r.bytes === 0), true);
-      assert.equal(escritas.length, 4);
+      assert.equal(escritas.length, 5);
       assert.equal(recebidas.some((r) => r.url.includes("/auth/cadastro") || r.url.includes("/auth/logout")), false);
     });
 

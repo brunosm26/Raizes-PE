@@ -85,6 +85,11 @@ dublar("lib/servidor/pedidos.ts", {
   listarPedidos: async () => [],
   listarPedidosDoArtesao: async () => [],
 });
+// A fila assíncrona das escritas de pedido tem teste próprio (tests/filaNext.test.mjs).
+dublar("lib/servidor/processamentoAssincrono.ts", {
+  enfileirarPedidoCriado: () => null,
+  enfileirarStatusAtualizado: () => null,
+});
 
 const { NextRequest } = require("next/server");
 const rota = (arquivo) => require(path.join(raiz, "app", "api", ...arquivo.split("/"), "route.ts"));

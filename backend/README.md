@@ -48,7 +48,12 @@ Resposta esperada (status 200): `{"ok":true}`. No PowerShell, use `curl.exe`, e 
 
 ## Prisma
 
-O Prisma 7 lê o banco do Neon (esquema `origem`) pelo adapter `@prisma/adapter-pg`. **As rotas ainda não usam o Prisma:** os repositories delas falam com o banco pelo pool do `pg` (`src/config/db.ts`). Hoje só `src/repositories/popularidadeRepository.ts` usa o Prisma, exercitado pelo `npm run prisma:verificar`. Passar as rotas para o Prisma é decisão pendente do time.
+**Decisão da entrega: uso híbrido intencional de Prisma e `pg`.**
+
+- **Prisma 7 é a fonte da verdade do schema:** `prisma/schema.prisma` e as migrations em `prisma/migrations` definem o DDL do schema `origem` (o `db/ddl_final.sql` é gerado delas). O client, com o adapter `@prisma/adapter-pg`, é usado em `src/repositories/popularidadeRepository.ts` (view de popularidade, exercitada pelo `npm run prisma:verificar`).
+- **`pg` nos repositories das rotas:** produtos, pedidos, artesãos, avaliações, estatísticas, usuários e saúde falam com o banco pelo pool de `src/config/db.ts`, com SQL escrito à mão. Assim ficam explícitas as consultas otimizadas (junções, busca sem acento, agregações do painel e do ranking) e o controle de transação e trava (`BEGIN`/`COMMIT` em `repositories/transacao.ts` e `SELECT ... FOR UPDATE` no estoque do checkout).
+
+As duas ferramentas ficam só em `repositories/` (e `config/`), então services, controllers e rotas não sabem qual delas responde.
 
 ### Preencher o `.env`
 
@@ -75,7 +80,7 @@ Depois de um `prisma:pull`, rode `git diff prisma/schema.prisma`: se não houver
 - **Relações com nomes claros:** `Pedido.comprador`, `Pedido.itens`, `Produto.itensPedido`, `Usuario.pedidos` etc.
 - **Sem enums no Prisma:** `usuario.tipo` e `pedido.status` são `VARCHAR` com `CHECK` no banco, não enums do Postgres, por isso ficam `String`.
 - **CHECKs, gatilhos, funções, a view, os perfis de acesso e os comentários ficam no SQL** da migration `1_regras_sql`, e não são replicados no `schema.prisma`. O `SELECT ... FOR UPDATE` fica nos repositories.
-- **A view `vw_popularidade_produto` não é modelo Prisma.** Ela é lida com `$queryRaw` em `src/repositories/popularidadeRepository.ts`, com o resultado tipado. Hoje as consultas pesadas das rotas (agregações, ranking, recomendação) estão em SQL direto com o `pg` nos repositories; se forem para o Prisma, a orientação é usar `$queryRaw`, também nos repositories.
+- **A view `vw_popularidade_produto` não é modelo Prisma.** Ela é lida com `$queryRaw` em `src/repositories/popularidadeRepository.ts`, com o resultado tipado. As consultas pesadas das rotas (agregações, ranking, recomendação) ficam em SQL direto com o `pg` nos repositories, pela decisão híbrida acima.
 - **Há um único client**, em `src/config/prisma.ts`. Ele é criado no primeiro uso (o servidor sobe sem `DATABASE_URL`) e desconectado quando o servidor é encerrado.
 
 ### Problemas comuns
@@ -216,6 +221,17 @@ O `openapi:conferir:sessao` entra **uma vez** em cada conta de demonstração do
 ## Camadas
 
 `routes/` → `middlewares/` → `controllers/` → `services/` → `repositories/`. Services e repositories não importam `express`; só os repositories falam com o banco. Detalhes e o mapa da migração em [`docs/arquitetura-backend.md`](../docs/arquitetura-backend.md).
+
+Duas peças transversais, em memória e sem serviço externo:
+
+- **Cache:** classe genérica em `src/utils/cacheMemoria.ts`; instância, chaves e invalidação em `src/services/cacheCatalogo.ts`; headers `X-Cache` e `Cache-Control` em `src/controllers/respostaCache.ts`. TTL por `CACHE_TTL_SEGUNDOS` (padrão 60 s, `0` desliga). Ver [`docs/cache.md`](../docs/cache.md).
+- **Fila assíncrona:** fila e worker genéricos em `src/utils/filaAssincrona.ts`; caixa de notificações em `src/utils/notificacoesPedido.ts`; jobs de pedido em `src/services/filaAssincronaService.ts`, disparados pelo `pedidoController` depois do COMMIT; leitura em `GET /api/notificacoes` e `POST /api/notificacoes/ler`. Ver [`docs/processamento-assincrono.md`](../docs/processamento-assincrono.md).
+
+### Evoluções Futuras (Pós-PI)
+
+- Cache e fila compartilhados (por exemplo, Redis) se a API passar a rodar em mais de uma instância.
+- Notificações persistidas em tabela, para sobreviver ao reinício do Render (exige migration nova, fora do escopo desta entrega).
+- Levar mais repositories para o client do Prisma onde não houver ganho do SQL à mão, sem mudar services nem rotas.
 
 ## Lint
 

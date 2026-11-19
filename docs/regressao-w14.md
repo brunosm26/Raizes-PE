@@ -2,6 +2,8 @@
 
 Registro da regressão da W14 sobre a versão publicada: site na Vercel, API Express no Render e banco no Neon.
 
+> **Histórico.** A regressão da entrega final da U2, com cache, processamento assíncrono e as 22 rotas atuais, está em [`regressao-u2.md`](regressao-u2.md).
+
 - **Site:** <https://raizes-pe-gules.vercel.app>
 - **API:** <https://raizes-pe-api.onrender.com> (Swagger em `/api-docs`)
 - **Código avaliado:** `main` no commit `2064816` (PR #39)
