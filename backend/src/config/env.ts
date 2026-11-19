@@ -41,6 +41,20 @@ function lerSameSite(valor: string | undefined): SameSite {
   return sameSite;
 }
 
+const TTL_CACHE_PADRAO = 60;
+const TTL_CACHE_MAXIMO = 86_400;
+
+// TTL do cache em memória das leituras do catálogo, em segundos. 0 desliga o cache.
+function lerTtlCache(valor: string | undefined): number {
+  if (valor === undefined || valor.trim() === "") return TTL_CACHE_PADRAO;
+
+  const segundos = Number(valor);
+  if (!/^\d+$/.test(valor.trim()) || segundos > TTL_CACHE_MAXIMO) {
+    throw new Error(`CACHE_TTL_SEGUNDOS inválido: "${valor}". Use um inteiro de 0 a ${TTL_CACHE_MAXIMO}.`);
+  }
+  return segundos;
+}
+
 // Origens do front liberadas por CORS: lista separada por vírgula, sem "/" no fim.
 // Vazia = sem CORS (o front fala com a API pela mesma origem, via proxy do Next).
 function lerOrigens(valor: string | undefined): readonly string[] {
@@ -69,4 +83,6 @@ export const env = Object.freeze({
   CORS_ORIGIN: lerOrigens(process.env.CORS_ORIGIN),
   // SameSite do cookie de sessão. "none" (só com HTTPS) é para front e API em domínios diferentes.
   COOKIE_SAMESITE: lerSameSite(process.env.COOKIE_SAMESITE),
+  // Cache de GET /filtros, /produtos e /recomendacoes (services/cacheCatalogo.ts). Padrão 60 s.
+  CACHE_TTL_SEGUNDOS: lerTtlCache(process.env.CACHE_TTL_SEGUNDOS),
 });

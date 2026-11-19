@@ -20,6 +20,8 @@ export function cors(origensPermitidas: readonly string[] = env.CORS_ORIGIN): Re
 
     res.setHeader("Access-Control-Allow-Origin", origem);
     res.setHeader("Access-Control-Allow-Credentials", "true");
+    // Sem isso o JS de outra origem não lê o X-Cache (a aba Network mostra de qualquer jeito).
+    res.setHeader("Access-Control-Expose-Headers", "X-Cache");
 
     // Preflight (OPTIONS com Access-Control-Request-Method): responde aqui, sem chegar nas rotas.
     if (req.method === "OPTIONS" && req.headers["access-control-request-method"]) {

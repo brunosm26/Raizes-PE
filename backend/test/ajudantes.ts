@@ -23,6 +23,9 @@ if (bancoDeTeste) {
 process.env.DATABASE_URL = bancoDeTeste ?? "";
 process.env.SESSION_SECRET ??= "segredo-de-teste-com-mais-de-32-caracteres";
 process.env.NODE_ENV = "test";
+// Cache do catálogo desligado por padrão: os testes trocam os dados entre uma chamada e outra
+// e esperam ver a troca. Quem testa o cache (cacheCatalogo.test.ts) define o TTL antes.
+process.env.CACHE_TTL_SEGUNDOS ??= "0";
 
 // Teste que precisa do banco: pulado sem TEST_DATABASE_URL, com um aviso no fim do arquivo
 // dizendo quantos foram pulados e como habilitar.

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
+import { invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
 import { atualizarStatus, ErroPedido } from "@/lib/servidor/pedidos";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,9 @@ export async function PATCH(
     const sessao = await exigirSessao(["artesao", "admin"]);
     const { id } = await params;
     const corpo = (await request.json()) as { status?: string };
-    return NextResponse.json(await atualizarStatus(id, corpo.status ?? "", sessao));
+    const pedido = await atualizarStatus(id, corpo.status ?? "", sessao);
+    invalidarCatalogo();
+    return NextResponse.json(pedido);
   } catch (erro) {
     if (erro instanceof ErroPedido || erro instanceof ErroAuth) {
       return NextResponse.json({ erro: erro.message }, { status: erro.status });

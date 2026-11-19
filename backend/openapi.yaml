@@ -264,6 +264,10 @@ paths:
         Ordenados do mais novo para o mais antigo. Todos os filtros são opcionais e se combinam.
         `tecnica`, `categoria` e `regiao` comparam o valor exato; um valor sem correspondência, inclusive uma técnica
         fora da lista, devolve lista vazia, não 400.
+
+        **Cache:** a resposta fica até `CACHE_TTL_SEGUNDOS` (padrão 60 s) na memória da API, uma entrada por
+        combinação de filtros (a ordem dos parâmetros não importa). Cadastrar ou editar produto e criar ou mudar
+        status de pedido apagam o cache na hora. O header `X-Cache` diz de onde veio.
       operationId: listarProdutos
       security: []
       parameters:
@@ -284,6 +288,11 @@ paths:
       responses:
         "200":
           description: Lista de produtos (pode ser vazia)
+          headers:
+            X-Cache:
+              $ref: "#/components/headers/XCache"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControlCatalogo"
           content:
             application/json:
               schema:
@@ -444,11 +453,18 @@ paths:
         `regioes` vem das regiões de origem dos artesãos e `categorias`, das categorias dos produtos
         (não há tabela de categorias). Nas duas, os espaços das pontas são removidos, valores vazios ficam
         de fora e grafias que só diferem em maiúsculas/minúsculas aparecem uma vez; a ordem é alfabética (pt-BR).
+
+        **Cache:** como em `GET /produtos`, com uma entrada só (`X-Cache` diz se veio da memória).
       operationId: listarFiltros
       security: []
       responses:
         "200":
           description: Técnicas, regiões e categorias para os filtros
+          headers:
+            X-Cache:
+              $ref: "#/components/headers/XCache"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControlCatalogo"
           content:
             application/json:
               schema: { $ref: "#/components/schemas/OpcoesFiltros" }
@@ -660,6 +676,9 @@ paths:
         Comprador logado recebe recomendações pelo próprio histórico de compras; visitante (ou outro perfil)
         recebe o cold start (mais bem avaliados e novidades). Produtos sem estoque nunca aparecem.
         O comprador vem da sessão, nunca da URL.
+
+        **Cache:** como em `GET /produtos`, com uma entrada por comprador da sessão (visitante e outros perfis
+        dividem a do cold start) e por `limite`. Um pedido novo ou mudança de status apaga o cache na hora.
       operationId: listarRecomendacoes
       security:
         - {}
@@ -672,6 +691,11 @@ paths:
       responses:
         "200":
           description: Recomendações ordenadas por pontuação
+          headers:
+            X-Cache:
+              $ref: "#/components/headers/XCache"
+            Cache-Control:
+              $ref: "#/components/headers/CacheControlCatalogo"
           content:
             application/json:
               schema:
@@ -736,6 +760,16 @@ components:
         `raizes_sessao=<token>; Max-Age=604800; Path=/; Expires=<data>; HttpOnly; SameSite=Lax`.
         `SameSite` vem de `COOKIE_SAMESITE` (padrão `Lax`). `Secure` entra em produção e sempre que `SameSite=None`.
       schema: { type: string }
+    XCache:
+      description: |
+        Origem da resposta no cache em memória da API: `HIT` saiu da memória, `MISS` consultou o PostgreSQL
+        (e passou a ficar guardada até `CACHE_TTL_SEGUNDOS` ou até a próxima escrita de produto ou pedido).
+      schema: { type: string, enum: [HIT, MISS] }
+    CacheControlCatalogo:
+      description: |
+        `private, no-cache`: o navegador pode guardar, mas sempre revalida com a API, e proxies compartilhados não guardam.
+        Quem decide se a leitura sai da memória é o servidor (header `X-Cache`).
+      schema: { type: string, enum: ["private, no-cache"] }
 
   parameters:
     IdProduto:

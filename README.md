@@ -145,6 +145,7 @@ Os outros artesãos do catálogo só entram depois que o responsável pelo banco
 | [`ia/README.md`](ia/README.md) | Módulo de IA da AV2: serviço BentoML, contrato e testes |
 | [`docs/MODULO_IA.md`](docs/MODULO_IA.md) | Documento final do módulo de IA: objetivo, dados, regras, métricas e integração |
 | [`docs/arquitetura-backend.md`](docs/arquitetura-backend.md) | Camadas do backend e ligação do front ao Express |
+| [`docs/cache.md`](docs/cache.md) | Cache em memória da API: onde foi aplicado e por quê, TTL, invalidação, header `X-Cache` e demonstração no F12 |
 | [`docs/plano-migracao-api.md`](docs/plano-migracao-api.md) | Histórico da migração dos dados de exemplo para a API real |
 | [`docs/estrategia-autenticacao.md`](docs/estrategia-autenticacao.md) | Sessão, senha, perfis de acesso e senha das contas de artesão |
 | [`docs/dicionario-de-dados.md`](docs/dicionario-de-dados.md) | Dicionário de dados do schema `origem`: tabelas, colunas, chaves, restrições, domínios e view de popularidade |

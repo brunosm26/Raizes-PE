@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calcularRecomendacoes } from "@/lib/motorRecomendacao";
 import { obterSessao } from "@/lib/servidor/auth";
+import { cabecalhosCache, cacheCatalogo, chaveRecomendacoes } from "@/lib/servidor/cacheCatalogo";
 
 export const dynamic = "force-dynamic";
 
@@ -14,17 +15,21 @@ export async function GET(request: NextRequest) {
   try {
     const sessao = await obterSessao();
     const compradorId = sessao?.tipo === "comprador" ? sessao.id : undefined;
-    const recomendacoes = await calcularRecomendacoes(
-      compradorId,
-      isNaN(limite) ? 4 : Math.min(Math.max(limite, 1), 20)
+    const limiteFinal = isNaN(limite) ? 4 : Math.min(Math.max(limite, 1), 20);
+    const { valor: recomendacoes, origem } = await cacheCatalogo.lerOuCalcular(
+      chaveRecomendacoes(compradorId, limiteFinal),
+      () => calcularRecomendacoes(compradorId, limiteFinal)
     );
-    return NextResponse.json({
-      sucesso: true,
-      origem: "baseline_ia_v1",
-      compradorId: compradorId ?? null,
-      total: recomendacoes.length,
-      dados: recomendacoes,
-    });
+    return NextResponse.json(
+      {
+        sucesso: true,
+        origem: "baseline_ia_v1",
+        compradorId: compradorId ?? null,
+        total: recomendacoes.length,
+        dados: recomendacoes,
+      },
+      { headers: cabecalhosCache(origem) }
+    );
   } catch (erro) {
     console.error("GET /api/recomendacoes", erro);
     return NextResponse.json(

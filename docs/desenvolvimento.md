@@ -50,6 +50,7 @@ Cada projeto tem o seu arquivo, criado a partir do modelo versionado. Nenhum dos
 | `DIRECT_URL` | `backend/.env` | CLI do Prisma (`prisma.config.ts`: `prisma:pull`, `migrate status`/`resolve`) | Só para a CLI do Prisma no Neon | `postgresql://<usuario>:<senha>@<host-direto>:<porta>/<banco>?sslmode=require` |
 | `CORS_ORIGIN` | `backend/.env` | API (`middlewares/cors.ts`) | Só no modo de chamada direta | `http://localhost:3000` |
 | `COOKIE_SAMESITE` | `backend/.env` | API (cookie de sessão) | Não (padrão `lax`) | `lax`, `strict` ou `none` (só com HTTPS) |
+| `CACHE_TTL_SEGUNDOS` | `backend/.env` (e `.env.local`, no modo sem `API_URL`) | API (`services/cacheCatalogo.ts`) e Next (`lib/servidor/cacheCatalogo.ts`) | Não (padrão `60`; `0` desliga) | `60`. Detalhes em [`cache.md`](cache.md) |
 
 Variáveis **só de terminal**, que não vão em arquivo nenhum: `TEST_DATABASE_URL` e `TEST_DB_REMOTO_DESCARTAVEL` (testes que gravam no banco, seção [Testes, lint e typecheck](#testes-lint-e-typecheck)), `MIGRATE_DATABASE_URL` (`db:migrar-descartavel`), `COMPARAR_URL_A` e `COMPARAR_URL_B` (`db:comparar`), `SENHA_ARTESAOS` (`contas:artesao`, que recusa ler a senha de arquivo) e `OPENAPI_CONFERIR_URL` (`openapi:conferir` em outra porta).
 
