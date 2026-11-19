@@ -15,6 +15,9 @@ import ts from "typescript";
 const require = createRequire(import.meta.url);
 const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 process.env.SESSION_SECRET = "segredo-descartavel-de-teste-com-mais-de-32-caracteres";
+// Cache desligado: este arquivo troca os dados do dublê entre chamadas da mesma rota
+// (o cache em si é testado em tests/cacheNext.test.mjs).
+process.env.CACHE_TTL_SEGUNDOS = "0";
 
 require.extensions[".ts"] = function (modulo, arquivo) {
   const { outputText } = ts.transpileModule(fs.readFileSync(arquivo, "utf8"), {

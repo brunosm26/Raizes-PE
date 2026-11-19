@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listarProdutos } from "@/lib/servidor/catalogo";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
+import { cabecalhosCache, cacheCatalogo, chaveProdutos, invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
 import { criarProduto, ErroProduto } from "@/lib/servidor/produtos";
 import type { Tecnica } from "@/lib/tipos";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/produtos?tecnica=&busca=&regiao=&categoria=
+// GET /api/produtos?tecnica=&busca=&regiao=&categoria= (com cache: X-Cache HIT/MISS)
 export async function GET(request: NextRequest) {
   const p = request.nextUrl.searchParams;
+  const filtros = {
+    tecnica: (p.get("tecnica") as Tecnica | null) ?? undefined,
+    busca: p.get("busca") ?? undefined,
+    regiao: p.get("regiao") ?? undefined,
+    categoria: p.get("categoria") ?? undefined,
+  };
   try {
-    const dados = await listarProdutos({
-      tecnica: (p.get("tecnica") as Tecnica | null) ?? undefined,
-      busca: p.get("busca") ?? undefined,
-      regiao: p.get("regiao") ?? undefined,
-      categoria: p.get("categoria") ?? undefined,
-    });
-    return NextResponse.json(dados);
+    const { valor, origem } = await cacheCatalogo.lerOuCalcular(chaveProdutos(filtros), () => listarProdutos(filtros));
+    return NextResponse.json(valor, { headers: cabecalhosCache(origem) });
   } catch (erro) {
     console.error("GET /api/produtos", erro);
     return NextResponse.json({ mensagem: "Erro ao consultar produtos" }, { status: 500 });
@@ -30,6 +32,7 @@ export async function POST(request: NextRequest) {
     const sessao = await exigirSessao(["artesao"]);
     const corpo = (await request.json()) as Record<string, unknown>;
     const produto = await criarProduto(sessao.id, corpo);
+    invalidarCatalogo();
     return NextResponse.json(produto, { status: 201 });
   } catch (erro) {
     if (erro instanceof ErroProduto || erro instanceof ErroAuth) {

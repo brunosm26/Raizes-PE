@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
+import { invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
 import {
   criarPedido,
   ErroPedido,
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       itens?: { produtoId: string; quantidade: number }[];
     };
     const pedido = await criarPedido(sessao.id, corpo.itens ?? []);
+    invalidarCatalogo();
     return NextResponse.json(pedido, { status: 201 });
   } catch (erro) {
     if (erro instanceof SyntaxError) {

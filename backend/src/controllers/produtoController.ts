@@ -1,20 +1,24 @@
 import type { RequestHandler } from "express";
 import { sessaoDe } from "../middlewares/sessao";
+import { cacheCatalogo, chaveProdutos, invalidarCatalogo } from "../services/cacheCatalogo";
 import * as catalogoService from "../services/catalogoService";
 import * as produtoService from "../services/produtoService";
 import { ErroHttp } from "../utils/erroHttp";
 import { textoDaQuery } from "../utils/query";
+import { enviarComCache } from "./respostaCache";
 
-// GET /api/produtos?tecnica=&busca=&regiao=&categoria=
+// GET /api/produtos?tecnica=&busca=&regiao=&categoria= (com cache: X-Cache HIT/MISS)
 export const listar: RequestHandler = async (req, res) => {
-  res.json(
-    await catalogoService.listarProdutos({
-      tecnica: textoDaQuery(req.query.tecnica),
-      busca: textoDaQuery(req.query.busca),
-      regiao: textoDaQuery(req.query.regiao),
-      categoria: textoDaQuery(req.query.categoria),
-    })
+  const filtros = {
+    tecnica: textoDaQuery(req.query.tecnica),
+    busca: textoDaQuery(req.query.busca),
+    regiao: textoDaQuery(req.query.regiao),
+    categoria: textoDaQuery(req.query.categoria),
+  };
+  const { valor, origem } = await cacheCatalogo.lerOuCalcular(chaveProdutos(filtros), () =>
+    catalogoService.listarProdutos(filtros)
   );
+  enviarComCache(res, origem, valor);
 };
 
 // GET /api/produtos/:id
@@ -39,11 +43,15 @@ export const avaliacoes: RequestHandler<{ id: string }> = async (req, res) => {
 // Só artesão cadastra, e sempre na própria loja (o id vem da sessão).
 export const criar: RequestHandler = async (req, res) => {
   const corpo = (req.body ?? {}) as Record<string, unknown>;
-  res.status(201).json(await produtoService.criarProduto(sessaoDe(req).id, corpo));
+  const produto = await produtoService.criarProduto(sessaoDe(req).id, corpo);
+  invalidarCatalogo(); // produto novo muda vitrine, categorias dos filtros e recomendações
+  res.status(201).json(produto);
 };
 
 // PATCH /api/produtos/:id  { nome, descricao, preco, estoqueQtd, imagemUrl? }
 export const editar: RequestHandler<{ id: string }> = async (req, res) => {
   const corpo = (req.body ?? {}) as Record<string, unknown>;
-  res.json(await produtoService.editarProduto(req.params.id, corpo, sessaoDe(req)));
+  const produto = await produtoService.editarProduto(req.params.id, corpo, sessaoDe(req));
+  invalidarCatalogo(); // preço, estoque e nome aparecem na vitrine e nas recomendações
+  res.json(produto);
 };

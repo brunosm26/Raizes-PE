@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
+import { invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
 import { editarProduto, ErroProduto } from "@/lib/servidor/produtos";
 import { buscarProduto } from "@/lib/servidor/catalogo";
 
@@ -24,7 +25,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const sessao = await exigirSessao(["artesao", "admin"]);
     const { id } = await params;
     const corpo = (await request.json()) as Record<string, unknown>;
-    return NextResponse.json(await editarProduto(id, corpo, sessao));
+    const produto = await editarProduto(id, corpo, sessao);
+    invalidarCatalogo();
+    return NextResponse.json(produto);
   } catch (erro) {
     if (erro instanceof ErroProduto || erro instanceof ErroAuth) {
       return NextResponse.json({ erro: erro.message }, { status: erro.status });
