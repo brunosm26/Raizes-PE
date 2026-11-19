@@ -44,6 +44,8 @@ Como ler a cardinalidade (marcas do lado de cada entidade): `||` exatamente um, 
 | `carrinho` contém `item_carrinho` | 1 : 0..N | O mesmo produto aparece uma vez por carrinho |
 | `produto` é adicionado em `item_carrinho` | 1 : 0..N | |
 
+> **Nota sobre o carrinho no MVP.** As tabelas `carrinho` e `item_carrinho` fazem parte do modelo relacional completo da plataforma (e da carga de demonstração). No MVP atual, o estado antes do checkout fica no cliente (`localStorage`, em `lib/contextoCarrinho.tsx`), para que visitantes anônimos montem o carrinho antes do login. No checkout, `POST /api/pedidos` grava o que foi escolhido em `pedido` e `item_pedido`. Nenhuma rota da API lê ou grava `carrinho` hoje.
+
 ## 2. Modelo lógico
 
 Tabelas, colunas, tipos e chaves, como estão no PostgreSQL. `PK` chave primária, `FK` chave estrangeira, `UK` chave única. Comentário "nulo" indica coluna que aceita nulo; as demais são `NOT NULL`. Colunas `numeric` têm precisão `(10,2)`. Nas tabelas `avaliacao` e `item_carrinho`, as duas colunas marcadas "par único" formam uma única restrição `UNIQUE` em conjunto.

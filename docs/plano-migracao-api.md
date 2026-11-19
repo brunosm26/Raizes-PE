@@ -1,7 +1,7 @@
 # Migração dos dados de exemplo para a API real (histórico)
 
-**Subtarefa:** PI4-116 (história PI4-113, W10 – Preparação do ambiente para integração). Atualizado na PI4-135, na PI4-143, na PI4-144 e na PI4-146.
-**Situação em:** 16/11/2026. **A migração do front terminou:** todas as telas leem e gravam pela API, e os dados de exemplo foram removidos (fase 8, PI4-144). Seguem pendentes a troca dos repositories para o Prisma (fase 10, decisão do time), a remoção das rotas do Next (fase 13) e a baseline das migrations no Neon (fase 14).
+**Subtarefa:** PI4-116 (história PI4-113, W10 – Preparação do ambiente para integração). Atualizado na PI4-135, na PI4-143, na PI4-144, na PI4-146 e na entrega final da U2.
+**Situação em:** 19/11/2026. **A migração do front terminou:** todas as telas leem e gravam pela API, e os dados de exemplo foram removidos (fase 8, PI4-144). O acesso ao banco ficou no modelo híbrido (Prisma para schema e migrations, `pg` nos repositories das rotas). As fases 10 e 13 viraram backlog pós-entrega, e falta só o responsável pelo banco marcar a baseline das migrations no Neon (fase 14).
 **Documentos relacionados:** `docs/CONTRATO_API.md` (contrato proposto), `docs/estrategia-autenticacao.md` (PI4-117), `docs/arquitetura-backend.md` (PI4-122, camadas do Express), `backend/README.md` (Express, Prisma e migrations), `docs/publicacao.md` (Vercel, Render e Neon), `db/` (modelo físico)
 
 ## 1. Objetivo, regra de ouro e onde o código ficou
@@ -32,7 +32,7 @@ O Express em `backend/` (PI4-119) e as rotas `app/api/*` do Next têm o mesmo co
 - `pg`: o pool de `backend/src/config/db.ts`, usado por todos os repositories das rotas (produtos, pedidos, artesãos, avaliações, estatísticas, usuários e saúde do banco), com o mesmo SQL que roda no Next.
 - **Prisma 7 + `@prisma/adapter-pg`** (PI4-128): client em `backend/src/config/prisma.ts` e schema em `backend/prisma/schema.prisma`. Hoje só `repositories/popularidadeRepository.ts` (view de popularidade) usa o Prisma, e **nenhuma rota chama esse repository ainda**: ele é exercitado pelo `npm run prisma:verificar`. Desde a PI4-147, as migrations do Prisma (`backend/prisma/migrations`) definem o DDL.
 
-Passar os repositories do `pg` para o Prisma (ou manter os dois, cada um com seu papel) é uma **decisão pendente do time**. Pelas regras de `docs/arquitetura-backend.md`, a troca mexe só em `repositories/`.
+**Decisão da entrega:** manter os dois, cada um com seu papel (uso híbrido intencional). O Prisma é a fonte da verdade do schema e das migrations; o `pg` fica nos repositories das rotas, com SQL otimizado e controle explícito de transação e trava. Levar mais repositories para o client do Prisma é backlog pós-entrega (fase 10) e, pelas regras de `docs/arquitetura-backend.md`, mexeria só em `repositories/`.
 
 Regras de arquitetura:
 
@@ -113,10 +113,10 @@ Princípio: **leitura primeiro, escrita depois, autenticação antes de qualquer
 | 7 | **Admin**: lista de artesãos → `GET /api/artesaos`; regiões e categorias → `GET /api/filtros` | **Concluída** na PI4-143: rotas no Express e no `app/api` do Next (PR #50), telas do admin e filtros da vitrine (PR #52), senha dos artesãos e documentação (PR #51). Decisões D1 a D4 na seção 3.1 |
 | 8 | Limpeza: apagar as funções sem uso e, por último, os dados de exemplo | **Concluída** na PI4-144 (PR #53): `lib/apiFalsa.ts` e `lib/dadosFalsos.ts` apagados, funções reais movidas para `lib/apiCatalogo.ts` e testes reescritos (seção 3.2) |
 | 9 | Backend Express em camadas com as mesmas rotas, OpenAPI e Swagger (PI4-119: PI4-122 a PI4-126; PRs #26 e #30) | Concluída |
-| 10 | Prisma no backend (PI4-128, PR #28) | **Em andamento**: Prisma configurado e conectado (lê as 8 tabelas e a view no `prisma:verificar`); os repositories das rotas continuam em `pg` (ver seção 1) |
+| 10 | Prisma no backend (PI4-128, PR #28) | **Backlog pós-entrega.** Na entrega, ficou o uso híbrido: Prisma para schema e migrations (fase 14) e para a view de popularidade, `pg` nos repositories das rotas (seção 1). Migrar mais repositories para o client do Prisma fica para depois da PI |
 | 11 | Front chamando o Express em vez de `app/api/*` (URL base, CORS e cookie): `lib/apiUrl.ts`, `rewrites` com `API_URL`, `CORS_ORIGIN` e `COOKIE_SAMESITE` | **Concluída** (PI4-132). É o modo do site publicado (PI4-134, `docs/publicacao.md`) e o padrão do `.env.example` |
 | 12 | Sessão com JWT (HS256, `jose`) em cookie `httpOnly`, no Next e no Express, com o mesmo `SESSION_SECRET` (ver `docs/estrategia-autenticacao.md`, seção 12) | Concluída (PI4-130) |
-| 13 | Remoção de `app/api/*`, `lib/servidor/*` e `lib/db.ts` | **Pendente** (decisão do time; hoje servem para rodar só o front) |
+| 13 | Remoção de `app/api/*`, `lib/servidor/*` e `lib/db.ts` | **Backlog pós-entrega.** Hoje servem para rodar só o front, com o mesmo contrato (inclusive cache e notificações) |
 | 14 | Migrations do Prisma versionadas (`backend/prisma/migrations`: `0_init` do `schema.prisma` e `1_regras_sql` com CHECK, gatilhos, funções, view, perfis e comentários) e DDL final gerado (`db/ddl_final.sql`, `npm run db:ddl`). Um banco vazio migrado fica igual, pelo comparador de catálogo, ao montado pelos scripts de `db/` (PI4-147) | **Concluída** em banco local. Falta o responsável marcar a baseline no Neon (`migrate resolve --applied`, ver `backend/README.md`, seção Migrations) |
 
 Fases 1 a 6 vieram do PR #23, que só chegou à `main` pelo PR #29.
@@ -155,5 +155,5 @@ Fases 1 a 6 vieram do PR #23, que só chegou à `main` pelo PR #29.
 ## 6. Critérios de aceite (PI4-116)
 
 - [x] Toda função dos antigos dados de exemplo tem rota ou consulta equivalente descrita (seção 2)
-- [ ] Ordem de migração definida **e alinhada com o time** (seção 3 pronta; falta a revisão do time de WEB)
+- [x] Ordem de migração definida **e alinhada com o time** (seção 3, executada até a fase 14; fases 10 e 13 como backlog pós-entrega)
 - [x] Documento versionado no repositório (`docs/plano-migracao-api.md`)

@@ -1,8 +1,10 @@
 # Módulo de IA: mockup executável do serviço de recomendação (AV2)
 
-Este é o módulo de recomendação especificado na AV1, em forma de mockup executável (Trilha A, serviço em BentoML). Ele mostra o caminho feliz: alguém instala, sobe o serviço e vê a entrada virar saída conforme o contrato da AV1. Trabalha só com dados sintéticos (RNF-02) e roda separado do app Next.js, como serviço próprio (RNF-05).
+> **Nota de Integração Full Stack (Web U2):** na aplicação Web publicada, a recomendação opera integrada em tempo real ao PostgreSQL/Neon, pelo motor do backend Express em `GET /api/recomendacoes` (com cache e pré-cálculo pela fila assíncrona). É esse motor que alimenta a vitrine. Este diretório é o artefato complementar da disciplina de IA, para experimentação offline com dados sintéticos. Detalhes da integração em [`docs/MODULO_IA.md`](../docs/MODULO_IA.md).
 
-O app Next.js tem o seu próprio baseline em TypeScript ([`lib/motorRecomendacao.ts`](../lib/motorRecomendacao.ts), descrito em [`docs/BASELINE_IA.md`](../docs/BASELINE_IA.md)), que recomenda por histórico do comprador e responde em `GET /api/recomendacoes` na porta 3000. Este serviço é o módulo da AV1, que recomenda a partir de um produto de referência ou de um filtro de técnica e região, e responde no mesmo caminho, mas na porta 3001.
+Este é o módulo de recomendação especificado na AV1, em forma de mockup executável (Trilha A, serviço em BentoML). Ele mostra o caminho feliz: alguém instala, sobe o serviço e vê a entrada virar saída conforme o contrato da AV1. Como artefato de experimentação offline, trabalha só com dados sintéticos (RNF-02) e sobe como serviço próprio (RNF-05), fora do caminho das telas: o que a vitrine mostra vem do motor do backend, descrito na nota acima.
+
+A aplicação usa o motor do backend em TypeScript ([`backend/src/services/recomendacaoService.ts`](../backend/src/services/recomendacaoService.ts), com cópia em [`lib/motorRecomendacao.ts`](../lib/motorRecomendacao.ts) no fallback do Next; regras em [`docs/BASELINE_IA.md`](../docs/BASELINE_IA.md)), que recomenda por histórico do comprador e responde em `GET /api/recomendacoes` pela API (porta 4000, ou 3000 pelo proxy do Next). Este serviço é o módulo da AV1, que recomenda a partir de um produto de referência ou de um filtro de técnica e região, e responde no mesmo caminho, mas na porta 3001.
 
 ## Instalação
 

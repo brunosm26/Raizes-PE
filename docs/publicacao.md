@@ -65,11 +65,27 @@ Abra o site publicado, aperte F12 e vá na aba **Network** (marque "Preserve log
 | Sessão | recarregar a página logado | `GET /api/auth/me` devolve o usuário |
 | Cadastro | `/cadastro` com e-mail novo | `POST /api/auth/cadastro` 201 e usuário logado em seguida |
 | Vitrine | `/` e os filtros de região e categoria | `GET /api/filtros` 200 e `GET /api/produtos?...` 200 |
-| Checkout | comprador: adicionar ao carrinho e finalizar | `POST /api/pedidos` 201; o pedido aparece em "Meus Pedidos" |
+| Cache | recarregar a vitrine duas vezes em até 60 s | em `produtos`, `filtros` e `recomendacoes`, **Response Headers** `x-cache: MISS` na primeira e `x-cache: HIT` na segunda |
+| Checkout | comprador: adicionar ao carrinho e finalizar | `POST /api/pedidos` 201 na hora; o pedido aparece em "Meus Pedidos" |
+| Processamento assíncrono | artesão: abrir o painel depois do checkout; marcar como enviado; comprador: voltar a "Meus Pedidos" | `GET /api/notificacoes` traz `pedido.nova_venda` (artesão) e `pedido.enviado` (comprador); `PATCH /api/pedidos/:id` 200 |
 | Painel | artesão: `/painel`; cadastrar um produto | `GET /api/painel/estatisticas` 200; `POST /api/produtos` 201; contador de estoque sobe |
 | Admin | admin: `/admin` e `/admin/artesaos` | `GET /api/artesaos` 200 e as páginas carregam |
 | Proteção | deslogado, abrir `/painel` | redireciona para `/login` (o `middleware.ts` valida o JWT) |
 | Proteção da API | deslogado, abrir `/api/painel/estatisticas` | 401 |
+
+### Roteiro do Screencast (cache e processamento assíncrono)
+
+Para a gravação do [Screencast End-to-End](../README.md#demonstração-em-vídeo-screencast). Antes de gravar, abra `/api/saude` para acordar a API no Render. Use duas janelas: uma normal (comprador) e uma anônima (artesão). Em cada uma, F12 > **Network**, filtro **Fetch/XHR** e "Preserve log" marcado. Na lista de requisições, a coluna **Time** ajuda a mostrar a diferença entre `MISS` e `HIT`.
+
+1. **Cache `MISS -> HIT`.** Na janela do comprador, abra a vitrine. Clique em `produtos` (ou `filtros`, `recomendacoes`) e mostre `x-cache: MISS` em **Response Headers**. Recarregue: a mesma requisição vem `x-cache: HIT`.
+2. **Invalidação.** Na janela do artesão, edite o estoque de um produto no `/painel` (`PATCH /api/produtos/:id` 200). Volte à vitrine do comprador e recarregue: `produtos` vem `MISS` com o estoque novo, e a seguinte volta a `HIT`.
+3. **Checkout sem espera.** Como comprador, finalize uma compra com um produto da Cooperativa de Tacaratu (a loja do artesão de demonstração, para ele receber a venda). Mostre o `POST /api/pedidos` com `201` e o tempo curto: o pedido já está gravado e o trabalho secundário foi para a fila.
+4. **Recomendação pré-calculada.** Logo depois do checkout, volte à vitrine do comprador: o `GET /api/recomendacoes` já vem `x-cache: HIT`, porque o worker recalculou a lista em background (o checkout tinha apagado o cache). Faça este passo antes do 6, que apaga o cache de novo.
+5. **Notificação da venda.** Na janela do artesão, foque a aba ou abra o painel. Clique no `GET /api/notificacoes` e mostre, em **Response**, o `pedido.nova_venda` com o `resumoWhatsapp`.
+6. **Notificação de envio.** Como artesão, marque o pedido como enviado (`PATCH /api/pedidos/:id` 200). Na janela do comprador, volte a "Meus Pedidos": o `GET /api/notificacoes` traz `pedido.enviado` e o aviso aparece na tela. Ao fechar o aviso, sai `POST /api/notificacoes/ler` com `naoLidas: 0`.
+7. **Fila pelo admin (opcional).** Entre como admin e abra `/api/notificacoes` numa aba: `fila.contagem` e `fila.jobsRecentes` mostram os jobs `concluido`, com o pedido em `referencia`.
+
+Como cache e notificações ficam na memória do processo, um reinício do Render (ou ele dormir) zera os dois: se isso acontecer no meio da gravação, refaça a partir do passo 1. Detalhes em [`cache.md`](cache.md) e [`processamento-assincrono.md`](processamento-assincrono.md).
 
 ## Pendências do responsável pelo banco
 
@@ -92,7 +108,7 @@ Só quem administra o Neon do time faz estes passos, com autorização, a partir
 
 - **Plano gratuito dorme.** O Render free suspende o serviço após alguns minutos sem requisições, e a primeira chamada depois disso demora dezenas de segundos (em 16/11/2026, entre 20 e 35 s pelo site). Isso pode estourar o tempo do proxy da Vercel. Antes de apresentar ou tirar os prints, abra `/api/saude` uma vez para "acordar" a API.
 - **Região.** O Render não tem região em São Paulo e o Neon está em `sa-east-1`: cada consulta ganha latência. Para a demonstração é aceitável.
-- **Limite de tentativas de login** fica em memória (some ao reiniciar o serviço e não vale entre várias instâncias).
+- **Limite de tentativas de login, cache e notificações** ficam em memória (somem ao reiniciar o serviço e não valem entre várias instâncias). O Render roda uma instância só.
 - **Segredos.** `SESSION_SECRET` e `DATABASE_URL` só nos painéis do Render e da Vercel. Trocar o `SESSION_SECRET` derruba as sessões abertas, e ele precisa ser trocado nos dois painéis ao mesmo tempo.
 - **Aprovação e moderação do admin são de demonstração:** ficam no `localStorage` de cada navegador e não chegam ao banco.
 - **Reverter.** Para voltar ao Next sozinho, remova a `API_URL` da Vercel, confira se a `DATABASE_URL` está lá e faça um novo deploy.

@@ -1,14 +1,19 @@
 # Arquitetura em camadas do backend: Raízes PE
 
 **Subtarefa:** PI4-122 (história PI4-119, W13: organizar as camadas do backend e documentar a API)
-**Situação em:** 16/11/2026 (revisão da PI4-146; a camada e o mapa são os de 22/10/2026, com as rotas da PI4-143)
+**Situação em:** 19/11/2026 (entrega final da U2: decisão de acesso ao banco consolidada, cache e fila assíncrona; o mapa da seção 3 é o de 22/10/2026, com as rotas da PI4-143)
 **Documentos relacionados:** `docs/plano-migracao-api.md` (PI4-116), `docs/estrategia-autenticacao.md` (PI4-117), `backend/README.md` (PI4-127)
 
 ## 1. Onde fica o backend
 
 A decisão da PI4-121 adotou a stack de referência da disciplina (Node.js, Express, Prisma e JWT), com o front em Next.js. O backend é o projeto Express em `backend/`, criado na PI4-127. As rotas que hoje vivem em `app/api/*` (route handlers do Next) e as funções de `lib/servidor/*` são portadas para lá, uma camada por vez, **sem mudar o contrato** (mesmo método, caminho, corpo, resposta de sucesso e código HTTP).
 
-Os repositories das rotas usam o `pg` diretamente (`config/db.ts`), com o mesmo SQL que já roda no Next. O Prisma (PI4-128) já está configurado (`config/prisma.ts`, `prisma/schema.prisma`), mas hoje só o `repositories/popularidadeRepository.ts` o usa, e nenhuma rota chama esse repository. Se o time decidir passar os repositories para o Prisma, **só os arquivos de `repositories/` mudam**; services, controllers e rotas continuam iguais. *(Atualizado na PI4-135, 27/10/2026.)*
+**Acesso ao banco: uso híbrido intencional (decisão da entrega).**
+
+- **Prisma 7** (PI4-128 e PI4-147) é a fonte da verdade do schema: `prisma/schema.prisma` e as migrations de `prisma/migrations` definem o DDL, e o `db/ddl_final.sql` é gerado delas. O client (`config/prisma.ts`) é usado em `repositories/popularidadeRepository.ts`.
+- **`pg`** (`config/db.ts`) atende os repositories das rotas, com SQL escrito à mão: consultas otimizadas (junções de produto, artesão e usuário, busca sem acento, agregações do painel e do ranking) e controle explícito de transação e trava (`repositories/transacao.ts` e `SELECT ... FOR UPDATE` no estoque do checkout).
+
+As duas ficam restritas a `repositories/` e `config/`: services, controllers e rotas não dependem de qual ferramenta responde.
 
 ## 2. As camadas
 
@@ -24,7 +29,7 @@ controllers/   lê req (params, query, body, sessão), chama o service, escreve 
    │
 services/      regra de negócio e validação de entrada; lança ErroHttp
    │
-repositories/  SQL (hoje pg, depois Prisma); devolve objetos de domínio
+repositories/  SQL com pg nas rotas e Prisma na view; devolve objetos de domínio
    │
 config/        env validado e pool do banco
 ```
@@ -37,10 +42,20 @@ config/        env validado e pool do banco
 | `repositories/` | Executar SQL e converter linhas (snake_case) em objetos (`types/`) | `config/db`, `types/` | Importar `express`; decidir regra de negócio |
 | `middlewares/` | Preocupações transversais: sessão, perfil, erros, rota inexistente | `express`, `services/`, `utils/` | Falar com o banco direto |
 | `config/` | Ler e validar variáveis de ambiente; criar o pool | `pg`, `dotenv` | — |
-| `utils/` | Funções puras e reaproveitáveis (ErroHttp, ids, senha, token, cookies) | Node (`node:crypto`) | Importar `express` ou o banco |
+| `utils/` | Funções puras e reaproveitáveis (ErroHttp, ids, senha, token, cookies) e as estruturas genéricas em memória: `cacheMemoria.ts` (TTL e invalidação), `filaAssincrona.ts` (fila e worker) e `notificacoesPedido.ts` (caixa de notificações) | Node (`node:crypto`) | Importar `express` ou o banco |
 | `types/` | Tipos de domínio (espelho de `lib/tipos.ts` do front) | — | — |
 
 **Regra de ouro (critério da PI4-122):** `services/` e `repositories/` não importam `express` (nem `next/*`). Assim a regra de negócio pode ser testada sem servidor HTTP e trocada de framework sem reescrita.
+
+### 2.1 Cache e fila assíncrona nas camadas
+
+| Peça | Arquivos | Papel |
+|---|---|---|
+| Cache | `utils/cacheMemoria.ts` → `services/cacheCatalogo.ts` → `controllers/respostaCache.ts` | Classe genérica com TTL; instância, chaves e `invalidarCatalogo()`; headers `X-Cache` e `Cache-Control` em `GET /filtros`, `/produtos` e `/recomendacoes` |
+| Fila | `utils/filaAssincrona.ts` + `utils/notificacoesPedido.ts` → `services/filaAssincronaService.ts` | Fila e worker genéricos; jobs `pedido.criado` e `pedido.status_atualizado`, enfileirados pelo `pedidoController` depois do COMMIT, sem `await` |
+| Notificações | `routes/notificacaoRoutes.ts` → `controllers/notificacaoController.ts` → `services/notificacaoService.ts` | `GET /api/notificacoes` e `POST /api/notificacoes/ler`, sempre do usuário da sessão |
+
+Os dois ficam na memória do processo, sem tabela nova no banco. Detalhes em [`cache.md`](cache.md) e [`processamento-assincrono.md`](processamento-assincrono.md).
 
 Erros: qualquer camada lança `ErroHttp(status, mensagem)`; o middleware `tratadorDeErros` responde `{ "ok": false, "erro": "<mensagem>" }` com o status certo. Erros inesperados viram 500 sem expor a mensagem interna.
 
@@ -126,7 +141,7 @@ Por isso o proxy é o modo recomendado: é o que mantém o `middleware.ts` útil
 
 Verificação rápida: com `API_URL` definida, `GET http://localhost:3000/api/saude` responde `{"ok":true}`; essa rota só existe no Express.
 
-## 4. Estado da migração (atualizado em 16/11/2026)
+## 4. Estado da migração (atualizado em 19/11/2026)
 
 | Grupo de rotas | Subtarefa | Situação no Express |
 |---|---|---|
@@ -138,15 +153,24 @@ Verificação rápida: com `API_URL` definida, `GET http://localhost:3000/api/sa
 | `GET /api/painel/estatisticas` | PI4-124 | Migrada, com testes |
 | `GET /api/saude-bd` | PI4-124 | Migrada, com teste |
 | `GET /api/artesaos` (só admin), `GET /api/filtros` (público) | PI4-143 | Novas, no Express e no fallback do Next (mesmo contrato), com testes |
+| Cache em `GET /api/filtros`, `/produtos` e `/recomendacoes` | U2 | No Express e no fallback do Next, com testes |
+| `GET /api/notificacoes`, `POST /api/notificacoes/ler` e jobs em `POST /api/pedidos` e `PATCH /api/pedidos/:id` | U2 | No Express e no fallback do Next, com testes |
 
 Middlewares reaproveitáveis: `exigirSessao(perfis?)` (401/403), `carregarSessao` (sessão opcional, usada nas recomendações), `naoEncontrado` e `tratadorDeErros` (corpo JSON inválido vira 400, corpo acima de 4 MB vira 413).
 
-Pendências, todas fora do escopo da PI4-119:
+Situação das frentes ligadas à PI4-119:
 
-- **Prisma (PI4-128)**: já configurado (PR #28), mas os repositories das rotas continuam em `pg`; passar para o Prisma é decisão pendente do time e troca só `repositories/`.
+- **Prisma (PI4-128)**: concluído no modelo híbrido da seção 1 (Prisma para schema e migrations, `pg` nas rotas).
 - **JWT (PI4-130)**: concluído; no backend, a troca ficou em `utils/tokenSessao.ts`, com o `authController` e o `sessaoService` passando a aguardar o token assíncrono (ver `docs/estrategia-autenticacao.md`, seção 12).
 - **Front apontando para o Express (PI4-132)**: concluído por variável de ambiente (seção 3.5). É o modo do site publicado: a API roda no Render e o front da Vercel a usa pelo proxy (PI4-134, `docs/publicacao.md`). Sem `API_URL`, o front usa os route handlers do Next, que respondem igual.
 - **`GET /api/artesaos` (lista) e `GET /api/filtros`**: não eram migração. Foram criadas como rotas novas na PI4-143, no Express e no `app/api` do Next, com o mesmo contrato (fase 7 do `plano-migracao-api.md`).
+
+### Evoluções Futuras (Pós-PI)
+
+- Remover `app/api/*`, `lib/servidor/*` e `lib/db.ts` quando o Express for o único caminho (fase 13 do `plano-migracao-api.md`).
+- Cache e fila compartilhados (por exemplo, Redis) para rodar mais de uma instância da API.
+- Notificações em tabela, para sobreviver a reinícios (exige migration nova).
+- Levar repositories para o client do Prisma onde o SQL à mão não trouxer ganho, sem mudar services nem rotas.
 
 ### Testes
 
