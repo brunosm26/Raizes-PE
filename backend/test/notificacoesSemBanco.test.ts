@@ -108,10 +108,15 @@ function ultimoJob(tipo: string) {
 
 describe("fila assíncrona pela API (sem banco)", () => {
   it("POST /pedidos responde 201 antes do worker terminar o job pedido.criado", async () => {
+    // Cookie e aquecimento antes de medir: o primeiro POST do servidor paga a carga a frio (leitura
+    // do corpo, sessão, JIT), e numa máquina lenta isso sozinho passa do atraso do recálculo.
+    // O /notificacoes/ler aquece esse caminho sem enfileirar job nem criar notificação.
+    const cookie = await api.cookie(USUARIOS.comprador);
+    await fetch(`${api.url}/notificacoes/ler`, { method: "POST", ...json({}, cookie) });
     const inicio = performance.now();
     const r = await fetch(`${api.url}/pedidos`, {
       method: "POST",
-      ...json({ itens: [{ produtoId: "x1", quantidade: 2 }] }, await api.cookie(USUARIOS.comprador)),
+      ...json({ itens: [{ produtoId: "x1", quantidade: 2 }] }, cookie),
     });
     const duracao = performance.now() - inicio;
     assert.equal(r.status, 201);
