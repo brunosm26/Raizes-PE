@@ -7,6 +7,7 @@ import {
   listarPedidos,
   listarPedidosDoArtesao,
 } from "@/lib/servidor/pedidos";
+import { enfileirarPedidoCriado } from "@/lib/servidor/processamentoAssincrono";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
     };
     const pedido = await criarPedido(sessao.id, corpo.itens ?? []);
     invalidarCatalogo();
+    enfileirarPedidoCriado(pedido); // roda depois da resposta, sem ser esperado
     return NextResponse.json(pedido, { status: 201 });
   } catch (erro) {
     if (erro instanceof SyntaxError) {
