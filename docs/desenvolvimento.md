@@ -71,7 +71,7 @@ $env:PG_SENHA = [guid]::NewGuid().ToString("N")
 docker run -d --name raizes-pg -e POSTGRES_PASSWORD=$env:PG_SENHA -e POSTGRES_DB=raizes -p 127.0.0.1:15433:5432 postgres:16
 docker exec raizes-pg pg_isready -U postgres   # repita até aparecer "accepting connections"
 
-foreach ($f in "01_ddl_origem.sql", "04_migracao_front.sql", "05_dados_raizes_pe.sql", "06_imagem_produto.sql", "07_autenticacao.sql") {
+foreach ($f in "ddl_final.sql", "05_dados_raizes_pe.sql", "07_autenticacao.sql") {
   docker cp "db\$f" "raizes-pg:/tmp/$f"
   docker exec raizes-pg psql -q -U postgres -d raizes -v ON_ERROR_STOP=1 -f "/tmp/$f"
 }
@@ -84,13 +84,13 @@ export PG_SENHA=$(node -e "console.log(require('crypto').randomBytes(16).toStrin
 docker run -d --name raizes-pg -e POSTGRES_PASSWORD=$PG_SENHA -e POSTGRES_DB=raizes -p 127.0.0.1:15433:5432 postgres:16
 docker exec raizes-pg pg_isready -U postgres   # repita até aparecer "accepting connections"
 
-for f in 01_ddl_origem 04_migracao_front 05_dados_raizes_pe 06_imagem_produto 07_autenticacao; do
+for f in ddl_final 05_dados_raizes_pe 07_autenticacao; do
   docker cp "db/$f.sql" "raizes-pg:/tmp/$f.sql"
   docker exec raizes-pg psql -q -U postgres -d raizes -v ON_ERROR_STOP=1 -f "/tmp/$f.sql"
 done
 ```
 
-O `db/06` mostra um `NOTICE ... does not exist, skipping`, que é esperado. Depois, no `backend/.env` (e no `.env.local`, se for usar o modo "só o Next"):
+Depois, no `backend/.env` (e no `.env.local`, se for usar o modo "só o Next"):
 
 ```text
 DATABASE_URL=postgresql://postgres:<a senha do PG_SENHA>@localhost:15433/raizes
@@ -106,16 +106,13 @@ Desde a PI4-147, a estrutura do banco é definida pelas **migrations do Prisma**
 
 | Ordem | Arquivo | O que faz |
 |---|---|---|
-| 1 | `01_ddl_origem.sql` | Cria o esquema `origem`: 8 tabelas, gatilhos, índices, view de popularidade e perfis de acesso |
-| 2 | `02_dados_exemplo_origem.sql` | Dados de exemplo do modelo físico (opcional: o `05` apaga e troca por outros) |
-| 3 | `04_migracao_front.sql` | Acrescenta `descricao` e `imagem_url` em `produto` |
-| 4 | `05_dados_raizes_pe.sql` | Carrega o catálogo de demonstração (9 usuários, 6 artesãos, 7 produtos, 3 pedidos, 6 avaliações) |
-| 5 | `06_imagem_produto.sql` | `imagem_url` passa a aceitar foto enviada pelo artesão (até ~2 MB) |
-| 6 | `07_autenticacao.sql` | Acrescenta `senha_hash` em `usuario` e define a senha dos 3 logins de demonstração |
+| 1 | `ddl_final.sql` | Cria o esquema `origem` conforme as migrations atuais |
+| 2 | `05_dados_raizes_pe.sql` | Carrega o catálogo de demonstração (9 usuários, 6 artesãos, 7 produtos, 3 pedidos, 6 avaliações) |
+| 3 | `07_autenticacao.sql` | Define as senhas dos logins de demonstração |
 
 Para conferir se ficou correto, cole o conteúdo de `db/validacao_resumo.sql` no SQL Editor e execute: o resultado é uma tabela de 8 linhas em que `esperado` deve ser igual a `obtido` em todas. O `03_consultas_validacao_origem.sql` traz as consultas de recomendação e de conferência do modelo físico, para rodar à mão.
 
-> **Cuidado, o banco é compartilhado.** O `05_dados_raizes_pe.sql` **apaga** os dados existentes antes de carregar o catálogo, e o `01_ddl_origem.sql` tem uma linha de `DROP SCHEMA` comentada. Não execute esses scripts no banco oficial sem combinar com o time. As pendências do responsável pelo banco (baseline das migrations e `contas:artesao`) estão em [`publicacao.md`](publicacao.md#pendências-do-responsável-pelo-banco).
+> **Cuidado, o banco é compartilhado.** O `05_dados_raizes_pe.sql` **apaga** os dados existentes antes de carregar o catálogo, e o `ddl_final.sql` serve para bancos vazios. Não execute esses scripts no banco oficial sem combinar com o time. As pendências do responsável pelo banco (baseline das migrations e `contas:artesao`) estão em [`publicacao.md`](publicacao.md#pendências-do-responsável-pelo-banco).
 
 ## Testes, lint e typecheck
 
@@ -141,7 +138,7 @@ Sem banco de teste, o `npm test` do backend pula os testes que gravam no banco e
 ```powershell
 # PowerShell, na raiz do projeto, com o container raizes-pg rodando
 docker exec raizes-pg createdb -U postgres raizes_teste
-foreach ($f in "01_ddl_origem.sql", "04_migracao_front.sql", "05_dados_raizes_pe.sql", "06_imagem_produto.sql", "07_autenticacao.sql") {
+foreach ($f in "ddl_final.sql", "05_dados_raizes_pe.sql", "07_autenticacao.sql") {
   docker cp "db\$f" "raizes-pg:/tmp/$f"
   docker exec raizes-pg psql -q -U postgres -d raizes_teste -v ON_ERROR_STOP=1 -f "/tmp/$f"
 }

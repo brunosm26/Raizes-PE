@@ -3,7 +3,7 @@
 // services/artesaoService.ts), conferidos pelo tests/rotasAdminFiltros.test.mjs.
 import { pool } from "@/lib/db";
 import { compararPtBr } from "@/lib/servidor/ordenacao";
-import type { ArtesaoAdmin } from "@/lib/tipos";
+import type { ArtesaoAdmin, DadosPublicosArtesao } from "@/lib/tipos";
 
 // temLogin é só o resultado de "senha_hash IS NOT NULL": a consulta não devolve o hash nem o e-mail.
 export const SQL_ARTESAOS_ADMIN = `
@@ -39,4 +39,49 @@ function paraItem(a: ArtesaoAdmin): ArtesaoAdmin {
 export async function listarArtesaosAdmin(): Promise<ArtesaoAdmin[]> {
   const { rows } = await pool.query<ArtesaoAdmin>(SQL_ARTESAOS_ADMIN);
   return rows.map(paraItem).sort((x, y) => compararPtBr(x.nome, y.nome) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+}
+
+export class ErroPerfilArtesao extends Error {}
+
+const CAMPOS_PERFIL = `a.id, u.nome,
+  COALESCE(a.regiao_origem, '') AS "regiaoOrigem",
+  COALESCE(a.biografia, '') AS biografia,
+  a.foto_url AS "fotoUrl"`;
+
+export async function buscarMeuPerfil(usuarioId: string): Promise<DadosPublicosArtesao | null> {
+  const { rows } = await pool.query<DadosPublicosArtesao>(
+    `SELECT ${CAMPOS_PERFIL}
+       FROM origem.artesao a JOIN origem.usuario u ON u.id = a.usuario_id
+      WHERE a.usuario_id = $1`,
+    [usuarioId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function editarMeuPerfil(
+  usuarioId: string, corpo: Record<string, unknown>
+): Promise<DadosPublicosArtesao | null> {
+  const { regiaoOrigem, biografia, fotoUrl } = corpo;
+  if (typeof regiaoOrigem !== "string" || regiaoOrigem.trim().length > 100) {
+    throw new ErroPerfilArtesao("Informe uma localidade de até 100 caracteres.");
+  }
+  if (typeof biografia !== "string" || biografia.trim().length > 3000) {
+    throw new ErroPerfilArtesao("Informe uma biografia de até 3.000 caracteres.");
+  }
+  if (fotoUrl !== undefined && fotoUrl !== null &&
+    (typeof fotoUrl !== "string" || fotoUrl.length > 2_800_000 ||
+      !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(fotoUrl))) {
+    throw new ErroPerfilArtesao("Use uma foto JPG, PNG ou WEBP de até 2 MB.");
+  }
+
+  const { rows } = await pool.query<DadosPublicosArtesao>(
+    `UPDATE origem.artesao a
+        SET regiao_origem = $2, biografia = $3,
+            foto_url = CASE WHEN $4 THEN $5 ELSE a.foto_url END
+       FROM origem.usuario u
+      WHERE a.usuario_id = $1 AND u.id = a.usuario_id
+      RETURNING ${CAMPOS_PERFIL}`,
+    [usuarioId, regiaoOrigem.trim(), biografia.trim(), fotoUrl !== undefined, fotoUrl ?? null]
+  );
+  return rows[0] ?? null;
 }

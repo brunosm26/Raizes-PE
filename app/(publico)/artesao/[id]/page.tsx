@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import NextLink from "next/link";
-import { Box, Heading, Text, HStack, Button, Link as ChakraLink } from "@chakra-ui/react";
+import { Avatar, Box, Heading, Text, HStack, Button, Link as ChakraLink } from "@chakra-ui/react";
 import { FiArrowLeft, FiMapPin } from "react-icons/fi";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import GradeProdutos from "@/components/GradeProdutos";
@@ -110,12 +110,19 @@ export default function Pagina() {
           mb={12}
           position="relative"
         >
-          <Heading fontSize="1.6rem" mb={2}>
-            {perfil.nome}
-          </Heading>
-          <HStack fontSize="0.9rem" color="mutedFg" mb={4} spacing={1}>
-            <FiMapPin size={14} />
-            <Text>{perfil.regiaoOrigem}</Text>
+          <HStack spacing={4} mb={4}>
+            {perfil.fotoUrl && <Avatar name={perfil.nome} src={perfil.fotoUrl} size="lg" />}
+            <Box>
+              <Heading fontSize="1.6rem" mb={2}>
+                {perfil.nome}
+              </Heading>
+              {perfil.regiaoOrigem && (
+                <HStack fontSize="0.9rem" color="mutedFg" spacing={1}>
+                  <FiMapPin size={14} />
+                  <Text>{perfil.regiaoOrigem}</Text>
+                </HStack>
+              )}
+            </Box>
           </HStack>
           <Text color="mutedFg" lineHeight={1.7} maxW="65ch">
             {perfil.biografia}

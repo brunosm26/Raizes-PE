@@ -9,6 +9,7 @@ import LinhaProduto from "@/components/LinhaProduto";
 import LinhaPedido from "@/components/LinhaPedido";
 import ModalAdicionarProduto, { DadosProdutoSubmetido } from "@/components/ModalAdicionarProduto";
 import ModalEditarProduto from "@/components/ModalEditarProduto";
+import ModalEditarPerfilArtesao from "@/components/ModalEditarPerfilArtesao";
 import MensagemErro from "@/components/MensagemErro";
 import type { ProdutoComArtesao } from "@/lib/tipos";
 import { usePedidos } from "@/lib/contextoPedidos";
@@ -28,6 +29,7 @@ export default function Pagina() {
     usePedidos();
   const { produtosDoArtesao, criarProduto, editarProduto } = useProdutos();
   const { isOpen: modalAberto, onOpen: abrirModal, onClose: fecharModal } = useDisclosure();
+  const { isOpen: perfilAberto, onOpen: abrirPerfil, onClose: fecharPerfil } = useDisclosure();
   const toast = useToast();
 
   const pedidos = pedidosDoArtesao(usuarioId);
@@ -129,10 +131,18 @@ export default function Pagina() {
               Aqui está o resumo da sua loja hoje.
             </Text>
           </Box>
-          <Button variant="solid" onClick={abrirModal}>
-            Adicionar Produto
-          </Button>
+          <Flex gap={3} flexWrap="wrap">
+            {usuario?.tipo === "artesao" && (
+              <Button variant="outline" onClick={abrirPerfil}>
+                Editar perfil
+              </Button>
+            )}
+            <Button variant="solid" onClick={abrirModal}>
+              Adicionar Produto
+            </Button>
+          </Flex>
         </Flex>
+        {perfilAberto && <ModalEditarPerfilArtesao aoFechar={fecharPerfil} />}
 
         {erroEstatisticas ? (
           <Box mb={10}>

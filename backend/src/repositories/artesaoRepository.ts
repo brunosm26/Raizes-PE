@@ -1,4 +1,4 @@
-import type { ArtesaoAdmin } from "../types/dominio";
+import type { ArtesaoAdmin, DadosPublicosArtesao } from "../types/dominio";
 import { executorPadrao } from "./transacao";
 
 // Acesso à tabela origem.artesao.
@@ -11,22 +11,45 @@ export async function buscarIdPorUsuario(usuarioId: string): Promise<string | nu
   return rows[0]?.id ?? null;
 }
 
-export interface DadosArtesao {
-  id: string;
-  nome: string;
-  regiaoOrigem: string;
-  biografia: string;
-}
+const CAMPOS_PERFIL = `a.id, u.nome,
+  COALESCE(a.regiao_origem, '') AS "regiaoOrigem",
+  COALESCE(a.biografia, '') AS biografia,
+  a.foto_url AS "fotoUrl"`;
 
-export async function buscarPorId(id: string): Promise<DadosArtesao | null> {
-  const { rows } = await executorPadrao().query<DadosArtesao>(
-    `SELECT a.id, u.nome,
-            COALESCE(a.regiao_origem, '') AS "regiaoOrigem",
-            COALESCE(a.biografia, '')     AS biografia
-       FROM origem.artesao a
-       JOIN origem.usuario u ON u.id = a.usuario_id
+export async function buscarPorId(id: string): Promise<DadosPublicosArtesao | null> {
+  const { rows } = await executorPadrao().query<DadosPublicosArtesao>(
+    `SELECT ${CAMPOS_PERFIL}
+       FROM origem.artesao a JOIN origem.usuario u ON u.id = a.usuario_id
       WHERE a.id = $1`,
     [id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function buscarPorUsuario(usuarioId: string): Promise<DadosPublicosArtesao | null> {
+  const { rows } = await executorPadrao().query<DadosPublicosArtesao>(
+    `SELECT ${CAMPOS_PERFIL}
+       FROM origem.artesao a JOIN origem.usuario u ON u.id = a.usuario_id
+      WHERE a.usuario_id = $1`,
+    [usuarioId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function atualizarPerfil(
+  usuarioId: string,
+  regiaoOrigem: string,
+  biografia: string,
+  fotoUrl: string | null | undefined
+): Promise<DadosPublicosArtesao | null> {
+  const { rows } = await executorPadrao().query<DadosPublicosArtesao>(
+    `UPDATE origem.artesao a
+        SET regiao_origem = $2, biografia = $3,
+            foto_url = CASE WHEN $4 THEN $5 ELSE a.foto_url END
+       FROM origem.usuario u
+      WHERE a.usuario_id = $1 AND u.id = a.usuario_id
+      RETURNING ${CAMPOS_PERFIL}`,
+    [usuarioId, regiaoOrigem, biografia, fotoUrl !== undefined, fotoUrl ?? null]
   );
   return rows[0] ?? null;
 }

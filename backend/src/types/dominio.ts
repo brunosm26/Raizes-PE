@@ -43,11 +43,15 @@ export interface ResumoAvaliacoes {
   quantidade: number;
 }
 
-export interface PerfilArtesao {
+export interface DadosPublicosArtesao {
   id: string;
   nome: string;
   regiaoOrigem: string;
   biografia: string;
+  fotoUrl: string | null;
+}
+
+export interface PerfilArtesao extends DadosPublicosArtesao {
   produtos: ProdutoComArtesao[];
 }
 
