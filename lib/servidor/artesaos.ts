@@ -15,6 +15,7 @@ export const SQL_ARTESAOS_ADMIN = `
                     FILTER (WHERE p.tecnica IS NOT NULL AND btrim(p.tecnica) <> ''), '{}') AS tecnicas,
          count(p.id)::int                       AS "totalProdutos",
          (u.senha_hash IS NOT NULL)             AS "temLogin",
+         a.aprovado,
          to_char(u.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro"
     FROM origem.artesao a
     JOIN origem.usuario u ON u.id = a.usuario_id
@@ -31,6 +32,7 @@ function paraItem(a: ArtesaoAdmin): ArtesaoAdmin {
     tecnicas: [...a.tecnicas].sort(compararPtBr),
     totalProdutos: Number(a.totalProdutos),
     temLogin: a.temLogin === true,
+    aprovado: a.aprovado === true,
     dataCadastro: a.dataCadastro,
   };
 }
@@ -39,4 +41,12 @@ function paraItem(a: ArtesaoAdmin): ArtesaoAdmin {
 export async function listarArtesaosAdmin(): Promise<ArtesaoAdmin[]> {
   const { rows } = await pool.query<ArtesaoAdmin>(SQL_ARTESAOS_ADMIN);
   return rows.map(paraItem).sort((x, y) => compararPtBr(x.nome, y.nome) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+}
+
+export async function aprovarArtesao(id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `UPDATE origem.artesao SET aprovado = true WHERE id = $1`,
+    [id]
+  );
+  return rowCount === 1;
 }

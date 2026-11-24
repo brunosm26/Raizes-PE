@@ -15,7 +15,7 @@ interface ValorContextoSessao {
   // true até a primeira resposta de /api/auth/me (evita piscar "Entrar" para quem já está logado)
   carregando: boolean;
   entrar: (email: string, senha: string, perfil?: TipoUsuario) => Promise<UsuarioSessao>;
-  cadastrar: (nome: string, email: string, senha: string) => Promise<UsuarioSessao>;
+  cadastrar: (nome: string, email: string, senha: string, perfil?: "comprador" | "artesao") => Promise<UsuarioSessao>;
   sair: () => Promise<void>;
 }
 
@@ -70,9 +70,9 @@ export function ProvedorSessao({ children }: { children: React.ReactNode }) {
     return logado;
   }, []);
 
-  const cadastrar = useCallback(async (nome: string, email: string, senha: string) => {
-    const novo = await lerUsuarioOuErro(await enviar("/api/auth/cadastro", { nome, email, senha }));
-    setUsuario(novo);
+  const cadastrar = useCallback(async (nome: string, email: string, senha: string, perfil: "comprador" | "artesao" = "comprador") => {
+    const novo = await lerUsuarioOuErro(await enviar("/api/auth/cadastro", { nome, email, senha, perfil }));
+    if (novo.tipo === "comprador") setUsuario(novo);
     return novo;
   }, []);
 

@@ -44,6 +44,7 @@ export const SQL_ARTESAOS_ADMIN = `
                     FILTER (WHERE p.tecnica IS NOT NULL AND btrim(p.tecnica) <> ''), '{}') AS tecnicas,
          count(p.id)::int                       AS "totalProdutos",
          (u.senha_hash IS NOT NULL)             AS "temLogin",
+         a.aprovado,
          to_char(u.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro"
     FROM origem.artesao a
     JOIN origem.usuario u ON u.id = a.usuario_id
@@ -61,4 +62,12 @@ export const SQL_REGIOES = `SELECT DISTINCT regiao_origem AS valor FROM origem.a
 export async function listarRegioes(): Promise<string[]> {
   const { rows } = await executorPadrao().query<{ valor: string }>(SQL_REGIOES);
   return rows.map((r) => r.valor);
+}
+
+export async function aprovarArtesao(id: string): Promise<boolean> {
+  const { rowCount } = await executorPadrao().query(
+    `UPDATE origem.artesao SET aprovado = true WHERE id = $1`,
+    [id]
+  );
+  return rowCount === 1;
 }

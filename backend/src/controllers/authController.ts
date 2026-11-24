@@ -32,10 +32,10 @@ export const login: RequestHandler = async (req, res) => {
   res.json({ usuario });
 };
 
-// POST /api/auth/cadastro  { nome, email, senha } → cria um comprador e já entra
+// Comprador inicia a sessão. Artesão aguarda aprovação antes de entrar.
 export const cadastro: RequestHandler = async (req, res) => {
-  const usuario = await authService.cadastrarComprador(req.body ?? {});
-  await gravarSessao(res, usuario);
+  const usuario = await authService.cadastrarContaPublica(req.body ?? {});
+  if (usuario.tipo === "comprador") await gravarSessao(res, usuario);
   res.status(201).json({ usuario });
 };
 

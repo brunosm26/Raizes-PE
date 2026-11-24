@@ -16,6 +16,7 @@ interface ArtesaoAdmin {
   tecnicas: string[];
   totalProdutos: number;
   temLogin: boolean;
+  aprovado: boolean;
   dataCadastro: string;
 }
 interface Perfil {
@@ -58,6 +59,7 @@ describe("GET /artesaos e GET /filtros: com banco", () => {
     for (const a of lista) {
       assert.match(a.dataCadastro, /^\d{4}-\d{2}-\d{2}$/);
       assert.equal(typeof a.temLogin, "boolean");
+      assert.equal(typeof a.aprovado, "boolean");
       const r = await fetch(`${api.url}/artesaos/${a.id}`);
       assert.equal(r.status, 200);
       const perfil = (await r.json()) as Perfil;

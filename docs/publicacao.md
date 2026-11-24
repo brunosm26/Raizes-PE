@@ -110,7 +110,7 @@ Só quem administra o Neon do time faz estes passos, com autorização, a partir
 - **Região.** O Render não tem região em São Paulo e o Neon está em `sa-east-1`: cada consulta ganha latência. Para a demonstração é aceitável.
 - **Limite de tentativas de login, cache e notificações** ficam em memória (somem ao reiniciar o serviço e não valem entre várias instâncias). O Render roda uma instância só.
 - **Segredos.** `SESSION_SECRET` e `DATABASE_URL` só nos painéis do Render e da Vercel. Trocar o `SESSION_SECRET` derruba as sessões abertas, e ele precisa ser trocado nos dois painéis ao mesmo tempo.
-- **Aprovação e moderação do admin são de demonstração:** ficam no `localStorage` de cada navegador e não chegam ao banco.
+- **Aprovação de artesãos:** aplicar a migração `20261124060300_aprovacao_artesao` antes de publicar o cadastro de artesão. A moderação de produtos usa o `localStorage` do navegador nesta versão.
 - **Reverter.** Para voltar ao Next sozinho, remova a `API_URL` da Vercel, confira se a `DATABASE_URL` está lá e faça um novo deploy.
 
 ## Alternativa: o navegador chamar a API direto (não recomendada)

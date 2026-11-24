@@ -51,6 +51,7 @@ CREATE TABLE artesao (
     usuario_id    UUID         NOT NULL,
     regiao_origem VARCHAR(100),
     biografia     TEXT,
+    aprovado      BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT pk_artesao PRIMARY KEY (id),
     CONSTRAINT uq_artesao_usuario UNIQUE (usuario_id),
     CONSTRAINT fk_artesao_usuario FOREIGN KEY (usuario_id)

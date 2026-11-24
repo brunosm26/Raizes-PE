@@ -126,14 +126,14 @@ O cliente nunca decide permissão. Esconder botão na tela é só UX.
 ### Login
 1. O usuário envia e-mail, senha e a aba escolhida (comprador, artesão ou admin) em `/login`.
 2. O servidor busca o usuário pelo e-mail e confere a senha. Se não bater, ou se o usuário não existir, devolve a mensagem genérica.
-3. A aba escolhida precisa bater com o perfil real da conta; o admin pode entrar por qualquer aba.
+3. Contas de artesão pendentes recebem 403. A aba escolhida precisa bater com o perfil real da conta. O admin pode entrar por qualquer aba.
 4. Se tudo bater, grava o cookie de sessão e a tela redireciona: comprador para `/`, artesão para `/painel`, admin para `/admin` (ou para a página que foi pedida, se houver `proxima`).
 
 ### Cadastro
-1. O usuário informa nome, e-mail e senha em `/cadastro`.
-2. Validação no servidor (seção 4). O cadastro público **sempre cria um comprador**.
-3. Grava o hash e faz o login automático.
-4. Contas de artesão e admin não têm autocadastro: são criadas por quem administra a plataforma (hoje por script SQL; a tela de criação de artesão no admin, prevista na PI4-118, continua no backlog). Os artesãos que já estão no banco sem senha ganham uma pelo `npm run contas:artesao` (seção 13).
+1. O usuário escolhe Comprador ou Artesão e informa nome, e-mail e senha em `/cadastro`.
+2. O servidor aceita apenas esses dois perfis. Uma chamada sem perfil mantém Comprador como padrão.
+3. O comprador ganha uma sessão após a criação. Para o artesão, a conta e o registro de curadoria pendente são criados atomicamente.
+4. Um administrador aprova o cadastro em `/admin/artesaos`. A decisão fica no banco e libera o login do artesão.
 
 ### Logout
 `POST /api/auth/logout` apaga o cookie e a tela volta para a vitrine.
@@ -146,7 +146,7 @@ O cliente nunca decide permissão. Esconder botão na tela é só UX.
 | Onde | Mudança |
 |---|---|
 | `lib/sessao.ts` (novo) | Criar e ler o token da sessão (JWT HS256 desde a PI4-130), duração, perfis por área |
-| `lib/servidor/auth.ts` (novo) | Hash e verificação de senha, login, cadastro de comprador, `obterSessao`, `exigirSessao` |
+| `lib/servidor/auth.ts` (novo) | Hash e verificação de senha, login, cadastro público, `obterSessao`, `exigirSessao` |
 | `middleware.ts` (novo) | Barreira de acesso por perfil nas páginas protegidas |
 | `app/api/auth/{login,cadastro,logout,me}/route.ts` (novos) | Rotas de autenticação |
 | `lib/contextoSessao.tsx` (novo) e `app/provedores.tsx` | Estado do usuário logado em todo o app |
@@ -180,7 +180,7 @@ Fora do escopo nesta etapa, e registrado para a próxima sprint (PI4-118 e backl
 | Hash de senha | bcrypt (`bcryptjs`), custo 12 | scrypt (`node:crypto`), N=16384 |
 | Coluna | `senha_hash VARCHAR(60) NOT NULL` | `senha_hash VARCHAR(200)`, aceitando nulo (nulo = sem acesso) |
 | Duração da sessão | 8 horas | 7 dias |
-| Cadastro público | Comprador ou artesão | Somente comprador |
+| Cadastro público | Comprador ou artesão | Comprador com login automático e artesão sujeito à curadoria |
 | Admin em `/painel` e `/meus-pedidos` | Bloqueado | Liberado (o admin acessa tudo, menos o checkout) |
 | Freio de tentativas de login | Fora do escopo | Implementado em memória (5 falhas por e-mail e IP a cada 15 minutos) |
 | Revogação | Só por expiração | Só por expiração do cookie, com revalidação de usuário e perfil no banco a cada requisição de API |
@@ -202,7 +202,7 @@ O backend em `backend/` (PI4-119/PI4-124) tem as mesmas quatro rotas de autentic
 | `utils/tokenSessao.ts` | Criar e ler o JWT do cookie, ambos assíncronos (equivale a `lib/sessao.ts`) |
 | `utils/senha.ts` | Hash e verificação scrypt |
 | `utils/cookies.ts` | Lê o cabeçalho `Cookie`, sem dependência nova |
-| `services/authService.ts` | Login, cadastro de comprador e freio de tentativas |
+| `services/authService.ts` | Login, cadastro público e freio de tentativas |
 | `services/sessaoService.ts` | Revalida a sessão no banco |
 | `middlewares/sessao.ts` | `carregarSessao` e `exigirSessao(perfis?)` |
 | `controllers/authController.ts`, `routes/authRoutes.ts` | As quatro rotas de `/api/auth` |
@@ -246,7 +246,7 @@ O freio de tentativas é coberto pelo teste com banco de `backend/test/catalogoA
 
 ## 13. Senha das contas de artesão (PI4-143): `npm run contas:artesao`
 
-Na carga de demonstração (`db/05` + `db/07`), só a Cooperativa de Tacaratu tem senha entre os 6 artesãos. Os outros 5 (Ateliê Barro Vivo, José Bezerra, Marlene Costa, Raimundo Silva e Vitalino Neto) não conseguem entrar no `/painel`. Em `/admin/artesaos` (PR #52), eles aparecem como "Pendente (sem login)" e, depois do script, como "Aprovado (tem login)". O botão "Aprovar" dessa tela é só demonstração no navegador e não cria login. A decisão D3 da PI4-143 foi resolver isso com um script com dry-run, preparado e testado só em banco descartável. No banco do time, quem roda é o responsável pelo banco.
+Na carga de demonstração (`db/05` + `db/07`), só a Cooperativa de Tacaratu tem senha entre os 6 artesãos. Os outros 5 (Ateliê Barro Vivo, José Bezerra, Marlene Costa, Raimundo Silva e Vitalino Neto) não conseguem entrar no `/painel`. A migração de curadoria mantém a aprovação dos artesãos que já tinham senha e deixa os demais pendentes. A senha criada pelo script e a aprovação em `/admin/artesaos` são etapas independentes para as contas legadas sem credenciais. O script da decisão D3 da PI4-143 oferece um dry-run e foi preparado e testado em banco descartável. No banco do time, quem roda é o responsável pelo banco.
 
 ### 13.1 O que o script faz
 

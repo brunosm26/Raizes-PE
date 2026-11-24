@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-// PI4-143, PR2 (D2): a aprovação de artesãos e a moderação de produtos do admin ficam no
+// PI4-143, PR2 (D2): a moderação de produtos do admin fica no
 // localStorage, agora pelo UUID do banco, com as chaves antigas do mock convertidas ou
 // descartadas. Também confere a contagem de produtos por categoria de /admin/categorias.
 // Sem navegador: o localStorage é um dublê em memória.
@@ -58,92 +58,9 @@ const armazenamentoQueFalha = {
   },
 };
 
-const UUID_A1 = "20000000-0000-4000-8000-000000000001";
-const UUID_A3 = "20000000-0000-4000-8000-000000000003";
 const UUID_P1 = "30000000-0000-4000-8000-000000000001";
 const UUID_P5 = "30000000-0000-4000-8000-000000000005";
 const UUID_NOVO = "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b";
-
-describe("aprovação de artesãos (por artesao.id)", () => {
-  it("sem nada salvo: ninguém aprovado e nada é gravado", () => {
-    const ls = new ArmazenamentoFalso();
-    assert.deepEqual(estado.lerAprovacoes(ls), {});
-    assert.equal(ls.escritas, 0);
-  });
-
-  it("pendente é quem não tem login; quem tem login já aparece aprovado", () => {
-    assert.equal(estado.statusArtesao({ id: UUID_A1, temLogin: false }, {}), "pendente");
-    assert.equal(estado.statusArtesao({ id: UUID_A1, temLogin: true }, {}), "com-login");
-  });
-
-  it("aprovar grava pelo UUID e sobrevive a uma nova leitura", () => {
-    const ls = new ArmazenamentoFalso();
-    const aprovacoes = estado.aprovarArtesao(estado.lerAprovacoes(ls), UUID_A3);
-    estado.salvarAprovacoes(ls, aprovacoes);
-    assert.deepEqual(ls.json(estado.CHAVE_APROVACOES), { [UUID_A3]: true });
-    const relidas = estado.lerAprovacoes(ls);
-    assert.equal(estado.statusArtesao({ id: UUID_A3, temLogin: false }, relidas), "aprovado-navegador");
-    assert.equal(estado.statusArtesao({ id: UUID_A1, temLogin: false }, relidas), "pendente");
-  });
-
-  it("aprovar um id do mock guarda o UUID; um id que não vira UUID é ignorado", () => {
-    assert.deepEqual(estado.aprovarArtesao({}, "a3"), { [UUID_A3]: true });
-    assert.deepEqual(estado.aprovarArtesao({}, "qualquer"), {});
-  });
-
-  it("ter login vence a aprovação do navegador", () => {
-    assert.equal(estado.statusArtesao({ id: UUID_A3, temLogin: true }, { [UUID_A3]: true }), "com-login");
-  });
-
-  it('migra a chave antiga "true" para o UUID do primeiro artesão do mock (a1) e a apaga', () => {
-    assert.equal(estado.ARTESAO_DA_CHAVE_ANTIGA, UUID_A1);
-    const ls = new ArmazenamentoFalso({ [estado.CHAVE_APROVACAO_ANTIGA]: "true" });
-    const aprovacoes = estado.lerAprovacoes(ls);
-    assert.deepEqual(aprovacoes, { [UUID_A1]: true });
-    assert.equal(ls.getItem(estado.CHAVE_APROVACAO_ANTIGA), null);
-    assert.deepEqual(ls.json(estado.CHAVE_APROVACOES), { [UUID_A1]: true });
-    // Segunda leitura: nada mais a migrar.
-    const escritas = ls.escritas;
-    assert.deepEqual(estado.lerAprovacoes(ls), { [UUID_A1]: true });
-    assert.equal(ls.escritas, escritas);
-  });
-
-  it("junta a chave antiga com aprovações novas já salvas", () => {
-    const ls = new ArmazenamentoFalso({
-      [estado.CHAVE_APROVACAO_ANTIGA]: "true",
-      [estado.CHAVE_APROVACOES]: JSON.stringify({ [UUID_A3]: true }),
-    });
-    assert.deepEqual(estado.lerAprovacoes(ls), { [UUID_A3]: true, [UUID_A1]: true });
-  });
-
-  it('a chave antiga "false" (ou lixo) só é apagada', () => {
-    for (const valor of ["false", "", "x"]) {
-      const ls = new ArmazenamentoFalso({ [estado.CHAVE_APROVACAO_ANTIGA]: valor });
-      assert.deepEqual(estado.lerAprovacoes(ls), {});
-      assert.equal(ls.getItem(estado.CHAVE_APROVACAO_ANTIGA), null);
-    }
-  });
-
-  it("descarta entradas inválidas e converte ids do mock na chave nova", () => {
-    const ls = new ArmazenamentoFalso({
-      [estado.CHAVE_APROVACOES]: JSON.stringify({ a3: true, [UUID_A1]: "sim", lixo: true, [UUID_NOVO]: true }),
-    });
-    assert.deepEqual(estado.lerAprovacoes(ls), { [UUID_A3]: true, [UUID_NOVO]: true });
-    assert.deepEqual(ls.json(estado.CHAVE_APROVACOES), { [UUID_A3]: true, [UUID_NOVO]: true });
-  });
-
-  it("JSON quebrado ou que não é objeto vira lista vazia", () => {
-    for (const valor of ["{", "[1,2]", "null", "42"]) {
-      const ls = new ArmazenamentoFalso({ [estado.CHAVE_APROVACOES]: valor });
-      assert.deepEqual(estado.lerAprovacoes(ls), {});
-    }
-  });
-
-  it("localStorage bloqueado não quebra a tela", () => {
-    assert.deepEqual(estado.lerAprovacoes(armazenamentoQueFalha), {});
-    assert.doesNotThrow(() => estado.salvarAprovacoes(armazenamentoQueFalha, { [UUID_A1]: true }));
-  });
-});
 
 describe("moderação de produtos (por produto.id)", () => {
   const hoje = new Date(2026, 10, 15, 21, 30); // 15/11/2026, hora local

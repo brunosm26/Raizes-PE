@@ -136,6 +136,7 @@ function linhaArtesao(n, nome, extra = {}) {
     tecnicas: [],
     totalProdutos: 0,
     temLogin: false,
+    aprovado: false,
     dataCadastro: "2025-05-10",
     ...extra,
   };
@@ -143,7 +144,7 @@ function linhaArtesao(n, nome, extra = {}) {
 
 const DADOS = {
   artesaos: [
-    linhaArtesao(1, "Zé da Palha", { tecnicas: ["Palha"], totalProdutos: 1, temLogin: true }),
+    linhaArtesao(1, "Zé da Palha", { tecnicas: ["Palha"], totalProdutos: 1, temLogin: true, aprovado: true }),
     linhaArtesao(2, "Ângela", { tecnicas: ["Têxtil", "Cerâmica"], totalProdutos: 3 }),
     linhaArtesao(3, "bruno", { regiaoOrigem: "" }),
     linhaArtesao(4, "Álvaro", { email: "nao-pode-sair@exemplo.com", senhaHash: "nao-pode-sair" }),

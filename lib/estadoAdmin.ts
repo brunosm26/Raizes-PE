@@ -1,8 +1,5 @@
-// Estado de demonstração das telas do admin (decisão D2 da PI4-143). A aprovação de artesãos
-// e a moderação de produtos não têm coluna no banco: ficam só no localStorage deste navegador,
-// guardadas pelo UUID do banco (artesao.id e produto.id). As chaves e os valores antigos, da
-// época do mock ("a1", "p1", "removido", o booleano único), são convertidos ou descartados em
-// silêncio na primeira leitura. Sem React e sem window, para rodar nos testes (tests/estadoAdmin.test.mjs).
+// Moderação de produtos e categorias da administração. As ações demonstrativas de produtos
+// ficam no localStorage deste navegador, pelo UUID, com compatibilidade com as chaves do mock.
 import { ehUuid, resolverId } from "./idsLegados";
 
 // O que as funções usam do localStorage (o teste passa um dublê em memória).
@@ -61,53 +58,6 @@ function normalizarMapa<V>(
     mapa[id] = convertido;
   }
   return { mapa, mudou };
-}
-
-// ---------------------------------------------------------------------------------------------
-// Aprovação de artesãos (/admin/artesaos)
-
-export const CHAVE_APROVACOES = "raizes-pe:artesaos-aprovados";
-// Versão antiga: um booleano único, porque no mock só o primeiro artesão da lista (a1) aparecia
-// como pendente. "true" vira a aprovação desse artesão, pelo UUID da carga db/05.
-export const CHAVE_APROVACAO_ANTIGA = "raizes-pe:artesao-aprovado";
-export const ARTESAO_DA_CHAVE_ANTIGA = resolverId("a1");
-
-// artesao.id (UUID) -> aprovado neste navegador
-export type Aprovacoes = Record<string, true>;
-
-// "com-login": já tem senha no banco (temLogin), então está aprovado de verdade.
-// "aprovado-navegador": sem login, mas aprovado nesta demonstração.
-// "pendente": sem login e ainda não aprovado neste navegador.
-export type StatusArtesao = "com-login" | "aprovado-navegador" | "pendente";
-
-export function lerAprovacoes(armazenamento: Armazenamento): Aprovacoes {
-  const { mapa, mudou } = normalizarMapa(lerObjeto(armazenamento, CHAVE_APROVACOES), (valor) =>
-    valor === true ? (true as const) : undefined
-  );
-  let migrou = mudou;
-  try {
-    const antiga = armazenamento.getItem(CHAVE_APROVACAO_ANTIGA);
-    if (antiga === "true") mapa[ARTESAO_DA_CHAVE_ANTIGA] = true;
-  } catch {
-    // sem localStorage: nada a migrar
-  }
-  if (remover(armazenamento, CHAVE_APROVACAO_ANTIGA)) migrou = true;
-  if (migrou) gravar(armazenamento, CHAVE_APROVACOES, mapa);
-  return mapa;
-}
-
-export function salvarAprovacoes(armazenamento: Armazenamento, aprovacoes: Aprovacoes): void {
-  gravar(armazenamento, CHAVE_APROVACOES, aprovacoes);
-}
-
-export function aprovarArtesao(aprovacoes: Aprovacoes, artesaoId: string): Aprovacoes {
-  const id = resolverId(artesaoId);
-  return ehUuid(id) ? { ...aprovacoes, [id]: true } : aprovacoes;
-}
-
-export function statusArtesao(artesao: { id: string; temLogin: boolean }, aprovacoes: Aprovacoes): StatusArtesao {
-  if (artesao.temLogin) return "com-login";
-  return aprovacoes[resolverId(artesao.id)] ? "aprovado-navegador" : "pendente";
 }
 
 // ---------------------------------------------------------------------------------------------

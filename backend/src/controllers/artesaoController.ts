@@ -14,3 +14,8 @@ export const buscarPerfil: RequestHandler<{ id: string }> = async (req, res) => 
   if (!perfil) throw new ErroHttp(404, "Artesão não encontrado");
   res.json(perfil);
 };
+
+export const aprovar: RequestHandler<{ id: string }> = async (req, res) => {
+  await artesaoService.aprovar(req.params.id);
+  res.status(204).end();
+};

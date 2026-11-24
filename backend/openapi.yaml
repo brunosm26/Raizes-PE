@@ -5,7 +5,7 @@ info:
   description: |
     API REST do marketplace de artesanato pernambucano Raízes PE (Express + TypeScript + PostgreSQL).
 
-    **Autenticação:** `POST /auth/login` (ou `/auth/cadastro`) grava o cookie httpOnly `raizes_sessao`.
+    **Autenticação:** `POST /auth/login` (ou `/auth/cadastro` para comprador) grava o cookie httpOnly `raizes_sessao`.
     As rotas protegidas leem esse cookie; no Swagger UI basta fazer o login pelo próprio "Try it out",
     porque o navegador guarda o cookie e o reenvia nas chamadas seguintes.
 
@@ -103,6 +103,7 @@ paths:
       summary: Entrar
       description: |
         Valida e-mail e senha e grava o cookie de sessão (7 dias).
+        Contas de artesão pendentes de aprovação recebem 403 após a validação das credenciais.
         `perfil` é a aba escolhida na tela de login: precisa bater com o perfil da conta (o admin entra por qualquer aba).
         O `perfil` não é validado contra a lista: um valor fora dela responde 403, não 400.
         O e-mail só precisa estar preenchido (o formato não é conferido aqui); fora do formato, a resposta é 401.
@@ -140,7 +141,7 @@ paths:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: E-mail ou senha incorretos. }
         "403":
-          description: A conta existe, mas é de outro perfil (aba errada)
+          description: A conta é de outro perfil ou o cadastro de artesão aguarda aprovação
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
@@ -159,10 +160,11 @@ paths:
   /auth/cadastro:
     post:
       tags: [Autenticação]
-      summary: Criar conta de comprador
+      summary: Criar conta de comprador ou solicitar cadastro de artesão
       description: |
-        O cadastro público sempre cria um **comprador** e já inicia a sessão.
-        Contas de artesão e admin são criadas por quem administra a plataforma.
+        O perfil padrão é **comprador** e inicia a sessão automaticamente.
+        O perfil **artesão** aguarda aprovação da curadoria para iniciar a sessão.
+        O cadastro público aceita apenas esses dois perfis.
         O nome é gravado sem espaços nas pontas e o e-mail, também em minúsculas; os limites valem depois disso.
       operationId: cadastro
       security: []
@@ -177,9 +179,10 @@ paths:
                 nome: { type: string, minLength: 1, maxLength: 150, example: Maria da Silva }
                 email: { type: string, format: email, maxLength: 150, example: maria@exemplo.com }
                 senha: { type: string, format: password, minLength: 8, maxLength: 200 }
+                perfil: { type: string, enum: [comprador, artesao], default: comprador }
       responses:
         "201":
-          description: Conta criada e sessão iniciada
+          description: Conta criada. O cookie de sessão é enviado apenas ao comprador.
           headers:
             Set-Cookie:
               $ref: "#/components/headers/SetCookieSessao"
@@ -482,7 +485,7 @@ paths:
         Todos os artesãos, em ordem alfabética do nome (pt-BR). `tecnicas` são as técnicas distintas dos produtos
         do artesão e `totalProdutos`, quantos produtos ele tem. `temLogin` diz só se a conta tem senha cadastrada:
         a consulta não lê o hash nem o e-mail, e nenhum dos dois sai na resposta.
-        `dataCadastro` é a data de cadastro do usuário do artesão.
+        `aprovado` informa a decisão persistida da curadoria e `dataCadastro` a data do cadastro do usuário.
       operationId: listarArtesaosAdmin
       security:
         - cookieSessao: []
@@ -499,6 +502,42 @@ paths:
           $ref: "#/components/responses/NaoAutenticado"
         "403":
           $ref: "#/components/responses/SemPermissao"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
+  /artesaos/{id}/aprovacao:
+    patch:
+      tags: [Administração]
+      summary: Aprovar um cadastro de artesão
+      description: |
+        **Perfis exigidos:** `admin`. Sem sessão responde 401; com outro perfil, 403.
+        Persiste a aprovação do cadastro. Repetir a aprovação produz o mesmo resultado.
+      operationId: aprovarArtesao
+      security:
+        - cookieSessao: []
+      x-perfis: [admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID do artesão ou id legado
+          schema: { type: string, example: a2 }
+      responses:
+        "204":
+          description: Cadastro aprovado
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "404":
+          description: Artesão não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
         "500":
           $ref: "#/components/responses/ErroInterno"
 
@@ -1016,7 +1055,7 @@ components:
     ArtesaoAdmin:
       type: object
       additionalProperties: false
-      required: [id, usuarioId, nome, regiaoOrigem, tecnicas, totalProdutos, temLogin, dataCadastro]
+      required: [id, usuarioId, nome, regiaoOrigem, tecnicas, totalProdutos, temLogin, aprovado, dataCadastro]
       properties:
         id: { type: string, format: uuid, description: Id do artesão (tabela `artesao`) }
         usuarioId: { type: string, format: uuid, description: Id do usuário do artesão (tabela `usuario`) }
@@ -1028,6 +1067,7 @@ components:
           items: { type: string, example: Têxtil }
         totalProdutos: { type: integer, minimum: 0, example: 1 }
         temLogin: { type: boolean, description: "true se a conta tem senha cadastrada (o hash nunca sai da API)" }
+        aprovado: { type: boolean, description: "true se o cadastro do artesão foi aprovado" }
         dataCadastro: { type: string, format: date, example: "2025-05-10" }
 
     OpcoesFiltros:

@@ -17,3 +17,7 @@ COMMENT ON COLUMN usuario.senha_hash IS 'Hash scrypt da senha (scrypt$N$r$p$sal$
 UPDATE usuario SET senha_hash = 'scrypt$16384$8$1$93PjQC0sGxzdlOBVOUvvng==$OMii1lBhjaylRU8jDH4LYp+mjqaOfnwzrXsNatHItn+L7tK1s2PIP2ttG2dlT2MKthxs+JsKRYifY+jvBJxsAw==' WHERE email = 'ana.beatriz@raizespe.dev';
 UPDATE usuario SET senha_hash = 'scrypt$16384$8$1$uHM1beFG0OAHCxAfLfNoeQ==$yOGAxgXv4WZuKs7YYBbqImlFVnya63eBr2vENlJqTpypwFxWDxf4hjXoNYhfi9Zz5GfIbY1dwTQ5t1AMJZDZIA==' WHERE email = 'tacaratu@raizespe.dev';
 UPDATE usuario SET senha_hash = 'scrypt$16384$8$1$dUB+izSr2wyrn8GAyQgrmw==$NZvv5SqCKOUdI6aL2z7qobwZwg43sOFPk7R+2dHybl8m/bmbtC43OgV84UVrK3siFKpTzhQhCrcWjmFLJNGgGA==' WHERE email = 'admin@raizespe.dev';
+
+-- A conta de demonstração permanece habilitada quando a carga é feita após as migrations.
+UPDATE artesao SET aprovado = true
+ WHERE usuario_id = (SELECT id FROM usuario WHERE email = 'tacaratu@raizespe.dev');
