@@ -178,6 +178,7 @@ export interface EstatisticasPainel {
 // GET /api/artesaos (só admin), igual no Express e no fallback do Next. Nunca traz e-mail
 // nem hash: temLogin só diz se a conta tem senha cadastrada.
 export interface ArtesaoAdmin {
+  ativo: boolean;
   id: string;
   usuarioId: string;
   nome: string;

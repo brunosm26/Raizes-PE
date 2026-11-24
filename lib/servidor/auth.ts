@@ -61,7 +61,7 @@ export async function autenticar(email: string, senha: string): Promise<UsuarioA
     `SELECT u.id, u.nome, u.tipo, u.senha_hash AS "senhaHash", a.aprovado
        FROM origem.usuario u
        LEFT JOIN origem.artesao a ON a.usuario_id = u.id
-      WHERE lower(u.email) = lower($1)`,
+      WHERE lower(u.email) = lower($1) AND u.ativo`,
     [email.trim()]
   );
   const usuario = rows[0];
@@ -123,7 +123,7 @@ export async function obterSessao(): Promise<DadosSessao | null> {
   const dados = await lerToken(jar.get(COOKIE_SESSAO)?.value);
   if (!dados) return null;
   const { rows } = await pool.query<{ nome: string; tipo: TipoUsuario }>(
-    `SELECT nome, tipo FROM origem.usuario WHERE id = $1`,
+    `SELECT nome, tipo FROM origem.usuario WHERE id = $1 AND ativo`,
     [dados.id]
   );
   if (!rows[0] || rows[0].tipo !== dados.tipo) return null;

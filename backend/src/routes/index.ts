@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { artesaoRoutes } from "./artesaoRoutes";
+import { atividadeAdminRoutes } from "./atividadeAdminRoutes";
 import { authRoutes } from "./authRoutes";
 import { filtroRoutes } from "./filtroRoutes";
 import { notificacaoRoutes } from "./notificacaoRoutes";
@@ -15,6 +16,7 @@ export const rotas = Router();
 rotas.use("/saude", saudeRoutes);
 rotas.use("/saude-bd", saudeBdRoutes);
 rotas.use("/auth", authRoutes);
+rotas.use("/admin/atividade", atividadeAdminRoutes);
 rotas.use("/produtos", produtoRoutes);
 rotas.use("/artesaos", artesaoRoutes);
 rotas.use("/filtros", filtroRoutes);

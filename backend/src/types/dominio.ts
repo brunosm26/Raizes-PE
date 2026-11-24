@@ -98,6 +98,7 @@ export interface EstatisticasPainel {
 
 // GET /api/artesaos (só admin). Nunca traz e-mail nem hash: temLogin é calculado no SQL.
 export interface ArtesaoAdmin {
+  ativo: boolean;
   id: string;
   usuarioId: string;
   nome: string;

@@ -25,7 +25,7 @@ export async function buscarPorId(id: string): Promise<DadosArtesao | null> {
             COALESCE(a.biografia, '')     AS biografia
        FROM origem.artesao a
        JOIN origem.usuario u ON u.id = a.usuario_id
-      WHERE a.id = $1`,
+      WHERE a.id = $1 AND u.ativo`,
     [id]
   );
   return rows[0] ?? null;
@@ -39,6 +39,7 @@ export const SQL_ARTESAOS_ADMIN = `
   SELECT a.id,
          a.usuario_id                           AS "usuarioId",
          u.nome,
+         u.ativo,
          COALESCE(a.regiao_origem, '')          AS "regiaoOrigem",
          COALESCE(array_agg(DISTINCT p.tecnica)
                     FILTER (WHERE p.tecnica IS NOT NULL AND btrim(p.tecnica) <> ''), '{}') AS tecnicas,
@@ -57,7 +58,9 @@ export async function listarParaAdmin(): Promise<ArtesaoAdmin[]> {
 }
 
 // Regiões cadastradas, cruas: o service tira espaços, vazias e repetidas e ordena.
-export const SQL_REGIOES = `SELECT DISTINCT regiao_origem AS valor FROM origem.artesao WHERE regiao_origem IS NOT NULL`;
+export const SQL_REGIOES = `SELECT DISTINCT a.regiao_origem AS valor
+  FROM origem.artesao a JOIN origem.usuario u ON u.id = a.usuario_id
+  WHERE a.regiao_origem IS NOT NULL AND u.ativo`;
 
 export async function listarRegioes(): Promise<string[]> {
   const { rows } = await executorPadrao().query<{ valor: string }>(SQL_REGIOES);

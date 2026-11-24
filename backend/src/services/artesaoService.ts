@@ -10,6 +10,7 @@ import { compararPtBr } from "../utils/ordenacao";
 function paraItem(a: ArtesaoAdmin): ArtesaoAdmin {
   return {
     id: a.id,
+    ativo: a.ativo === true,
     usuarioId: a.usuarioId,
     nome: a.nome,
     regiaoOrigem: a.regiaoOrigem,

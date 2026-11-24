@@ -5,14 +5,14 @@ import { executorPadrao, type Executor } from "./transacao";
 
 export async function buscarNomeETipo(id: string): Promise<{ nome: string; tipo: TipoUsuario } | null> {
   const { rows } = await executorPadrao().query<{ nome: string; tipo: TipoUsuario }>(
-    `SELECT nome, tipo FROM origem.usuario WHERE id = $1`,
+    `SELECT nome, tipo FROM origem.usuario WHERE id = $1 AND ativo`,
     [id]
   );
   return rows[0] ?? null;
 }
 
 export async function ehComprador(id: string, tx: Executor = executorPadrao()): Promise<boolean> {
-  const { rows } = await tx.query(`SELECT 1 FROM origem.usuario WHERE id = $1 AND tipo = 'comprador'`, [id]);
+  const { rows } = await tx.query(`SELECT 1 FROM origem.usuario WHERE id = $1 AND tipo = 'comprador' AND ativo FOR SHARE`, [id]);
   return rows.length > 0;
 }
 
@@ -23,7 +23,7 @@ export async function buscarPorEmail(
     `SELECT u.id, u.nome, u.tipo, u.senha_hash AS "senhaHash", a.aprovado
        FROM origem.usuario u
        LEFT JOIN origem.artesao a ON a.usuario_id = u.id
-      WHERE lower(u.email) = lower($1)`,
+      WHERE lower(u.email) = lower($1) AND u.ativo`,
     [email]
   );
   return rows[0] ?? null;

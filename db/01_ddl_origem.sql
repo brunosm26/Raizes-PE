@@ -33,6 +33,7 @@ SET search_path TO origem;
 
 -- 1.1 usuario ----------------------------------------------------------
 CREATE TABLE usuario (
+    ativo         BOOLEAN      NOT NULL DEFAULT true,
     id            UUID         NOT NULL DEFAULT gen_random_uuid(),
     nome          VARCHAR(150) NOT NULL,
     email         VARCHAR(150) NOT NULL,
@@ -60,6 +61,7 @@ CREATE TABLE artesao (
 
 -- 1.3 produto -----------------------------------------------------------
 CREATE TABLE produto (
+    ativo         BOOLEAN       NOT NULL DEFAULT true,
     id            UUID          NOT NULL DEFAULT gen_random_uuid(),
     artesao_id    UUID          NOT NULL,
     nome          VARCHAR(150)  NOT NULL,

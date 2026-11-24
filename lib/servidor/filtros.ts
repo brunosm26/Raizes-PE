@@ -6,8 +6,14 @@ import { pool } from "@/lib/db";
 import { normalizarOpcoes } from "@/lib/servidor/ordenacao";
 import { TECNICAS, type OpcoesFiltros } from "@/lib/tipos";
 
-export const SQL_REGIOES = `SELECT DISTINCT regiao_origem AS valor FROM origem.artesao WHERE regiao_origem IS NOT NULL`;
-export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL`;
+export const SQL_REGIOES = `SELECT DISTINCT a.regiao_origem AS valor
+  FROM origem.artesao a JOIN origem.usuario u ON u.id = a.usuario_id
+  WHERE a.regiao_origem IS NOT NULL AND u.ativo`;
+export const SQL_CATEGORIAS = `SELECT DISTINCT p.categoria AS valor
+  FROM origem.produto p
+  JOIN origem.artesao a ON a.id = p.artesao_id
+  JOIN origem.usuario u ON u.id = a.usuario_id
+  WHERE p.categoria IS NOT NULL AND p.ativo AND u.ativo`;
 
 async function valores(sql: string): Promise<string[]> {
   const { rows } = await pool.query<{ valor: string }>(sql);

@@ -1,7 +1,7 @@
 -- =====================================================================
 -- ORIGEM | DDL FINAL (schema origem, sem dados)
 -- ARQUIVO GERADO: não edite. A fonte da verdade são as migrations do Prisma em
--- backend/prisma/migrations (0_init, 1_regras_sql, 20261124060300_aprovacao_artesao).
+-- backend/prisma/migrations (0_init, 1_regras_sql, 20261124060300_aprovacao_artesao, 20261124073000_atividade_administrativa).
 -- Para regenerar: cd backend && npm run db:ddl
 -- Para conferir se está atualizado: npm run db:ddl -- --conferir
 --
@@ -465,5 +465,15 @@ UPDATE "origem"."artesao" AS a
  WHERE u."id" = a."usuario_id" AND u."senha_hash" IS NOT NULL;
 
 -- <<< fim da migration 20261124060300_aprovacao_artesao
+
+-- >>> migration 20261124073000_atividade_administrativa
+
+-- AlterTable
+ALTER TABLE "origem"."usuario" ADD COLUMN     "ativo" BOOLEAN NOT NULL DEFAULT true;
+
+-- AlterTable
+ALTER TABLE "origem"."produto" ADD COLUMN     "ativo" BOOLEAN NOT NULL DEFAULT true;
+
+-- <<< fim da migration 20261124073000_atividade_administrativa
 
 COMMIT;

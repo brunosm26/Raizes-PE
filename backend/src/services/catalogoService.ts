@@ -45,7 +45,7 @@ export async function listarProdutos(filtros: {
 
 export async function buscarProduto(idBruto: string): Promise<ProdutoComArtesao | null> {
   const id = resolverId(idBruto);
-  return ehUuid(id) ? produtoRepository.buscarPorId(id) : null;
+  return ehUuid(id) ? produtoRepository.buscarPorId(id, true) : null;
 }
 
 export async function listarRelacionados(idBruto: string, limite: number): Promise<ProdutoComArtesao[]> {

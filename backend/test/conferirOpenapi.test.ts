@@ -64,7 +64,7 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
     caminho === "/api/pedidos" ||
     caminho === "/api/notificacoes" ||
     caminho === "/api/painel/estatisticas" ||
-    caminho === "/api/artesaos";
+    caminho === "/api/artesaos" || caminho!.startsWith("/api/admin/atividade");
   if (protegida && !perfil) return { status: 401, corpo: { ok: false, erro: "Faça login para continuar." } };
   if (caminho === "/api/pedidos") return { status: 200, corpo: [] };
   if (caminho === "/api/notificacoes") {
@@ -75,6 +75,11 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
   if (caminho === "/api/painel/estatisticas") {
     return perfisDoPainel.includes(perfil!)
       ? { status: 200, corpo: ESTATISTICAS }
+      : { status: 403, corpo: { ok: false, erro: "Seu perfil não tem permissão para esta ação." } };
+  }
+  if (caminho === "/api/admin/atividade") {
+    return perfil === "admin"
+      ? { status: 200, corpo: { usuarios: [], produtos: [] } }
       : { status: 403, corpo: { ok: false, erro: "Seu perfil não tem permissão para esta ação." } };
   }
   if (caminho === "/api/artesaos") {
@@ -169,6 +174,7 @@ describe("conferir-openapi", () => {
     assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined || r.bytes > 0), []);
     const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}$/, "/{id}")}`);
     assert.deepEqual(escritas.sort(), [
+      "PATCH /api/admin/atividade/produtos/{id}",
       "PATCH /api/pedidos/{id}",
       "PATCH /api/produtos/{id}",
       "POST /api/notificacoes/ler",
@@ -210,7 +216,7 @@ describe("conferir-openapi", () => {
       assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined && r.metodo !== "GET"), []);
       const escritas = recebidas.filter((r) => r.metodo !== "GET" && r.url !== "/api/auth/login");
       assert.equal(escritas.every((r) => r.cookie === undefined && r.bytes === 0), true);
-      assert.equal(escritas.length, 5);
+      assert.equal(escritas.length, 6);
       assert.equal(recebidas.some((r) => r.url.includes("/auth/cadastro") || r.url.includes("/auth/logout")), false);
     });
 
