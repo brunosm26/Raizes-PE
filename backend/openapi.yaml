@@ -502,6 +502,79 @@ paths:
         "500":
           $ref: "#/components/responses/ErroInterno"
 
+  /artesaos/me:
+    get:
+      tags: [Catálogo]
+      summary: Consultar o próprio perfil de artesão
+      description: "**Perfis exigidos:** `artesao`. Sem sessão responde 401; com outro perfil, 403."
+      operationId: buscarMeuPerfilArtesao
+      security:
+        - cookieSessao: []
+      x-perfis: [artesao]
+      responses:
+        "200":
+          description: Dados públicos do perfil da própria conta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DadosPublicosArtesao" }
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "404":
+          description: Perfil de artesão não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+    patch:
+      tags: [Catálogo]
+      summary: Atualizar o próprio perfil de artesão
+      description: |
+        **Perfis exigidos:** `artesao`. Sem sessão responde 401; com outro perfil, 403.
+        Atualiza a localidade e a biografia. Omitir a foto mantém a atual; enviar `null` remove a foto.
+      operationId: editarMeuPerfilArtesao
+      security:
+        - cookieSessao: []
+      x-perfis: [artesao]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [regiaoOrigem, biografia]
+              properties:
+                regiaoOrigem: { type: string, maxLength: 100 }
+                biografia: { type: string, maxLength: 3000 }
+                fotoUrl:
+                  type: string
+                  nullable: true
+                  maxLength: 2800000
+                  description: Data URL de foto JPG, PNG ou WEBP de até 2 MB
+      responses:
+        "200":
+          description: Dados públicos do perfil da própria conta
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DadosPublicosArtesao" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "404":
+          description: Perfil de artesão não encontrado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
   /artesaos/{id}:
     get:
       tags: [Catálogo]
@@ -1001,17 +1074,25 @@ components:
         media: { type: number, format: double, minimum: 0, maximum: 5, example: 4.5 }
         quantidade: { type: integer, minimum: 0, example: 2 }
 
-    PerfilArtesao:
+    DadosPublicosArtesao:
       type: object
-      required: [id, nome, regiaoOrigem, biografia, produtos]
+      required: [id, nome, regiaoOrigem, biografia, fotoUrl]
       properties:
         id: { type: string, format: uuid }
         nome: { type: string }
         regiaoOrigem: { type: string, example: Tacaratu }
         biografia: { type: string }
-        produtos:
-          type: array
-          items: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        fotoUrl: { type: string, nullable: true }
+
+    PerfilArtesao:
+      allOf:
+        - $ref: "#/components/schemas/DadosPublicosArtesao"
+        - type: object
+          required: [produtos]
+          properties:
+            produtos:
+              type: array
+              items: { $ref: "#/components/schemas/ProdutoComArtesao" }
 
     ArtesaoAdmin:
       type: object

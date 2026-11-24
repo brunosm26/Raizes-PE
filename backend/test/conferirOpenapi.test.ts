@@ -9,6 +9,7 @@ import { camposNaoDocumentados, CONTAS_DEMO, conferir, exigirHostLocal, lerRotas
 
 const ID = "30000000-0000-4000-8000-000000000001";
 const ARTESAO = "20000000-0000-4000-8000-000000000001";
+const PERFIL_ARTESAO = { id: ARTESAO, nome: "A", regiaoOrigem: "R", biografia: "B", fotoUrl: null };
 const SEGREDO = "valor-que-nao-pode-aparecer";
 const PRODUTO = {
   id: ID,
@@ -64,7 +65,8 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
     caminho === "/api/pedidos" ||
     caminho === "/api/notificacoes" ||
     caminho === "/api/painel/estatisticas" ||
-    caminho === "/api/artesaos";
+    caminho === "/api/artesaos" ||
+    caminho === "/api/artesaos/me";
   if (protegida && !perfil) return { status: 401, corpo: { ok: false, erro: "Faça login para continuar." } };
   if (caminho === "/api/pedidos") return { status: 200, corpo: [] };
   if (caminho === "/api/notificacoes") {
@@ -80,6 +82,12 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
   if (caminho === "/api/artesaos") {
     return perfil === "admin"
       ? { status: 200, corpo: [] }
+      : { status: 403, corpo: { ok: false, erro: "Seu perfil não tem permissão para esta ação." } };
+  }
+
+  if (caminho === "/api/artesaos/me") {
+    return perfil === "artesao"
+      ? { status: 200, corpo: PERFIL_ARTESAO }
       : { status: 403, corpo: { ok: false, erro: "Seu perfil não tem permissão para esta ação." } };
   }
 
@@ -101,7 +109,7 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
   }
   if (caminho === `/api/produtos/${ID}`) return { status: 200, corpo: produtoServido };
   if (caminho === `/api/artesaos/${ARTESAO}`) {
-    return { status: 200, corpo: { id: ARTESAO, nome: "A", regiaoOrigem: "R", biografia: "B", produtos: [produtoServido] } };
+    return { status: 200, corpo: { ...PERFIL_ARTESAO, produtos: [produtoServido] } };
   }
   if (/^\/api\/produtos\/[^/]+\/relacionados$/.test(caminho!)) return { status: 200, corpo: [] };
   if (/^\/api\/produtos\/[^/]+\/avaliacoes$/.test(caminho!)) return { status: 200, corpo: { media: 0, quantidade: 0 } };
@@ -169,6 +177,7 @@ describe("conferir-openapi", () => {
     assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined || r.bytes > 0), []);
     const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}$/, "/{id}")}`);
     assert.deepEqual(escritas.sort(), [
+      "PATCH /api/artesaos/me",
       "PATCH /api/pedidos/{id}",
       "PATCH /api/produtos/{id}",
       "POST /api/notificacoes/ler",
@@ -210,7 +219,7 @@ describe("conferir-openapi", () => {
       assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined && r.metodo !== "GET"), []);
       const escritas = recebidas.filter((r) => r.metodo !== "GET" && r.url !== "/api/auth/login");
       assert.equal(escritas.every((r) => r.cookie === undefined && r.bytes === 0), true);
-      assert.equal(escritas.length, 5);
+      assert.equal(escritas.length, 6);
       assert.equal(recebidas.some((r) => r.url.includes("/auth/cadastro") || r.url.includes("/auth/logout")), false);
     });
 

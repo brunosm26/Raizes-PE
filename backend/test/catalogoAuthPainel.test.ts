@@ -123,6 +123,47 @@ describe("auth, catálogo, recomendações e painel: com banco", () => {
     assert.equal((await fetch(`${api.url}/artesaos/a999`)).status, 404);
   });
 
+  itComBanco("artesão edita sua foto, biografia e localidade e o comprador vê a atualização", async () => {
+    const cookie = await api.cookie(USUARIOS.artesao);
+    const comprador = await api.cookie(USUARIOS.comprador);
+    const rota = `${api.url}/artesaos/me`;
+    const atual = await fetch(rota, { headers: { cookie } });
+    assert.equal(atual.status, 200);
+    const original = await atual.json();
+    const outroAntes = await (await fetch(`${api.url}/artesaos/a1`)).json();
+    const fotoUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jhbkAAAAASUVORK5CYII=";
+    const campos = { regiaoOrigem: "Petrolina", biografia: "Perfil atualizado no TC35.", fotoUrl };
+    const editar = (corpo: object, sessao = cookie) =>
+      fetch(rota, { method: "PATCH", ...json(corpo, sessao) });
+
+    try {
+      assert.equal((await editar(campos, comprador)).status, 403);
+      assert.equal((await editar({ ...campos, fotoUrl: "data:image/svg+xml;base64,AAAA" })).status, 400);
+      const alterado = await editar({ ...campos, id: outroAntes.id });
+      assert.equal(alterado.status, 200);
+      assert.deepEqual(await alterado.json(), { ...original, ...campos });
+
+      const recarga = await fetch(rota, { headers: { cookie } });
+      assert.deepEqual(await recarga.json(), { ...original, ...campos });
+      const publico = await fetch(`${api.url}/artesaos/${original.id}`, { headers: { cookie: comprador } });
+      assert.equal(publico.status, 200);
+      const perfil = await publico.json();
+      assert.equal(perfil.regiaoOrigem, campos.regiaoOrigem);
+      assert.equal(perfil.biografia, campos.biografia);
+      assert.equal(perfil.fotoUrl, campos.fotoUrl);
+      assert.deepEqual(await (await fetch(`${api.url}/artesaos/a1`)).json(), outroAntes);
+
+      const manter = await editar({ regiaoOrigem: campos.regiaoOrigem, biografia: campos.biografia });
+      assert.equal((await manter.json()).fotoUrl, fotoUrl);
+      const remover = await editar({ ...campos, fotoUrl: null });
+      assert.equal((await remover.json()).fotoUrl, null);
+    } finally {
+      const restaurado = await editar(original);
+      assert.equal(restaurado.status, 200);
+      await restaurado.body?.cancel();
+    }
+  });
+
   itComBanco("recomendações: visitante recebe cold start, comprador recebe pela sessão", async () => {
     const visitante = await (await fetch(`${api.url}/recomendacoes?limite=2`)).json();
     assert.equal(visitante.sucesso, true);

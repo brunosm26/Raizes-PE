@@ -3,6 +3,7 @@
 import { pool } from "@/lib/db";
 import { ehUuid, resolverId } from "@/lib/idsLegados";
 import type {
+  DadosPublicosArtesao,
   PerfilArtesao,
   ProdutoComArtesao,
   ResumoAvaliacoes,
@@ -128,15 +129,11 @@ export async function resumirAvaliacoes(idBruto: string): Promise<ResumoAvaliaco
 export async function buscarPerfilArtesao(idBruto: string): Promise<PerfilArtesao | null> {
   const id = resolverId(idBruto);
   if (!ehUuid(id)) return null;
-  const { rows } = await pool.query<{
-    id: string;
-    nome: string;
-    regiaoOrigem: string;
-    biografia: string;
-  }>(
+  const { rows } = await pool.query<DadosPublicosArtesao>(
     `SELECT a.id, u.nome,
             COALESCE(a.regiao_origem, '') AS "regiaoOrigem",
-            COALESCE(a.biografia, '')     AS biografia
+            COALESCE(a.biografia, '')     AS biografia,
+            a.foto_url                    AS "fotoUrl"
        FROM origem.artesao a
        JOIN origem.usuario u ON u.id = a.usuario_id
       WHERE a.id = $1`,

@@ -257,7 +257,7 @@ Alguns testes unitários sem banco: `rankingRecomendacao.test.ts` (regra de pont
 
 Os testes de integração sobem o app numa porta livre e chamam as rotas de verdade. Sem configuração, rodam os testes que não usam banco (401, 403, 400, 404, spec x rotas, JWT, trava do banco). Os que usam banco aparecem como pulados, com um aviso dizendo quantos foram e como habilitar.
 
-Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/01`, `04`, `05`, `06` e `07`, ou com as migrations (`npm run db:migrar-descartavel`) mais as cargas `05` e `07` (seção [Migrations](#migrations)). A suíte completa passa nos dois casos (PI4-147). **Nunca** aponte para o Neon do time. A variável vai **no terminal**, não no `backend/.env` (os testes não leem o `.env` para ela):
+Os testes que gravam pedidos, produtos e usuários só rodam com `TEST_DATABASE_URL` apontando para um banco **descartável** carregado com `db/ddl_final.sql` ou com as migrations (`npm run db:migrar-descartavel`), seguidos das cargas `05` e `07` (seção [Migrations](#migrations)). A suíte completa passa nos dois casos (PI4-147). **Nunca** aponte para o Neon do time. A variável vai **no terminal**, não no `backend/.env` (os testes não leem o `.env` para ela):
 
 ```bash
 # cmd
