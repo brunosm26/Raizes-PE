@@ -69,6 +69,7 @@ export interface ItemPedidoComProduto {
   produtoTecnica: Tecnica;
   artesaoUsuarioId?: string;
   artesaoNome?: string;
+  notaAvaliacao?: number;
 }
 
 export interface PedidoComItens extends Pedido {

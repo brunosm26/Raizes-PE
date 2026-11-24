@@ -10,3 +10,4 @@ produtoRoutes.get("/:id", produtoController.buscar);
 produtoRoutes.patch("/:id", exigirSessao(["artesao", "admin"]), produtoController.editar);
 produtoRoutes.get("/:id/relacionados", produtoController.relacionados);
 produtoRoutes.get("/:id/avaliacoes", produtoController.avaliacoes);
+produtoRoutes.post("/:id/avaliacoes", exigirSessao(["comprador"]), produtoController.avaliar);

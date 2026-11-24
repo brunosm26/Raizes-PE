@@ -167,13 +167,14 @@ describe("conferir-openapi", () => {
   it("não manda cookie nem corpo, e só sai do GET nas rotas protegidas", async () => {
     await rodar(PRODUTO);
     assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined || r.bytes > 0), []);
-    const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}$/, "/{id}")}`);
+    const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}(?=\/|$)/, "/{id}")}`);
     assert.deepEqual(escritas.sort(), [
       "PATCH /api/pedidos/{id}",
       "PATCH /api/produtos/{id}",
       "POST /api/notificacoes/ler",
       "POST /api/pedidos",
       "POST /api/produtos",
+      "POST /api/produtos/{id}/avaliacoes",
     ]);
     assert.equal(recebidas.some((r) => r.url.includes("/auth/login") || r.url.includes("/auth/cadastro")), false);
   });
@@ -210,7 +211,7 @@ describe("conferir-openapi", () => {
       assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined && r.metodo !== "GET"), []);
       const escritas = recebidas.filter((r) => r.metodo !== "GET" && r.url !== "/api/auth/login");
       assert.equal(escritas.every((r) => r.cookie === undefined && r.bytes === 0), true);
-      assert.equal(escritas.length, 5);
+      assert.equal(escritas.length, 6);
       assert.equal(recebidas.some((r) => r.url.includes("/auth/cadastro") || r.url.includes("/auth/logout")), false);
     });
 

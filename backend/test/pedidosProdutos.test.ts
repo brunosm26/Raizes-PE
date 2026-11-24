@@ -93,6 +93,57 @@ describe("pedidos e produtos: com banco", () => {
     return { status: r.status, corpo: resposta };
   }
 
+  itComBanco("avalia uma única vez um produto de pedido próprio entregue", async () => {
+    const comprador = await api.cookie(USUARIOS.comprador);
+    const artesao = await api.cookie(USUARIOS.artesao);
+    const admin = await api.cookie(USUARIOS.admin);
+    const outroComprador = await api.cookie({
+      id: "10000000-0000-4000-8000-000000000008", nome: "Carlos Andrade", tipo: "comprador",
+    });
+    const produto = await criar("/produtos", {
+      nome: "Produto do teste de avaliação", descricao: "Peça artesanal",
+      tecnica: "Cerâmica", categoria: "Decoração", preco: 50, estoqueQtd: 2,
+    }, artesao);
+    assert.equal(produto.status, 201);
+    const produtoId = produto.corpo.id;
+    const url = `${api.url}/produtos/${produtoId}/avaliacoes`;
+
+    async function avaliar(cookie?: string, nota: unknown = 4) {
+      const resposta = await fetch(url, { method: "POST", ...json({ nota }, cookie) });
+      return { status: resposta.status, corpo: await resposta.json() };
+    }
+
+    const pedido = await criar("/pedidos", { itens: [{ produtoId, quantidade: 1 }] }, comprador);
+    assert.equal(pedido.status, 201);
+    assert.equal((await avaliar()).status, 401);
+    assert.equal((await avaliar(artesao)).status, 403);
+    assert.equal((await avaliar(comprador, "4")).status, 400);
+    assert.equal((await avaliar(comprador, 4.5)).status, 400);
+    assert.equal((await avaliar(comprador, 6)).status, 400);
+    assert.equal((await avaliar(comprador)).status, 403);
+
+    for (const status of ["enviado", "entregue"]) {
+      const resposta = await fetch(`${api.url}/pedidos/${pedido.corpo.id}`, {
+        method: "PATCH", ...json({ status }, admin),
+      });
+      assert.equal(resposta.status, 200, await resposta.text());
+      if (status === "enviado") assert.equal((await avaliar(comprador)).status, 403);
+    }
+    assert.equal((await avaliar(outroComprador)).status, 403);
+
+    const envios = await Promise.all([avaliar(comprador), avaliar(comprador)]);
+    assert.deepEqual(envios.map((r) => r.status).sort(), [201, 409]);
+    assert.deepEqual(await (await fetch(url)).json(), { media: 4, quantidade: 1 });
+
+    for (const cookie of [comprador, artesao, admin]) {
+      const resposta = await fetch(`${api.url}/pedidos`, { headers: { cookie } });
+      assert.equal(resposta.status, 200);
+      const pedidos = await resposta.json();
+      const nota = pedidos.find((p: { id: string }) => p.id === pedido.corpo.id).itens[0].notaAvaliacao;
+      assert.equal(nota, cookie === comprador ? 4 : undefined);
+    }
+  });
+
   itComBanco("comprador cria pedido (201), total vem do banco e o estoque baixa", async () => {
     const cookie = await api.cookie(USUARIOS.comprador);
     const antes = await (await fetch(`${api.url}/pedidos`, { headers: { cookie } })).json();

@@ -132,6 +132,7 @@ export interface ItemPedidoComProduto extends ItemPedido {
   // Preenchidos quando o pedido vem do banco: quem vende o item (usuário do artesão).
   artesaoUsuarioId?: string;
   artesaoNome?: string;
+  notaAvaliacao?: number;
 }
 
 export interface PedidoComItens extends Pedido {

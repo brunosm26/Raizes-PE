@@ -2,6 +2,7 @@
 
 import { Box, Button, Flex, HStack, Text, VStack } from "@chakra-ui/react";
 import { FiTruck } from "react-icons/fi";
+import FormularioAvaliacao from "@/components/FormularioAvaliacao";
 import EtiquetaStatusPedido from "@/components/EtiquetaStatusPedido";
 import { numeroPedido } from "@/lib/idsLegados";
 import type { PedidoComItens } from "@/lib/tipos";
@@ -17,12 +18,17 @@ export default function LinhaPedido({
   pedido,
   mostrarComprador = false,
   aoEnviar,
+  aoAvaliar,
+  produtosAvaliados,
 }: {
   pedido: PedidoComItens;
   mostrarComprador?: boolean;
   aoEnviar?: (pedidoId: string) => void;
+  aoAvaliar?: (produtoId: string) => void;
+  produtosAvaliados?: ReadonlySet<string>;
 }) {
   const podeEnviar = pedido.status === "pendente" || pedido.status === "pago";
+  const permiteAvaliar = pedido.status === "entregue" && aoAvaliar;
   const totalDePecas = pedido.itens.reduce((soma, item) => soma + item.quantidade, 0);
 
   return (
@@ -51,13 +57,28 @@ export default function LinhaPedido({
 
       <VStack align="stretch" spacing={1} mb={aoEnviar && podeEnviar ? 3 : 0}>
         {pedido.itens.map((item) => (
-          <Text key={item.id} fontSize="0.86rem" color="mutedFg">
-            {item.quantidade} × {item.produtoNome}
-            <Text as="span" fontSize="0.78rem">
-              {" "}
-              ({item.produtoTecnica})
+          <Box key={item.id} pb={permiteAvaliar ? 2 : 0}>
+            <Text fontSize="0.86rem" color="mutedFg">
+              {item.quantidade} × {item.produtoNome}
+              <Text as="span" fontSize="0.78rem">
+                {" "}
+                ({item.produtoTecnica})
+              </Text>
             </Text>
-          </Text>
+            {permiteAvaliar && (
+              <Box mt={1}>
+                {item.notaAvaliacao || produtosAvaliados?.has(item.produtoId) ? (
+                  <Text fontSize="sm" role="status">Produto avaliado</Text>
+                ) : (
+                  <FormularioAvaliacao
+                    produtoId={item.produtoId}
+                    produtoNome={item.produtoNome}
+                    aoAvaliar={permiteAvaliar}
+                  />
+                )}
+              </Box>
+            )}
+          </Box>
         ))}
       </VStack>
 

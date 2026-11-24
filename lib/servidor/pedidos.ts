@@ -31,7 +31,8 @@ interface LinhaItem extends Omit<ItemPedidoComProduto, "produtoTecnica"> {
 async function carregar(
   filtroSql: string,
   valores: unknown[],
-  executor: Pick<PoolClient, "query"> = pool
+  executor: Pick<PoolClient, "query"> = pool,
+  compradorDaAvaliacao?: string
 ): Promise<PedidoComItens[]> {
   const { rows: pedidos } = await executor.query<LinhaPedido>(
     `SELECT pe.id,
@@ -57,20 +58,23 @@ async function carregar(
             p.nome                      AS "produtoNome",
             p.tecnica                   AS "produtoTecnica",
             a.usuario_id                AS "artesaoUsuarioId",
-            ua.nome                     AS "artesaoNome"
+            ua.nome                     AS "artesaoNome",
+            av.nota                     AS "notaAvaliacao"
        FROM origem.item_pedido ip
        JOIN origem.produto p  ON p.id = ip.produto_id
        JOIN origem.artesao a  ON a.id = p.artesao_id
        JOIN origem.usuario ua ON ua.id = a.usuario_id
+       LEFT JOIN origem.avaliacao av ON av.produto_id = ip.produto_id AND av.comprador_id = $2::uuid
       WHERE ip.pedido_id = ANY($1::uuid[])
       ORDER BY p.nome, ip.id`,
-    [pedidos.map((p) => p.id)]
+    [pedidos.map((p) => p.id), compradorDaAvaliacao ?? null]
   );
 
   const porPedido = new Map<string, LinhaItem[]>();
   for (const item of itens) {
     const lista = porPedido.get(item.pedidoId) ?? [];
-    lista.push(item);
+    const { notaAvaliacao, ...dados } = item;
+    lista.push(notaAvaliacao == null ? dados : { ...dados, notaAvaliacao });
     porPedido.set(item.pedidoId, lista);
   }
   return pedidos.map((p) => ({ ...p, itens: porPedido.get(p.id) ?? [] }));
@@ -80,7 +84,7 @@ export async function listarPedidos(compradorIdBruto?: string): Promise<PedidoCo
   if (!compradorIdBruto) return carregar("", []);
   const compradorId = resolverId(compradorIdBruto);
   if (!ehUuid(compradorId)) return [];
-  return carregar("WHERE pe.comprador_id = $1", [compradorId]);
+  return carregar("WHERE pe.comprador_id = $1", [compradorId], undefined, compradorId);
 }
 
 // Pedidos que têm ao menos um item de produto deste artesão (painel do artesão).
