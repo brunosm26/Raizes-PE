@@ -32,7 +32,10 @@ export interface Produto {
   imagemUrl?: string;
 }
 
+export type StatusCuradoriaProduto = "pendente" | "aprovado" | "rejeitado";
+
 export interface ProdutoComArtesao extends Produto {
+  statusCuradoria: StatusCuradoriaProduto;
   artesaoNome: string;
   artesaoRegiao: string;
   artesaoUsuarioId?: string;

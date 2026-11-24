@@ -261,9 +261,11 @@ paths:
   /produtos:
     get:
       tags: [Catálogo]
-      summary: Listar produtos (vitrine)
+      summary: Listar produtos
       description: |
-        Ordenados do mais novo para o mais antigo. Todos os filtros são opcionais e se combinam.
+        A vitrine exibe produtos aprovados, ordenados do mais novo para o mais antigo. Os filtros são opcionais e se combinam.
+        Com `visao=gestao`, o artesão autenticado vê os próprios produtos e o admin vê todos, em qualquer estado
+        de curadoria. Essa visão ignora os filtros públicos e usa `Cache-Control: private, no-store`.
         `tecnica`, `categoria` e `regiao` comparam o valor exato; um valor sem correspondência, inclusive uma técnica
         fora da lista, devolve lista vazia, não 400.
 
@@ -271,8 +273,14 @@ paths:
         combinação de filtros (a ordem dos parâmetros não importa). Cadastrar ou editar produto e criar ou mudar
         status de pedido apagam o cache na hora. O header `X-Cache` diz de onde veio.
       operationId: listarProdutos
-      security: []
+      security:
+        - {}
+        - cookieSessao: []
       parameters:
+        - name: visao
+          in: query
+          description: Visão de gestão, restrita a artesão e admin
+          schema: { type: string, enum: [gestao] }
         - name: tecnica
           in: query
           schema: { $ref: "#/components/schemas/Tecnica" }
@@ -300,6 +308,10 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
         "500":
           $ref: "#/components/responses/ErroInterno"
     post:
@@ -308,7 +320,7 @@ paths:
       description: |
         **Perfis exigidos:** `artesao`. Sem sessão responde 401; com outro perfil, 403.
 
-        Só **artesão**. O produto é sempre criado na loja do artesão da sessão.
+        Só **artesão**. O produto é criado na loja da sessão e entra pendente de curadoria.
       operationId: criarProduto
       security:
         - cookieSessao: []
@@ -608,7 +620,7 @@ paths:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Produto não encontrado. }
         "409":
-          description: Estoque insuficiente
+          description: Estoque insuficiente ou produto indisponível para compra
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
@@ -944,7 +956,7 @@ components:
 
     ProdutoComArtesao:
       type: object
-      required: [id, artesaoId, nome, descricao, tecnica, categoria, preco, estoqueQtd, dataCadastro, artesaoNome, artesaoRegiao, artesaoUsuarioId]
+      required: [id, artesaoId, nome, descricao, tecnica, categoria, preco, estoqueQtd, dataCadastro, artesaoNome, artesaoRegiao, artesaoUsuarioId, statusCuradoria]
       properties:
         id: { type: string, format: uuid }
         artesaoId: { type: string, format: uuid }
@@ -954,6 +966,7 @@ components:
         categoria: { type: string, example: Vasos }
         preco: { type: number, format: double, example: 185 }
         estoqueQtd: { type: integer, minimum: 0, example: 8 }
+        statusCuradoria: { type: string, enum: [pendente, aprovado, rejeitado] }
         dataCadastro: { type: string, format: date, example: "2025-05-10" }
         imagemUrl:
           type: string

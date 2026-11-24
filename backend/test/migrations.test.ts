@@ -75,10 +75,11 @@ describe("db/ddl_final.sql", () => {
     assert.equal(arquivo, montarDdl());
   });
 
-  it("traz as duas migrations, na ordem, dentro de uma transação", () => {
+  it("traz as migrations, na ordem, dentro de uma transação", () => {
     const ddl = montarDdl();
     const i0 = ddl.indexOf("-- >>> migration 0_init");
     const i1 = ddl.indexOf("-- >>> migration 1_regras_sql");
-    assert.ok(i0 > ddl.indexOf("BEGIN;") && i1 > i0 && ddl.trimEnd().endsWith("COMMIT;"));
+    const curadoria = ddl.indexOf("-- >>> migration 20261124070000_curadoria_produto");
+    assert.ok(i0 > ddl.indexOf("BEGIN;") && i1 > i0 && curadoria > i1 && ddl.trimEnd().endsWith("COMMIT;"));
   });
 });

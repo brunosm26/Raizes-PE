@@ -5,7 +5,7 @@ import type { PoolClient } from "pg";
 import { pool } from "@/lib/db";
 import { ehUuid, resolverId } from "@/lib/idsLegados";
 import type { DadosSessao } from "@/lib/sessao";
-import type { ItemPedidoComProduto, PedidoComItens, StatusPedido, Tecnica } from "@/lib/tipos";
+import type { ItemPedidoComProduto, PedidoComItens, StatusCuradoriaProduto, StatusPedido, Tecnica } from "@/lib/tipos";
 
 export class ErroPedido extends Error {
   constructor(mensagem: string, public status = 400) {
@@ -135,8 +135,9 @@ export async function criarPedido(
       nome: string;
       preco: string;
       estoque: number;
+      statusCuradoria: StatusCuradoriaProduto;
     }>(
-      `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque
+      `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque, status_curadoria AS "statusCuradoria"
          FROM origem.produto
         WHERE id = ANY($1::uuid[])
         ORDER BY id
@@ -147,6 +148,9 @@ export async function criarPedido(
 
     let totalCentavos = 0;
     for (const p of produtos) {
+      if (p.statusCuradoria !== "aprovado") {
+        throw new ErroPedido("Um produto do pedido não está disponível para compra.", 409);
+      }
       const qtd = quantidades.get(p.id) as number;
       if (p.estoque < qtd) {
         throw new ErroPedido(

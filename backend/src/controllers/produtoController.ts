@@ -2,6 +2,7 @@ import type { RequestHandler } from "express";
 import { sessaoDe } from "../middlewares/sessao";
 import { cacheCatalogo, chaveProdutos, invalidarCatalogo } from "../services/cacheCatalogo";
 import * as catalogoService from "../services/catalogoService";
+import * as produtoRepository from "../repositories/produtoRepository";
 import * as produtoService from "../services/produtoService";
 import { ErroHttp } from "../utils/erroHttp";
 import { textoDaQuery } from "../utils/query";
@@ -19,6 +20,13 @@ export const listar: RequestHandler = async (req, res) => {
     catalogoService.listarProdutos(filtros)
   );
   enviarComCache(res, origem, valor);
+};
+
+// GET /api/produtos?visao=gestao (privado, sem cache)
+export const listarParaGestao: RequestHandler = async (req, res) => {
+  const sessao = sessaoDe(req);
+  const produtos = await produtoRepository.listarParaGestao(sessao.tipo === "artesao" ? sessao.id : undefined);
+  res.set("Cache-Control", "private, no-store").json(produtos);
 };
 
 // GET /api/produtos/:id

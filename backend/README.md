@@ -98,6 +98,9 @@ As migrations ficam em `prisma/migrations` (configurado em `prisma.config.ts`) e
 |---|---|---|
 | `0_init` | gerada do `schema.prisma` (`prisma migrate diff --from-empty`) | schema `origem`, 8 tabelas, colunas, defaults, PK, FK e índices |
 | `1_regras_sql` | escrita à mão a partir de `db/01`, `04`, `06` e `07` | o que o Prisma não expressa: UNIQUE como constraint, 13 CHECK, 5 funções, 7 gatilhos (2 adiados para o COMMIT), a view `vw_popularidade_produto`, os perfis `origem_app` e `origem_recomendacao` com os GRANTs, e os comentários |
+| `20261124070000_curadoria_produto` | estado de curadoria e migração do catálogo existente | cria o enum, mantém os produtos anteriores aprovados e define estado inicial pendente para produtos novos |
+
+O painel de gestão lê o estado gravado pelo catálogo. A entrega da base de curadoria deve entrar em produção junto com a ação de aprovação administrativa (TC16), para que os novos produtos tenham um caminho de publicação.
 
 **Perfis de acesso:** roles são globais do servidor PostgreSQL, não de um banco, e podem já existir porque outro banco do mesmo servidor os criou. Por isso a `1_regras_sql` só faz `CREATE ROLE` se o role não existir (`DO $$ ... IF NOT EXISTS (SELECT FROM pg_roles ...)`) e nunca altera um role existente. Os GRANTs são aplicados sempre.
 

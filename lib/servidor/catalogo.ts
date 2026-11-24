@@ -19,6 +19,7 @@ const SELECT_PRODUTO = `
          p.tecnica,
          COALESCE(p.categoria, '')           AS categoria,
          p.preco::float8                     AS preco,
+         p.status_curadoria                  AS "statusCuradoria",
          p.estoque_qtd                       AS "estoqueQtd",
          to_char(p.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro",
          p.imagem_url                        AS "imagemUrl",
@@ -28,6 +29,8 @@ const SELECT_PRODUTO = `
     FROM origem.produto p
     JOIN origem.artesao a ON a.id = p.artesao_id
     JOIN origem.usuario u ON u.id = a.usuario_id`;
+
+const PRODUTO_PUBLICADO = "p.status_curadoria = 'aprovado'";
 
 type LinhaProduto = Omit<ProdutoComArtesao, "imagemUrl"> & { imagemUrl: string | null };
 
@@ -51,7 +54,7 @@ export async function listarProdutos(filtros: {
   regiao?: string;
   categoria?: string;
 }): Promise<ProdutoComArtesao[]> {
-  const condicoes: string[] = [];
+  const condicoes: string[] = [PRODUTO_PUBLICADO];
   const valores: string[] = [];
   if (filtros.tecnica) {
     valores.push(filtros.tecnica);
@@ -65,7 +68,7 @@ export async function listarProdutos(filtros: {
     valores.push(filtros.regiao);
     condicoes.push(`a.regiao_origem = $${valores.length}`);
   }
-  const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
+  const where = `WHERE ${condicoes.join(" AND ")}`;
 
   const { rows } = await pool.query<LinhaProduto>(
     `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
@@ -90,11 +93,22 @@ export async function listarProdutos(filtros: {
   return produtos;
 }
 
-export async function buscarProduto(idBruto: string): Promise<ProdutoComArtesao | null> {
+export async function buscarProduto(idBruto: string, incluirNaoPublicados = false): Promise<ProdutoComArtesao | null> {
   const id = resolverId(idBruto);
   if (!ehUuid(id)) return null;
-  const { rows } = await pool.query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1`, [id]);
+  const filtro = incluirNaoPublicados ? "" : ` AND ${PRODUTO_PUBLICADO}`;
+  const { rows } = await pool.query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1${filtro}`, [id]);
   return rows[0] ? paraProduto(rows[0]) : null;
+}
+
+// O handler resolve o escopo de gestão a partir da sessão. Sem usuário, é admin.
+export async function listarProdutosParaGestao(usuarioId?: string): Promise<ProdutoComArtesao[]> {
+  const where = usuarioId ? "WHERE a.usuario_id = $1" : "";
+  const { rows } = await pool.query<LinhaProduto>(
+    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    usuarioId ? [usuarioId] : []
+  );
+  return rows.map(paraProduto);
 }
 
 // Mesma técnica do produto, excluindo ele mesmo (RF-01).
@@ -103,8 +117,11 @@ export async function listarRelacionados(idBruto: string, limite: number): Promi
   if (!ehUuid(id)) return [];
   const { rows } = await pool.query<LinhaProduto>(
     `${SELECT_PRODUTO}
-      WHERE p.id <> $1
-        AND p.tecnica = (SELECT tecnica FROM origem.produto WHERE id = $1)
+      WHERE ${PRODUTO_PUBLICADO}
+        AND p.id <> $1
+        AND p.tecnica = (
+          SELECT tecnica FROM origem.produto WHERE id = $1 AND status_curadoria = 'aprovado'
+        )
       ORDER BY p.data_cadastro DESC, p.nome
       LIMIT $2`,
     [id, limite]
@@ -119,7 +136,8 @@ export async function resumirAvaliacoes(idBruto: string): Promise<ResumoAvaliaco
     `SELECT COALESCE(AVG(nota), 0)::float8 AS media,
             COUNT(*)::int                  AS quantidade
        FROM origem.avaliacao
-      WHERE produto_id = $1`,
+      WHERE produto_id = $1
+        AND EXISTS (SELECT 1 FROM origem.produto WHERE id = $1 AND status_curadoria = 'aprovado')`,
     [id]
   );
   return rows[0];
@@ -145,7 +163,7 @@ export async function buscarPerfilArtesao(idBruto: string): Promise<PerfilArtesa
   if (!rows[0]) return null;
 
   const { rows: produtos } = await pool.query<LinhaProduto>(
-    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 ORDER BY p.data_cadastro DESC, p.nome`,
+    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 AND ${PRODUTO_PUBLICADO} ORDER BY p.data_cadastro DESC, p.nome`,
     [id]
   );
   return { ...rows[0], produtos: produtos.map(paraProduto) };

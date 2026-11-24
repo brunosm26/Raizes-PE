@@ -79,7 +79,7 @@ export async function criarProduto(
       campos.imagemUrl,
     ]
   );
-  const criado = await buscarProduto(rows[0].id);
+  const criado = await buscarProduto(rows[0].id, true);
   if (!criado) throw new ErroProduto("Produto não encontrado.", 404);
   return criado;
 }
@@ -112,7 +112,7 @@ export async function editarProduto(
     [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl]
   );
   if (!rowCount) throw new ErroProduto("Produto não encontrado.", 404);
-  const atualizado = await buscarProduto(id);
+  const atualizado = await buscarProduto(id, true);
   if (!atualizado) throw new ErroProduto("Produto não encontrado.", 404);
   return atualizado;
 }

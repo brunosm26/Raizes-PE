@@ -3,6 +3,12 @@ import { estiloFundoProduto } from "@/lib/arteProduto";
 import type { ProdutoComArtesao } from "@/lib/tipos";
 
 export default function LinhaProduto({ produto, aoEditar }: { produto: ProdutoComArtesao; aoEditar: (produto: ProdutoComArtesao) => void }) {
+  const statusCuradoria = {
+    pendente: "Aguardando aprovação",
+    aprovado: "Aprovado",
+    rejeitado: "Rejeitado",
+  }[produto.statusCuradoria];
+
   return (
     <Flex
       align="center"
@@ -35,6 +41,9 @@ export default function LinhaProduto({ produto, aoEditar }: { produto: ProdutoCo
         <Text fontWeight={500}>{produto.nome}</Text>
         <Text fontSize="0.82rem" color="mutedFg">
           {produto.tecnica}
+        </Text>
+        <Text fontSize="0.82rem" color="mutedFg">
+          {statusCuradoria}
         </Text>
       </Box>
       <Box textAlign="right" mr={2}>

@@ -58,6 +58,8 @@ CREATE TABLE artesao (
 );
 
 -- 1.3 produto -----------------------------------------------------------
+CREATE TYPE status_curadoria_produto AS ENUM ('pendente', 'aprovado', 'rejeitado');
+
 CREATE TABLE produto (
     id            UUID          NOT NULL DEFAULT gen_random_uuid(),
     artesao_id    UUID          NOT NULL,
@@ -65,6 +67,7 @@ CREATE TABLE produto (
     tecnica       VARCHAR(100),
     categoria     VARCHAR(100),
     preco         NUMERIC(10,2) NOT NULL,
+    status_curadoria status_curadoria_produto NOT NULL DEFAULT 'pendente',
     estoque_qtd   INTEGER       NOT NULL DEFAULT 0,
     data_cadastro DATE          NOT NULL DEFAULT CURRENT_DATE,
     CONSTRAINT pk_produto PRIMARY KEY (id),
