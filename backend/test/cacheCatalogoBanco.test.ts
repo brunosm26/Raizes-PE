@@ -84,8 +84,10 @@ describe("cache com o banco", () => {
   itComBanco("POST /pedidos: apaga produtos e recomendações do comprador em cache", async () => {
     const comprador = await api.cookie(USUARIOS.comprador);
     await ler("/produtos");
-    await ler("/recomendacoes", comprador);
-    assert.equal((await ler("/recomendacoes", comprador)).xCache, "HIT");
+    // A fila reaquece a chave de limite 4, usada pela vitrine. Use outra chave para testar a invalidação.
+    const recomendacoes = "/recomendacoes?limite=3";
+    await ler(recomendacoes, comprador);
+    assert.equal((await ler(recomendacoes, comprador)).xCache, "HIT");
     const antes = doArtesao((await ler("/produtos")).corpo).estoqueQtd;
 
     const r = await fetch(`${api.url}/pedidos`, {
@@ -95,7 +97,7 @@ describe("cache com o banco", () => {
     assert.equal(r.status, 201);
     pedidosCriados.push(((await r.json()) as { id: string }).id);
 
-    assert.equal((await ler("/recomendacoes", comprador)).xCache, "MISS");
+    assert.equal((await ler(recomendacoes, comprador)).xCache, "MISS");
     const vitrine = await ler("/produtos");
     assert.equal(vitrine.xCache, "MISS");
     assert.equal(doArtesao(vitrine.corpo).estoqueQtd, antes - 1);
