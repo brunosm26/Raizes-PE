@@ -63,3 +63,9 @@ export const editar: RequestHandler<{ id: string }> = async (req, res) => {
   invalidarCatalogo(); // preço, estoque e nome aparecem na vitrine e nas recomendações
   res.json(produto);
 };
+
+export const moderar: RequestHandler<{ id: string }> = async (req, res) => {
+  const produto = await produtoService.moderarProduto(req.params.id, req.body?.status);
+  invalidarCatalogo();
+  res.json(produto);
+};

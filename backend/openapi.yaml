@@ -416,6 +416,52 @@ paths:
         "500":
           $ref: "#/components/responses/ErroInterno"
 
+  /produtos/{id}/curadoria:
+    parameters:
+      - $ref: "#/components/parameters/IdProduto"
+    patch:
+      tags: [Catálogo]
+      summary: Aprovar produto para publicação
+      description: |
+        **Perfis exigidos:** `admin`. Outros perfis recebem 403.
+        Aprova um produto pendente. Repetir a aprovação de um produto já aprovado mantém o mesmo estado.
+      operationId: moderarProduto
+      security:
+        - cookieSessao: []
+      x-perfis: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [aprovado] }
+      responses:
+        "200":
+          description: Produto aprovado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProdutoComArtesao" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
+        "404":
+          $ref: "#/components/responses/ProdutoNaoEncontrado"
+        "409":
+          description: Produto rejeitado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
   /produtos/{id}/relacionados:
     get:
       tags: [Catálogo]

@@ -191,3 +191,12 @@ export async function listarDoArtesao(artesaoId: string): Promise<ProdutoComArte
   );
   return rows.map(paraProduto);
 }
+
+export async function aprovar(id: string): Promise<void> {
+  await executorPadrao().query(
+    `UPDATE origem.produto
+        SET status_curadoria = 'aprovado'
+      WHERE id = $1 AND status_curadoria = 'pendente'`,
+    [id]
+  );
+}

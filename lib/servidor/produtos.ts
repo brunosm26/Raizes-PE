@@ -116,3 +116,20 @@ export async function editarProduto(
   if (!atualizado) throw new ErroProduto("Produto não encontrado.", 404);
   return atualizado;
 }
+
+export async function moderarProduto(idBruto: string, status: unknown): Promise<ProdutoComArtesao> {
+  if (status !== "aprovado") throw new ErroProduto("Informe um estado de curadoria válido.");
+  const id = resolverId(idBruto);
+  if (!ehUuid(id)) throw new ErroProduto("Produto não encontrado.", 404);
+
+  await pool.query(
+    `UPDATE origem.produto
+        SET status_curadoria = 'aprovado'
+      WHERE id = $1 AND status_curadoria = 'pendente'`,
+    [id]
+  );
+  const produto = await buscarProduto(id, true);
+  if (!produto) throw new ErroProduto("Produto não encontrado.", 404);
+  if (produto.statusCuradoria !== "aprovado") throw new ErroProduto("O produto não está pendente de aprovação.", 409);
+  return produto;
+}

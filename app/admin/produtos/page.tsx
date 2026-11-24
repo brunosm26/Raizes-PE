@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Badge, Box, Flex, Heading, Select, Table, Tbody, Td, Text, Th, Thead, Tr } from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, Heading, Select, Table, Tbody, Td, Text, Th, Thead, Tr, useToast } from "@chakra-ui/react";
 import MensagemErro from "@/components/MensagemErro";
 import { useProdutos } from "@/lib/contextoProdutos";
 import { useArtesaosAdmin } from "@/lib/useArtesaosAdmin";
@@ -20,8 +20,10 @@ function formatarData(data: string): string {
 }
 
 export default function ModeracaoProdutosPage() {
-  const { produtos, carregandoProdutos, erroProdutos, recarregarProdutos } = useProdutos();
+  const { produtos, carregandoProdutos, erroProdutos, recarregarProdutos, moderarProduto } = useProdutos();
   const { artesaos, carregando: carregandoArtesaos, erro, tentarDeNovo } = useArtesaosAdmin();
+  const toast = useToast();
+  const [aprovando, setAprovando] = useState<string>();
   const [filtroArtesao, setFiltroArtesao] = useState(TODOS_OS_ARTESAOS);
 
   const visiveis = filtroArtesao === TODOS_OS_ARTESAOS
@@ -29,6 +31,22 @@ export default function ModeracaoProdutosPage() {
     : produtos.filter((produto) => produto.artesaoId === filtroArtesao);
   const emRevisao = visiveis.filter((produto) => produto.statusCuradoria === "pendente").length;
   const carregando = carregandoProdutos || carregandoArtesaos;
+
+  async function aprovar(id: string) {
+    setAprovando(id);
+    try {
+      await moderarProduto(id, "aprovado");
+      toast({ title: "Produto aprovado", status: "success" });
+    } catch (erro) {
+      toast({
+        title: "Não foi possível aprovar o produto",
+        description: erro instanceof Error ? erro.message : undefined,
+        status: "error",
+      });
+    } finally {
+      setAprovando(undefined);
+    }
+  }
 
   function recarregar() {
     tentarDeNovo();
@@ -83,17 +101,18 @@ export default function ModeracaoProdutosPage() {
                 <Th>Categoria</Th>
                 <Th>Cadastro</Th>
                 <Th>Status</Th>
+                <Th>Ações</Th>
               </Tr>
             </Thead>
             <Tbody>
               {carregando && (
                 <Tr>
-                  <Td colSpan={5}>Carregando produtos...</Td>
+                  <Td colSpan={6}>Carregando produtos...</Td>
                 </Tr>
               )}
               {!carregando && visiveis.length === 0 && (
                 <Tr>
-                  <Td colSpan={5}>Nenhum produto para mostrar.</Td>
+                  <Td colSpan={6}>Nenhum produto para mostrar.</Td>
                 </Tr>
               )}
               {!carregando && visiveis.map((produto) => (
@@ -111,6 +130,18 @@ export default function ModeracaoProdutosPage() {
                     >
                       {ROTULOS_STATUS[produto.statusCuradoria]}
                     </Badge>
+                  </Td>
+                  <Td>
+                    {produto.statusCuradoria === "pendente" && (
+                      <Button
+                        size="sm"
+                        isLoading={aprovando === produto.id}
+                        isDisabled={aprovando !== undefined}
+                        onClick={() => void aprovar(produto.id)}
+                      >
+                        Aprovar
+                      </Button>
+                    )}
                   </Td>
                 </Tr>
               ))}
