@@ -38,6 +38,7 @@ function dublar(relativo, exportados) {
 
 const COMPRADOR = { id: "10000000-0000-4000-8000-000000000007", nome: "Ana Beatriz", tipo: "comprador" };
 const ARTESAO = { id: "10000000-0000-4000-8000-000000000002", nome: "Tacaratu", tipo: "artesao" };
+const ADMIN = { id: "10000000-0000-4000-8000-000000000001", nome: "Admin", tipo: "admin" };
 const chamadas = { filtros: 0, produtos: 0, recomendacoes: [] };
 let sessaoAtual = null;
 
@@ -54,8 +55,9 @@ class ErroDados extends Error {
 dublar("lib/servidor/auth.ts", {
   ErroAuth,
   obterSessao: async () => sessaoAtual,
-  exigirSessao: async () => {
+  exigirSessao: async (perfis) => {
     if (!sessaoAtual) throw new ErroAuth("Faça login para continuar.", 401);
+    if (perfis && !perfis.includes(sessaoAtual.tipo)) throw new ErroAuth("Seu perfil não tem permissão.", 403);
     return sessaoAtual;
   },
 });
@@ -77,7 +79,7 @@ const escrita = async () => {
   if (falharEscrita) throw new ErroDados("Dados inválidos (dublê).");
   return { id: "x" };
 };
-dublar("lib/servidor/produtos.ts", { ErroProduto: ErroDados, criarProduto: escrita, editarProduto: escrita });
+dublar("lib/servidor/produtos.ts", { ErroProduto: ErroDados, criarProduto: escrita, editarProduto: escrita, moderarProduto: escrita });
 dublar("lib/servidor/pedidos.ts", {
   ErroPedido: ErroDados,
   criarPedido: escrita,
@@ -96,6 +98,7 @@ const rota = (arquivo) => require(path.join(raiz, "app", "api", ...arquivo.split
 const filtros = rota("filtros");
 const produtos = rota("produtos");
 const produto = rota("produtos/[id]");
+const curadoria = rota("produtos/[id]/curadoria");
 const pedidos = rota("pedidos");
 const pedido = rota("pedidos/[id]");
 const recomendacoes = rota("recomendacoes");
@@ -163,18 +166,30 @@ describe("cache no fallback do Next", () => {
     ]);
   });
 
+  it("PATCH de curadoria exige perfil admin no fallback", async () => {
+    const aprovar = () => curadoria.PATCH(corpo("PATCH", { status: "aprovado" }), params);
+    await ler(produtos.GET, "/produtos");
+    assert.equal((await aprovar()).status, 401);
+    for (const sessao of [ARTESAO, COMPRADOR]) {
+      sessaoAtual = sessao;
+      assert.equal((await aprovar()).status, 403);
+    }
+    assert.equal((await ler(produtos.GET, "/produtos")).xCache, "HIT");
+  });
+
   const ESCRITAS = [
-    ["POST /api/produtos", () => produtos.POST(corpo("POST"))],
-    ["PATCH /api/produtos/:id", () => produto.PATCH(corpo("PATCH"), params)],
-    ["POST /api/pedidos", () => pedidos.POST(corpo("POST"))],
-    ["PATCH /api/pedidos/:id", () => pedido.PATCH(corpo("PATCH"), params)],
+    ["POST /api/produtos", ARTESAO, () => produtos.POST(corpo("POST"))],
+    ["PATCH /api/produtos/:id", ARTESAO, () => produto.PATCH(corpo("PATCH"), params)],
+    ["PATCH /api/produtos/:id/curadoria", ADMIN, () => curadoria.PATCH(corpo("PATCH", { status: "aprovado" }), params)],
+    ["POST /api/pedidos", COMPRADOR, () => pedidos.POST(corpo("POST"))],
+    ["PATCH /api/pedidos/:id", ARTESAO, () => pedido.PATCH(corpo("PATCH"), params)],
   ];
 
-  for (const [nome, escrever] of ESCRITAS) {
+  for (const [nome, sessao, escrever] of ESCRITAS) {
     it(`${nome} com sucesso apaga o cache`, async () => {
       await ler(filtros.GET);
       await ler(produtos.GET, "/produtos");
-      sessaoAtual = ARTESAO;
+      sessaoAtual = sessao;
       assert.ok([200, 201].includes((await escrever()).status));
       assert.equal((await ler(filtros.GET)).xCache, "MISS");
       assert.equal((await ler(produtos.GET, "/produtos")).xCache, "MISS");
@@ -182,7 +197,7 @@ describe("cache no fallback do Next", () => {
 
     it(`${nome} que falha não apaga o cache`, async () => {
       await ler(filtros.GET);
-      sessaoAtual = ARTESAO;
+      sessaoAtual = sessao;
       falharEscrita = true;
       assert.equal((await escrever()).status, 400);
       assert.equal((await ler(filtros.GET)).xCache, "HIT");

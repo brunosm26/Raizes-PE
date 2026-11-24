@@ -247,6 +247,43 @@ describe("pedidos e produtos: com banco", () => {
     assert.equal(rows[0]?.estoque_qtd, 2);
   });
 
+  itComBanco("TC16: só admin aprova e torna o produto encontrável no catálogo público", async () => {
+    const artesao = await api.cookie(USUARIOS.artesao);
+    const comprador = await api.cookie(USUARIOS.comprador);
+    const admin = await api.cookie(USUARIOS.admin);
+    const novo = await criar("/produtos", {
+      nome: "Peça para aprovação TC16",
+      descricao: "Descrição da peça",
+      tecnica: "Têxtil",
+      categoria: "Categoria TC16",
+      preco: 95,
+      estoqueQtd: 2,
+    }, artesao);
+    assert.equal(novo.status, 201);
+    const id = novo.corpo.id as string;
+    const rota = `${api.url}/produtos/${id}/curadoria`;
+    const aprovar = (cookie?: string, status = "aprovado") =>
+      fetch(rota, { method: "PATCH", ...json({ status }, cookie) });
+    const busca = `${api.url}/produtos?busca=aprova%C3%A7%C3%A3o%20TC16`;
+    assert.deepEqual(await (await fetch(busca)).json(), []);
+    assert.equal((await aprovar()).status, 401);
+    assert.equal((await aprovar(artesao)).status, 403);
+    assert.equal((await aprovar(comprador)).status, 403);
+    assert.equal((await aprovar(admin, "pendente")).status, 400);
+    assert.equal((await fetch(`${api.url}/produtos/${id}`)).status, 404);
+
+    const resposta = await aprovar(admin);
+    assert.equal(resposta.status, 200);
+    assert.equal((await resposta.json()).statusCuradoria, "aprovado");
+    assert.equal((await aprovar(admin)).status, 200);
+    assert.ok((await (await fetch(busca)).json()).some((p: { id: string }) => p.id === id));
+    assert.equal((await fetch(`${api.url}/produtos/${id}`)).status, 200);
+    const { rows } = await banco!.query<{ status_curadoria: string }>(
+      "SELECT status_curadoria FROM origem.produto WHERE id = $1", [id]
+    );
+    assert.equal(rows[0]?.status_curadoria, "aprovado");
+  });
+
   itComBanco("artesão cadastra produto (201) e não edita produto de outro (403)", async () => {
     const cookie = await api.cookie(USUARIOS.artesao);
     const r = await criar(

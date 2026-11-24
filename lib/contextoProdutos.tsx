@@ -24,6 +24,7 @@ interface ValorContextoProdutos {
   recarregarProdutos: () => void;
   produtosDoArtesao: (usuarioId: string) => ProdutoComArtesao[];
   // Gravam no banco pela API. Rejeitam com a mensagem do servidor (validação, 404...).
+  moderarProduto: (id: string, status: "aprovado") => Promise<ProdutoComArtesao>;
   criarProduto: (usuarioId: string, dados: DadosNovoProduto) => Promise<ProdutoComArtesao>;
   editarProduto: (
     id: string,
@@ -115,6 +116,24 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
     [idGestor]
   );
 
+  const moderarProduto = useCallback(
+    async (id: string, status: "aprovado"): Promise<ProdutoComArtesao> => {
+      const res = await apiFetch(`/api/produtos/${encodeURIComponent(id)}/curadoria`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error(await mensagemDeErro(res));
+      const atualizado = (await res.json()) as ProdutoComArtesao;
+      setCatalogo((atual) => atual && atual.gestor === idGestor
+        ? { ...atual, produtos: atual.produtos.map((p) => (p.id === atualizado.id ? atualizado : p)) }
+        : atual
+      );
+      return atualizado;
+    },
+    [idGestor]
+  );
+
   // O front usa ids do mock ("u2"); o banco usa UUID. resolverId faz a ponte.
   const produtosDoArtesao = useCallback(
     (usuarioId: string): ProdutoComArtesao[] => {
@@ -133,8 +152,9 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
       produtosDoArtesao,
       criarProduto,
       editarProduto,
+      moderarProduto,
     }),
-    [produtos, carregandoProdutos, erroProdutos, recarregarProdutos, produtosDoArtesao, criarProduto, editarProduto]
+    [produtos, carregandoProdutos, erroProdutos, recarregarProdutos, produtosDoArtesao, criarProduto, editarProduto, moderarProduto]
   );
 
   return <ContextoProdutos.Provider value={valor}>{children}</ContextoProdutos.Provider>;
