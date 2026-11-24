@@ -64,6 +64,7 @@ function responder(req: IncomingMessage, corpoRecebido: string): { status: numbe
     caminho === "/api/pedidos" ||
     caminho === "/api/notificacoes" ||
     caminho === "/api/painel/estatisticas" ||
+    /^\/api\/artesaos\/[^/]+\/aprovacao$/.test(caminho!) ||
     caminho === "/api/artesaos" || caminho!.startsWith("/api/admin/atividade");
   if (protegida && !perfil) return { status: 401, corpo: { ok: false, erro: "Faça login para continuar." } };
   if (caminho === "/api/pedidos") return { status: 200, corpo: [] };
@@ -172,9 +173,10 @@ describe("conferir-openapi", () => {
   it("não manda cookie nem corpo, e só sai do GET nas rotas protegidas", async () => {
     await rodar(PRODUTO);
     assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined || r.bytes > 0), []);
-    const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}$/, "/{id}")}`);
+    const escritas = recebidas.filter((r) => r.metodo !== "GET").map((r) => `${r.metodo} ${r.url.replace(/\/[0-9a-f-]{36}(?=\/|$)/, "/{id}")}`);
     assert.deepEqual(escritas.sort(), [
       "PATCH /api/admin/atividade/produtos/{id}",
+      "PATCH /api/artesaos/{id}/aprovacao",
       "PATCH /api/pedidos/{id}",
       "PATCH /api/produtos/{id}",
       "POST /api/notificacoes/ler",
@@ -216,7 +218,7 @@ describe("conferir-openapi", () => {
       assert.deepEqual(recebidas.filter((r) => r.cookie !== undefined && r.metodo !== "GET"), []);
       const escritas = recebidas.filter((r) => r.metodo !== "GET" && r.url !== "/api/auth/login");
       assert.equal(escritas.every((r) => r.cookie === undefined && r.bytes === 0), true);
-      assert.equal(escritas.length, 6);
+      assert.equal(escritas.length, 7);
       assert.equal(recebidas.some((r) => r.url.includes("/auth/cadastro") || r.url.includes("/auth/logout")), false);
     });
 
