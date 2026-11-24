@@ -51,7 +51,7 @@ export async function listarProdutos(filtros: {
   regiao?: string;
   categoria?: string;
 }): Promise<ProdutoComArtesao[]> {
-  const condicoes: string[] = [];
+  const condicoes = ["p.ativo", "u.ativo"];
   const valores: string[] = [];
   if (filtros.tecnica) {
     valores.push(filtros.tecnica);
@@ -65,7 +65,7 @@ export async function listarProdutos(filtros: {
     valores.push(filtros.regiao);
     condicoes.push(`a.regiao_origem = $${valores.length}`);
   }
-  const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
+  const where = `WHERE ${condicoes.join(" AND ")}`;
 
   const { rows } = await pool.query<LinhaProduto>(
     `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
@@ -90,10 +90,10 @@ export async function listarProdutos(filtros: {
   return produtos;
 }
 
-export async function buscarProduto(idBruto: string): Promise<ProdutoComArtesao | null> {
+export async function buscarProduto(idBruto: string, apenasPublico = true): Promise<ProdutoComArtesao | null> {
   const id = resolverId(idBruto);
   if (!ehUuid(id)) return null;
-  const { rows } = await pool.query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1`, [id]);
+  const { rows } = await pool.query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1${apenasPublico ? " AND p.ativo AND u.ativo" : ""}`, [id]);
   return rows[0] ? paraProduto(rows[0]) : null;
 }
 
@@ -103,8 +103,13 @@ export async function listarRelacionados(idBruto: string, limite: number): Promi
   if (!ehUuid(id)) return [];
   const { rows } = await pool.query<LinhaProduto>(
     `${SELECT_PRODUTO}
-      WHERE p.id <> $1
-        AND p.tecnica = (SELECT tecnica FROM origem.produto WHERE id = $1)
+      WHERE p.id <> $1 AND p.ativo AND u.ativo
+        AND p.tecnica = (
+          SELECT base.tecnica FROM origem.produto base
+          JOIN origem.artesao autor ON autor.id = base.artesao_id
+          JOIN origem.usuario conta ON conta.id = autor.usuario_id
+          WHERE base.id = $1 AND base.ativo AND conta.ativo
+        )
       ORDER BY p.data_cadastro DESC, p.nome
       LIMIT $2`,
     [id, limite]
@@ -139,13 +144,13 @@ export async function buscarPerfilArtesao(idBruto: string): Promise<PerfilArtesa
             COALESCE(a.biografia, '')     AS biografia
        FROM origem.artesao a
        JOIN origem.usuario u ON u.id = a.usuario_id
-      WHERE a.id = $1`,
+      WHERE a.id = $1 AND u.ativo`,
     [id]
   );
   if (!rows[0]) return null;
 
   const { rows: produtos } = await pool.query<LinhaProduto>(
-    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 ORDER BY p.data_cadastro DESC, p.nome`,
+    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 AND p.ativo AND u.ativo ORDER BY p.data_cadastro DESC, p.nome`,
     [id]
   );
   return { ...rows[0], produtos: produtos.map(paraProduto) };

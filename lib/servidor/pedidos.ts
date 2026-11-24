@@ -123,7 +123,7 @@ export async function criarPedido(
     await client.query("BEGIN");
 
     const { rows: compradores } = await client.query(
-      `SELECT 1 FROM origem.usuario WHERE id = $1 AND tipo = 'comprador'`,
+      `SELECT 1 FROM origem.usuario WHERE id = $1 AND tipo = 'comprador' AND ativo FOR SHARE`,
       [compradorId]
     );
     if (compradores.length === 0) throw new ErroPedido("Comprador não encontrado.", 404);
@@ -135,18 +135,23 @@ export async function criarPedido(
       nome: string;
       preco: string;
       estoque: number;
+      ativo: boolean;
     }>(
-      `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque
-         FROM origem.produto
-        WHERE id = ANY($1::uuid[])
-        ORDER BY id
-        FOR UPDATE`,
+      `SELECT p.id, p.nome, p.preco::text AS preco, p.estoque_qtd AS estoque,
+              (p.ativo AND u.ativo) AS ativo
+         FROM origem.produto p
+         JOIN origem.artesao a ON a.id = p.artesao_id
+         JOIN origem.usuario u ON u.id = a.usuario_id
+        WHERE p.id = ANY($1::uuid[])
+        ORDER BY p.id
+        FOR UPDATE OF p FOR SHARE OF u`,
       [ids]
     );
     if (produtos.length !== ids.length) throw new ErroPedido("Produto não encontrado.", 404);
 
     let totalCentavos = 0;
     for (const p of produtos) {
+      if (!p.ativo) throw new ErroPedido("Um produto do pedido não está disponível para compra.", 409);
       const qtd = quantidades.get(p.id) as number;
       if (p.estoque < qtd) {
         throw new ErroPedido(
