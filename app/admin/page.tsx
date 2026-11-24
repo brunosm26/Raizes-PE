@@ -12,7 +12,6 @@ import { useArtesaosAdmin } from "@/lib/useArtesaosAdmin";
 export default function AdminDashboard() {
   const { todosOsPedidos } = usePedidos();
   const { produtosDoArtesao } = useProdutos();
-  // Artesãos do banco (GET /api/artesaos): um artesão novo entra na contagem e no agrupamento.
   const { artesaos, carregando, erro, tentarDeNovo } = useArtesaosAdmin();
 
   const pedidos = useMemo(() => todosOsPedidos(), [todosOsPedidos]);
@@ -24,6 +23,7 @@ export default function AdminDashboard() {
 
   const totalVendas = pedidos.reduce((soma, p) => soma + p.valorTotal, 0);
   const pendentes = pedidos.filter((p) => p.status === "pendente").length;
+  const artesaosAtivos = artesaos.filter((artesao) => artesao.aprovado && artesao.ativo).length;
   const semEstoque = produtos.filter((p) => p.estoqueQtd === 0).length;
 
   // Vendas agrupadas pela técnica do produto, somando todos os itens de todos os pedidos.
@@ -59,8 +59,8 @@ export default function AdminDashboard() {
         />
         <CartaoEstatistica
           rotulo="Artesãos Ativos"
-          valor={carregando ? "…" : erro ? "—" : String(artesaos.length)}
-          variacao="cadastrados na plataforma"
+          valor={carregando ? "…" : erro ? "—" : String(artesaosAtivos)}
+          variacao="com cadastro aprovado"
         />
         <CartaoEstatistica
           rotulo="Produtos Cadastrados"
