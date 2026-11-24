@@ -117,19 +117,35 @@ export async function editarProduto(
   return atualizado;
 }
 
-export async function moderarProduto(idBruto: string, status: unknown): Promise<ProdutoComArtesao> {
-  if (status !== "aprovado") throw new ErroProduto("Informe um estado de curadoria válido.");
+export async function moderarProduto(
+  idBruto: string,
+  status: unknown,
+  justificativa: unknown,
+  autorId: string
+): Promise<ProdutoComArtesao> {
+  if (status !== "aprovado" && status !== "rejeitado") {
+    throw new ErroProduto("Informe um estado de curadoria válido.", 400);
+  }
+  const motivo = status === "rejeitado" && typeof justificativa === "string" ? justificativa.trim() : null;
+  if (status === "rejeitado" && (!motivo || motivo.length > 500)) {
+    throw new ErroProduto("Informe uma justificativa de até 500 caracteres.", 400);
+  }
   const id = resolverId(idBruto);
   if (!ehUuid(id)) throw new ErroProduto("Produto não encontrado.", 404);
 
   await pool.query(
     `UPDATE origem.produto
-        SET status_curadoria = 'aprovado'
+        SET status_curadoria = $2,
+            rejeicao_justificativa = $3,
+            rejeicao_autor_id = CASE WHEN $3::varchar IS NOT NULL THEN $4::uuid END,
+            rejeicao_em = CASE WHEN $3::varchar IS NOT NULL THEN CURRENT_TIMESTAMP END
       WHERE id = $1 AND status_curadoria = 'pendente'`,
-    [id]
+    [id, status, motivo, autorId]
   );
-  const produto = await buscarProduto(id, true);
+  const produto = await buscarProduto(id, true, true);
   if (!produto) throw new ErroProduto("Produto não encontrado.", 404);
-  if (produto.statusCuradoria !== "aprovado") throw new ErroProduto("O produto não está pendente de aprovação.", 409);
+  if (produto.statusCuradoria !== status || (motivo !== null && produto.rejeicaoCuradoria?.justificativa !== motivo)) {
+    throw new ErroProduto("O produto já tem uma decisão de curadoria.", 409);
+  }
   return produto;
 }

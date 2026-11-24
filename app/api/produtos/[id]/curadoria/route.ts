@@ -5,10 +5,10 @@ import { ErroProduto, moderarProduto } from "@/lib/servidor/produtos";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await exigirSessao(["admin"]);
+    const sessao = await exigirSessao(["admin"]);
     const { id } = await params;
-    const corpo = (await request.json()) as { status?: unknown } | null;
-    const produto = await moderarProduto(id, corpo?.status);
+    const corpo = (await request.json()) as { status?: unknown; justificativa?: unknown } | null;
+    const produto = await moderarProduto(id, corpo?.status, corpo?.justificativa, sessao.id);
     invalidarCatalogo();
     return NextResponse.json(produto);
   } catch (erro) {

@@ -75,14 +75,27 @@ export async function editarProduto(
   return atualizado;
 }
 
-export async function moderarProduto(idBruto: string, status: unknown): Promise<ProdutoComArtesao> {
-  if (status !== "aprovado") throw new ErroHttp(400, "Informe um estado de curadoria válido.");
+export async function moderarProduto(
+  idBruto: string,
+  status: unknown,
+  justificativa: unknown,
+  autorId: string
+): Promise<ProdutoComArtesao> {
+  if (status !== "aprovado" && status !== "rejeitado") {
+    throw new ErroHttp(400, "Informe um estado de curadoria válido.");
+  }
+  const motivo = status === "rejeitado" && typeof justificativa === "string" ? justificativa.trim() : null;
+  if (status === "rejeitado" && (!motivo || motivo.length > 500)) {
+    throw new ErroHttp(400, "Informe uma justificativa de até 500 caracteres.");
+  }
   const id = resolverId(idBruto);
   if (!ehUuid(id)) throw new ErroHttp(404, "Produto não encontrado.");
 
-  await produtoRepository.aprovar(id);
-  const produto = await produtoRepository.buscarPorId(id, true);
+  await produtoRepository.decidirCuradoria(id, status, motivo, autorId);
+  const produto = await produtoRepository.buscarPorId(id, true, true);
   if (!produto) throw new ErroHttp(404, "Produto não encontrado.");
-  if (produto.statusCuradoria !== "aprovado") throw new ErroHttp(409, "O produto não está pendente de aprovação.");
+  if (produto.statusCuradoria !== status || (motivo !== null && produto.rejeicaoCuradoria?.justificativa !== motivo)) {
+    throw new ErroHttp(409, "O produto já tem uma decisão de curadoria.");
+  }
   return produto;
 }

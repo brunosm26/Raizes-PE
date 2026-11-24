@@ -3,7 +3,7 @@ import { executorPadrao, type Executor } from "./transacao";
 
 // Acesso à tabela origem.produto (com artesão e usuário juntados).
 
-const SELECT_PRODUTO = `
+const selecionarProduto = (incluirRejeicao = false) => `
   SELECT p.id,
          p.artesao_id                        AS "artesaoId",
          p.nome,
@@ -17,24 +17,34 @@ const SELECT_PRODUTO = `
          p.imagem_url                        AS "imagemUrl",
          u.nome                              AS "artesaoNome",
          u.id                                AS "artesaoUsuarioId",
-         COALESCE(a.regiao_origem, '')       AS "artesaoRegiao"
+         COALESCE(a.regiao_origem, '')       AS "artesaoRegiao"${incluirRejeicao ? `,
+         CASE WHEN p.rejeicao_justificativa IS NOT NULL THEN jsonb_build_object(
+           'justificativa', p.rejeicao_justificativa, 'autorId', p.rejeicao_autor_id, 'data', p.rejeicao_em
+         ) END AS "rejeicaoCuradoria"` : ""}
     FROM origem.produto p
     JOIN origem.artesao a ON a.id = p.artesao_id
     JOIN origem.usuario u ON u.id = a.usuario_id`;
 
 const PRODUTO_PUBLICADO = "p.status_curadoria = 'aprovado'";
 
-type LinhaProduto = Omit<ProdutoComArtesao, "imagemUrl"> & { imagemUrl: string | null };
+type LinhaProduto = Omit<ProdutoComArtesao, "imagemUrl" | "rejeicaoCuradoria"> & {
+  imagemUrl: string | null;
+  rejeicaoCuradoria?: ProdutoComArtesao["rejeicaoCuradoria"] | null;
+};
 
 // O front trata imagemUrl como opcional (undefined), então null sai do objeto.
 function paraProduto(linha: LinhaProduto): ProdutoComArtesao {
-  const { imagemUrl, ...resto } = linha;
-  return imagemUrl ? { ...resto, imagemUrl } : resto;
+  const { imagemUrl, rejeicaoCuradoria, ...produto } = linha;
+  return {
+    ...produto,
+    ...(imagemUrl ? { imagemUrl } : {}),
+    ...(rejeicaoCuradoria ? { rejeicaoCuradoria } : {}),
+  };
 }
 
-export async function buscarPorId(id: string, incluirNaoPublicados = false): Promise<ProdutoComArtesao | null> {
+export async function buscarPorId(id: string, incluirNaoPublicados = false, incluirRejeicao = false): Promise<ProdutoComArtesao | null> {
   const filtro = incluirNaoPublicados ? "" : ` AND ${PRODUTO_PUBLICADO}`;
-  const { rows } = await executorPadrao().query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1${filtro}`, [id]);
+  const { rows } = await executorPadrao().query<LinhaProduto>(`${selecionarProduto(incluirRejeicao)} WHERE p.id = $1${filtro}`, [id]);
   return rows[0] ? paraProduto(rows[0]) : null;
 }
 
@@ -42,7 +52,7 @@ export async function buscarPorId(id: string, incluirNaoPublicados = false): Pro
 export async function listarParaGestao(usuarioId?: string): Promise<ProdutoComArtesao[]> {
   const where = usuarioId ? "WHERE a.usuario_id = $1" : "";
   const { rows } = await executorPadrao().query<LinhaProduto>(
-    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    `${selecionarProduto(!usuarioId)} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
     usuarioId ? [usuarioId] : []
   );
   return rows.map(paraProduto);
@@ -153,7 +163,7 @@ export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao
   const where = `WHERE ${condicoes.join(" AND ")}`;
 
   const { rows } = await executorPadrao().query<LinhaProduto>(
-    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    `${selecionarProduto()} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
     valores
   );
   return rows.map(paraProduto);
@@ -162,7 +172,7 @@ export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao
 // Mesma técnica do produto, excluindo ele mesmo (RF-01).
 export async function listarRelacionados(id: string, limite: number): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
-    `${SELECT_PRODUTO}
+    `${selecionarProduto()}
       WHERE ${PRODUTO_PUBLICADO}
         AND p.id <> $1
         AND p.tecnica = (
@@ -186,17 +196,25 @@ export async function listarCategorias(): Promise<string[]> {
 
 export async function listarDoArtesao(artesaoId: string): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
-    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 AND ${PRODUTO_PUBLICADO} ORDER BY p.data_cadastro DESC, p.nome`,
+    `${selecionarProduto()} WHERE p.artesao_id = $1 AND ${PRODUTO_PUBLICADO} ORDER BY p.data_cadastro DESC, p.nome`,
     [artesaoId]
   );
   return rows.map(paraProduto);
 }
 
-export async function aprovar(id: string): Promise<void> {
+export async function decidirCuradoria(
+  id: string,
+  status: "aprovado" | "rejeitado",
+  justificativa: string | null,
+  autorId: string
+): Promise<void> {
   await executorPadrao().query(
     `UPDATE origem.produto
-        SET status_curadoria = 'aprovado'
+        SET status_curadoria = $2,
+            rejeicao_justificativa = $3,
+            rejeicao_autor_id = CASE WHEN $3::varchar IS NOT NULL THEN $4::uuid END,
+            rejeicao_em = CASE WHEN $3::varchar IS NOT NULL THEN CURRENT_TIMESTAMP END
       WHERE id = $1 AND status_curadoria = 'pendente'`,
-    [id]
+    [id, status, justificativa, autorId]
   );
 }

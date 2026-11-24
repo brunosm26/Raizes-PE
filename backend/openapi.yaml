@@ -421,10 +421,11 @@ paths:
       - $ref: "#/components/parameters/IdProduto"
     patch:
       tags: [Catálogo]
-      summary: Aprovar produto para publicação
+      summary: Aprovar ou rejeitar um produto em curadoria
       description: |
         **Perfis exigidos:** `admin`. Outros perfis recebem 403.
-        Aprova um produto pendente. Repetir a aprovação de um produto já aprovado mantém o mesmo estado.
+        Decide a curadoria de um produto pendente. Rejeitar requer justificativa.
+        Repetir a mesma decisão retorna o estado gravado. Na rejeição, o autor e a data originais são preservados.
       operationId: moderarProduto
       security:
         - cookieSessao: []
@@ -434,13 +435,19 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [status]
-              properties:
-                status: { type: string, enum: [aprovado] }
+              oneOf:
+                - type: object
+                  required: [status]
+                  properties:
+                    status: { type: string, enum: [aprovado] }
+                - type: object
+                  required: [status, justificativa]
+                  properties:
+                    status: { type: string, enum: [rejeitado] }
+                    justificativa: { type: string, minLength: 1, maxLength: 500, pattern: '\S' }
       responses:
         "200":
-          description: Produto aprovado
+          description: Decisão registrada
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ProdutoComArtesao" }
@@ -453,7 +460,7 @@ paths:
         "404":
           $ref: "#/components/responses/ProdutoNaoEncontrado"
         "409":
-          description: Produto rejeitado
+          description: O produto já possui uma decisão diferente
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }
@@ -1013,6 +1020,14 @@ components:
         preco: { type: number, format: double, example: 185 }
         estoqueQtd: { type: integer, minimum: 0, example: 8 }
         statusCuradoria: { type: string, enum: [pendente, aprovado, rejeitado] }
+        rejeicaoCuradoria:
+          type: object
+          description: Disponível na gestão administrativa para produtos rejeitados.
+          required: [justificativa, autorId, data]
+          properties:
+            justificativa: { type: string, maxLength: 500 }
+            autorId: { type: string, format: uuid }
+            data: { type: string, format: date-time }
         dataCadastro: { type: string, format: date, example: "2025-05-10" }
         imagemUrl:
           type: string

@@ -41,6 +41,7 @@ const ARTESAO = { id: "10000000-0000-4000-8000-000000000002", nome: "Tacaratu", 
 const ADMIN = { id: "10000000-0000-4000-8000-000000000001", nome: "Admin", tipo: "admin" };
 const chamadas = { filtros: 0, produtos: 0, recomendacoes: [] };
 let sessaoAtual = null;
+let decisaoRecebida;
 
 class ErroAuth extends Error {
   constructor(mensagem, status) {
@@ -79,7 +80,7 @@ const escrita = async () => {
   if (falharEscrita) throw new ErroDados("Dados inválidos (dublê).");
   return { id: "x" };
 };
-dublar("lib/servidor/produtos.ts", { ErroProduto: ErroDados, criarProduto: escrita, editarProduto: escrita, moderarProduto: escrita });
+dublar("lib/servidor/produtos.ts", { ErroProduto: ErroDados, criarProduto: escrita, editarProduto: escrita, moderarProduto: async (...dados) => { decisaoRecebida = dados; return escrita(); } });
 dublar("lib/servidor/pedidos.ts", {
   ErroPedido: ErroDados,
   criarPedido: escrita,
@@ -164,6 +165,15 @@ describe("cache no fallback do Next", () => {
       { compradorId: COMPRADOR.id, limite: 4 },
       { compradorId: undefined, limite: 20 },
     ]);
+  });
+
+  it("PATCH de rejeição repassa justificativa e autor autenticado no fallback", async () => {
+    sessaoAtual = ADMIN;
+    const resposta = await curadoria.PATCH(corpo("PATCH", {
+      status: "rejeitado", justificativa: "Informe a origem.", autorId: COMPRADOR.id,
+    }), params);
+    assert.equal(resposta.status, 200);
+    assert.deepEqual(decisaoRecebida, [(await params.params).id, "rejeitado", "Informe a origem.", ADMIN.id]);
   });
 
   it("PATCH de curadoria exige perfil admin no fallback", async () => {

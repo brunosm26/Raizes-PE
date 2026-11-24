@@ -20,6 +20,7 @@ model Usuario {
   avaliacoes   Avaliacao[]
   carrinho     Carrinho?
   pedidos      Pedido[]
+  produtosRejeitados Produto[] @relation("ProdutoRejeitadoPor")
 
   @@map("usuario")
   @@schema("origem")
@@ -127,6 +128,10 @@ model Produto {
   categoria     String?        @db.VarChar(100)
   preco         Decimal        @db.Decimal(10, 2)
   statusCuradoria StatusCuradoriaProduto @default(pendente) @map("status_curadoria")
+  rejeicaoJustificativa String? @map("rejeicao_justificativa") @db.VarChar(500)
+  rejeicaoAutorId String? @map("rejeicao_autor_id") @db.Uuid
+  rejeicaoEm DateTime? @map("rejeicao_em") @db.Timestamptz(3)
+  rejeicaoAutor Usuario? @relation("ProdutoRejeitadoPor", fields: [rejeicaoAutorId], references: [id], onDelete: Restrict, map: "fk_produto_rejeicao_autor")
   estoqueQtd    Int            @default(0) @map("estoque_qtd")
   dataCadastro  DateTime       @default(dbgenerated("CURRENT_DATE")) @map("data_cadastro") @db.Date
   descricao     String?
