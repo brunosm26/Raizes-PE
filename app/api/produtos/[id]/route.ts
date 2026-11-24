@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
 import { invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
-import { editarProduto, ErroProduto } from "@/lib/servidor/produtos";
+import { arquivarProduto, editarProduto, ErroProduto } from "@/lib/servidor/produtos";
 import { buscarProduto } from "@/lib/servidor/catalogo";
 
 export const dynamic = "force-dynamic";
@@ -37,5 +37,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     console.error("PATCH /api/produtos/:id", erro);
     return NextResponse.json({ erro: "Erro ao atualizar o produto." }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const sessao = await exigirSessao(["artesao"]);
+    const { id } = await params;
+    await arquivarProduto(id, sessao.id);
+    invalidarCatalogo();
+    return new NextResponse(null, { status: 204 });
+  } catch (erro) {
+    if (erro instanceof ErroProduto || erro instanceof ErroAuth) {
+      return NextResponse.json({ erro: erro.message }, { status: erro.status });
+    }
+    console.error("DELETE /api/produtos/:id", erro);
+    return NextResponse.json({ erro: "Não foi possível remover o produto." }, { status: 500 });
   }
 }

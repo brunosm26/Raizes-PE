@@ -93,7 +93,24 @@ export async function editarProduto(
   if (!ehUuid(id)) throw new ErroProduto("Produto não encontrado.", 404);
   const campos = validarCampos(bruto);
 
-  // Só o dono da loja (ou o admin) altera o produto.
+  const dono = await buscarUsuarioDono(id);
+  if (sessao.tipo !== "admin" && dono !== sessao.id) {
+    throw new ErroProduto("Este produto pertence a outro artesão.", 403);
+  }
+
+  const { rowCount } = await pool.query(
+    `UPDATE origem.produto
+        SET nome = $2, descricao = $3, preco = $4, estoque_qtd = $5, imagem_url = $6
+      WHERE id = $1 AND arquivado_em IS NULL`,
+    [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl]
+  );
+  if (!rowCount) throw new ErroProduto("Produto não encontrado.", 404);
+  const atualizado = await buscarProduto(id);
+  if (!atualizado) throw new ErroProduto("Produto não encontrado.", 404);
+  return atualizado;
+}
+
+async function buscarUsuarioDono(id: string): Promise<string> {
   const { rows: donos } = await pool.query<{ usuarioId: string }>(
     `SELECT a.usuario_id AS "usuarioId"
        FROM origem.produto p JOIN origem.artesao a ON a.id = p.artesao_id
@@ -101,18 +118,18 @@ export async function editarProduto(
     [id]
   );
   if (donos.length === 0) throw new ErroProduto("Produto não encontrado.", 404);
-  if (sessao.tipo !== "admin" && donos[0].usuarioId !== sessao.id) {
+  return donos[0].usuarioId;
+}
+
+export async function arquivarProduto(idBruto: string, usuarioId: string): Promise<void> {
+  const id = resolverId(idBruto);
+  if (!ehUuid(id)) throw new ErroProduto("Produto não encontrado.", 404);
+  if ((await buscarUsuarioDono(id)) !== usuarioId) {
     throw new ErroProduto("Este produto pertence a outro artesão.", 403);
   }
-
-  const { rowCount } = await pool.query(
-    `UPDATE origem.produto
-        SET nome = $2, descricao = $3, preco = $4, estoque_qtd = $5, imagem_url = $6
-      WHERE id = $1`,
-    [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl]
+  await pool.query(
+    `UPDATE origem.produto SET arquivado_em = CURRENT_TIMESTAMP
+      WHERE id = $1 AND arquivado_em IS NULL`,
+    [id]
   );
-  if (!rowCount) throw new ErroProduto("Produto não encontrado.", 404);
-  const atualizado = await buscarProduto(id);
-  if (!atualizado) throw new ErroProduto("Produto não encontrado.", 404);
-  return atualizado;
 }

@@ -25,18 +25,19 @@ interface ValorContextoProdutos {
     id: string,
     dados: Pick<Produto, "nome" | "descricao" | "preco" | "estoqueQtd" | "imagemUrl">
   ) => Promise<ProdutoComArtesao>;
+  removerProduto: (id: string) => Promise<void>;
 }
 
 const ContextoProdutos = createContext<ValorContextoProdutos | null>(null);
 
-async function mensagemDeErro(res: Response): Promise<string> {
+async function mensagemDeErro(res: Response, fallback = "Não foi possível salvar o produto. Tente novamente."): Promise<string> {
   try {
     const json = (await res.json()) as { erro?: string };
     if (json.erro) return json.erro;
   } catch {
     // resposta sem JSON: cai na mensagem padrão
   }
-  return "Não foi possível salvar o produto. Tente novamente.";
+  return fallback;
 }
 
 export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
@@ -91,6 +92,12 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const removerProduto = useCallback(async (id: string): Promise<void> => {
+    const res = await apiFetch(`/api/produtos/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await mensagemDeErro(res, "Não foi possível remover o produto. Tente novamente."));
+    setProdutos((atuais) => atuais.filter((produto) => produto.id !== id));
+  }, []);
+
   // O front usa ids do mock ("u2"); o banco usa UUID. resolverId faz a ponte.
   const produtosDoArtesao = useCallback(
     (usuarioId: string): ProdutoComArtesao[] => {
@@ -101,8 +108,8 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
   );
 
   const valor = useMemo<ValorContextoProdutos>(
-    () => ({ produtos, produtosDoArtesao, criarProduto, editarProduto }),
-    [produtos, produtosDoArtesao, criarProduto, editarProduto]
+    () => ({ produtos, produtosDoArtesao, criarProduto, editarProduto, removerProduto }),
+    [produtos, produtosDoArtesao, criarProduto, editarProduto, removerProduto]
   );
 
   return <ContextoProdutos.Provider value={valor}>{children}</ContextoProdutos.Provider>;

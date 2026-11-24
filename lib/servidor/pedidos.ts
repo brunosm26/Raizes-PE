@@ -135,8 +135,9 @@ export async function criarPedido(
       nome: string;
       preco: string;
       estoque: number;
+      arquivado: boolean;
     }>(
-      `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque
+      `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque, (arquivado_em IS NOT NULL) AS arquivado
          FROM origem.produto
         WHERE id = ANY($1::uuid[])
         ORDER BY id
@@ -148,6 +149,7 @@ export async function criarPedido(
     let totalCentavos = 0;
     for (const p of produtos) {
       const qtd = quantidades.get(p.id) as number;
+      if (p.arquivado) throw new ErroPedido(`"${p.nome}" não está mais disponível.`, 409);
       if (p.estoque < qtd) {
         throw new ErroPedido(
           p.estoque === 0

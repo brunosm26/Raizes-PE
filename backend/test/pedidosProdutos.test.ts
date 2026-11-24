@@ -223,4 +223,51 @@ describe("pedidos e produtos: com banco", () => {
     assert.equal(editado.status, 200);
     assert.equal((await editado.json()).nome, "Bolsa de Palha Grande");
   });
+
+  itComBanco("TC10: só o dono remove da venda e o pedido anterior permanece", async () => {
+    const dono = await api.cookie(USUARIOS.artesao);
+    const outro = await api.cookie(USUARIOS.outroArtesao);
+    const comprador = await api.cookie(USUARIOS.comprador);
+    const r = await criar(
+      "/produtos",
+      { nome: "Produto removível", descricao: "Teste", tecnica: "Cerâmica", categoria: "TC10", preco: 25, estoqueQtd: 3 },
+      dono
+    );
+    assert.equal(r.status, 201);
+    const { id, artesaoId } = r.corpo;
+    const detalhe = `${api.url}/produtos/${id}`;
+    const remover = (cookie: string) => fetch(detalhe, { method: "DELETE", headers: { cookie } });
+    const pedido = { itens: [{ produtoId: id, quantidade: 1 }] };
+
+    assert.equal((await remover(outro)).status, 403);
+    assert.equal((await fetch(detalhe)).status, 200);
+    const anterior = await criar("/pedidos", pedido, comprador);
+    assert.equal(anterior.status, 201);
+
+    const relacionado = async () => (await (await fetch(`${api.url}/produtos/p1/relacionados?limite=20`)).json())
+      .some((p: { id: string }) => p.id === id);
+    const recomendado = async () => (await (await fetch(`${api.url}/recomendacoes?limite=20`)).json()).dados
+      .some((p: { id: string }) => p.id === id);
+    assert.ok(await relacionado());
+    assert.ok(await recomendado());
+
+    assert.equal((await remover(dono)).status, 204);
+    assert.equal((await remover(dono)).status, 204);
+    assert.equal((await fetch(detalhe)).status, 404);
+    const produtos = await (await fetch(`${api.url}/produtos?categoria=TC10`)).json();
+    assert.deepEqual(produtos, []);
+    const perfil = await (await fetch(`${api.url}/artesaos/${artesaoId}`)).json();
+    assert.ok(!perfil.produtos.some((p: { id: string }) => p.id === id));
+    const filtros = await (await fetch(`${api.url}/filtros`)).json();
+    assert.ok(!filtros.categorias.includes("TC10"));
+    assert.ok(!(await relacionado()));
+    assert.ok(!(await recomendado()));
+
+    const carrinhoDesatualizado = await criar("/pedidos", pedido, comprador);
+    assert.equal(carrinhoDesatualizado.status, 409);
+    assert.match(carrinhoDesatualizado.corpo.erro, /não está mais disponível/);
+    const pedidos = await (await fetch(`${api.url}/pedidos`, { headers: { cookie: comprador } })).json();
+    const historico = pedidos.find((p: { id: string }) => p.id === anterior.corpo.id);
+    assert.equal(historico.itens[0].produtoId, id);
+  });
 });

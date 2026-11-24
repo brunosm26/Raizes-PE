@@ -30,7 +30,7 @@ function paraProduto(linha: LinhaProduto): ProdutoComArtesao {
 }
 
 export async function buscarPorId(id: string): Promise<ProdutoComArtesao | null> {
-  const { rows } = await executorPadrao().query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1`, [id]);
+  const { rows } = await executorPadrao().query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1 AND p.arquivado_em IS NULL`, [id]);
   return rows[0] ? paraProduto(rows[0]) : null;
 }
 
@@ -83,10 +83,18 @@ export async function atualizar(id: string, campos: CamposEditaveis): Promise<bo
   const { rowCount } = await executorPadrao().query(
     `UPDATE origem.produto
         SET nome = $2, descricao = $3, preco = $4, estoque_qtd = $5, imagem_url = $6
-      WHERE id = $1`,
+      WHERE id = $1 AND arquivado_em IS NULL`,
     [id, campos.nome, campos.descricao, campos.preco, campos.estoqueQtd, campos.imagemUrl]
   );
   return Boolean(rowCount);
+}
+
+export async function arquivar(id: string): Promise<void> {
+  await executorPadrao().query(
+    `UPDATE origem.produto SET arquivado_em = CURRENT_TIMESTAMP
+      WHERE id = $1 AND arquivado_em IS NULL`,
+    [id]
+  );
 }
 
 export interface ProdutoParaCompra {
@@ -94,13 +102,14 @@ export interface ProdutoParaCompra {
   nome: string;
   preco: string; // texto, para não perder centavos no float
   estoque: number;
+  arquivado: boolean;
 }
 
 // Trava as linhas (FOR UPDATE) para duas compras simultâneas não estourarem o estoque.
 // Só faz sentido dentro de uma transação.
 export async function travarParaCompra(ids: string[], tx: Executor): Promise<ProdutoParaCompra[]> {
   const { rows } = await tx.query<ProdutoParaCompra>(
-    `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque
+    `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque, (arquivado_em IS NOT NULL) AS arquivado
        FROM origem.produto
       WHERE id = ANY($1::uuid[])
       ORDER BY id
@@ -121,7 +130,7 @@ export interface FiltrosProduto {
 }
 
 export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao[]> {
-  const condicoes: string[] = [];
+  const condicoes = ["p.arquivado_em IS NULL"];
   const valores: string[] = [];
   if (filtros.tecnica) {
     valores.push(filtros.tecnica);
@@ -135,7 +144,7 @@ export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao
     valores.push(filtros.regiao);
     condicoes.push(`a.regiao_origem = $${valores.length}`);
   }
-  const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
+  const where = `WHERE ${condicoes.join(" AND ")}`;
 
   const { rows } = await executorPadrao().query<LinhaProduto>(
     `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
@@ -148,8 +157,8 @@ export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao
 export async function listarRelacionados(id: string, limite: number): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
     `${SELECT_PRODUTO}
-      WHERE p.id <> $1
-        AND p.tecnica = (SELECT tecnica FROM origem.produto WHERE id = $1)
+      WHERE p.id <> $1 AND p.arquivado_em IS NULL
+        AND p.tecnica = (SELECT tecnica FROM origem.produto WHERE id = $1 AND arquivado_em IS NULL)
       ORDER BY p.data_cadastro DESC, p.nome
       LIMIT $2`,
     [id, limite]
@@ -159,7 +168,7 @@ export async function listarRelacionados(id: string, limite: number): Promise<Pr
 
 // Categorias cadastradas, cruas: o service tira espaços, vazias e repetidas e ordena (D1 da
 // PI4-143: as categorias vêm dos produtos, não de uma tabela própria).
-export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL`;
+export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL AND arquivado_em IS NULL`;
 
 export async function listarCategorias(): Promise<string[]> {
   const { rows } = await executorPadrao().query<{ valor: string }>(SQL_CATEGORIAS);
@@ -168,7 +177,7 @@ export async function listarCategorias(): Promise<string[]> {
 
 export async function listarDoArtesao(artesaoId: string): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
-    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 ORDER BY p.data_cadastro DESC, p.nome`,
+    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 AND p.arquivado_em IS NULL ORDER BY p.data_cadastro DESC, p.nome`,
     [artesaoId]
   );
   return rows.map(paraProduto);

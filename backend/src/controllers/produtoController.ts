@@ -28,6 +28,12 @@ export const buscar: RequestHandler<{ id: string }> = async (req, res) => {
   res.json(produto);
 };
 
+export const arquivar: RequestHandler<{ id: string }> = async (req, res) => {
+  await produtoService.arquivarProduto(req.params.id, sessaoDe(req).id);
+  invalidarCatalogo();
+  res.sendStatus(204);
+};
+
 // GET /api/produtos/:id/relacionados?limite=3
 export const relacionados: RequestHandler<{ id: string }> = async (req, res) => {
   const limite = catalogoService.limitar(textoDaQuery(req.query.limite) ?? "3", 3);

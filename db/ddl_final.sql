@@ -1,7 +1,7 @@
 -- =====================================================================
 -- ORIGEM | DDL FINAL (schema origem, sem dados)
 -- ARQUIVO GERADO: não edite. A fonte da verdade são as migrations do Prisma em
--- backend/prisma/migrations (0_init, 1_regras_sql).
+-- backend/prisma/migrations (0_init, 1_regras_sql, 20261124071000_arquivamento_produto).
 -- Para regenerar: cd backend && npm run db:ddl
 -- Para conferir se está atualizado: npm run db:ddl -- --conferir
 --
@@ -452,5 +452,12 @@ COMMENT ON COLUMN origem.usuario.senha_hash     IS 'Hash scrypt da senha (scrypt
 COMMENT ON VIEW origem.vw_popularidade_produto IS 'Vendas (pedidos nao pendentes) e avaliacoes por produto, para o modulo de recomendacao (RF-03)';
 
 -- <<< fim da migration 1_regras_sql
+
+-- >>> migration 20261124071000_arquivamento_produto
+
+-- AlterTable
+ALTER TABLE "origem"."produto" ADD COLUMN     "arquivado_em" TIMESTAMPTZ(3);
+
+-- <<< fim da migration 20261124071000_arquivamento_produto
 
 COMMIT;

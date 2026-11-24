@@ -153,12 +153,13 @@ Opções dos filtros da vitrine e da tela `/admin/categorias`. Pública, sem par
 }
 ```
 
-### POST `/api/produtos` e PATCH `/api/produtos/{id}`
+### Escrita de produtos
 
 | Rota | Perfis | Corpo | Sucesso |
 |---|---|---|---|
 | `POST /api/produtos` | `artesao` | `nome`, `descricao`, `preco`, `estoqueQtd`, `tecnica`, `categoria` e `imagemUrl` opcional | `201` com o `ProdutoComArtesao` criado na loja do artesão da sessão |
 | `PATCH /api/produtos/{id}` | `artesao` (dono) ou `admin` | `nome`, `descricao`, `preco`, `estoqueQtd` e `imagemUrl` (todos enviados; ausente remove a foto). Técnica e categoria não mudam | `200` com o produto atualizado |
+| `DELETE /api/produtos/{id}` | `artesao` (dono) | Sem corpo. Retira o produto da venda e preserva os pedidos anteriores | `204`, inclusive em uma nova chamada do dono |
 
 - `preco` maior que 0 e até 99.999.999,99, arredondado para centavos. `estoqueQtd` inteiro de 0 a 1.000.000. `imagemUrl` aceita data URL de imagem de até ~2 MB, `http(s)://` ou caminho `/...`.
 - **Erros:** `400` validação; `401`; `403` perfil sem permissão ou produto de outro artesão (`"Este produto pertence a outro artesão."`); `404`; `413`; `500`.
@@ -419,6 +420,7 @@ Ids e datas ilustrativos; `fila` só aparece para o admin. **Erros:** `401`; `50
 | `GET /api/produtos/{id}`, `/relacionados`, `/avaliacoes` | público | — | — |
 | `POST /api/produtos` | artesão | invalida | — |
 | `PATCH /api/produtos/{id}` | artesão (dono) ou admin | invalida | — |
+| `DELETE /api/produtos/{id}` | artesão (dono) | invalida | — |
 | `GET /api/filtros` | público | `X-Cache` | — |
 | `GET /api/artesaos` | admin | — | — |
 | `GET /api/artesaos/{id}` | público | — | — |
