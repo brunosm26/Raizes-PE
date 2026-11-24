@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cadastrarComprador, ErroAuth } from "@/lib/servidor/auth";
+import { cadastrarContaPublica, ErroAuth } from "@/lib/servidor/auth";
 import { COOKIE_SESSAO, criarToken, DURACAO_SESSAO_SEG } from "@/lib/sessao";
 
 export const dynamic = "force-dynamic";
 
-// POST /api/auth/cadastro  { nome, email, senha }  → cria um comprador e já entra
+// Comprador inicia a sessão. Artesão aguarda aprovação antes de entrar.
 export async function POST(request: NextRequest) {
   try {
-    const corpo = (await request.json()) as { nome?: unknown; email?: unknown; senha?: unknown };
-    const usuario = await cadastrarComprador(
+    const corpo = ((await request.json()) ?? {}) as {
+      nome?: unknown; email?: unknown; senha?: unknown; perfil?: unknown; tipo?: unknown;
+    };
+    const usuario = await cadastrarContaPublica(
       typeof corpo.nome === "string" ? corpo.nome : "",
       typeof corpo.email === "string" ? corpo.email : "",
-      typeof corpo.senha === "string" ? corpo.senha : ""
+      typeof corpo.senha === "string" ? corpo.senha : "",
+      corpo.perfil,
+      corpo.tipo
     );
     const resposta = NextResponse.json({ usuario }, { status: 201 });
+    if (usuario.tipo === "artesao") return resposta;
     resposta.cookies.set({
       name: COOKIE_SESSAO,
       value: await criarToken(usuario),

@@ -14,6 +14,7 @@ import {
   FormHelperText,
   FormLabel,
   Input,
+  Select,
   useToast,
 } from "@chakra-ui/react";
 import NextLink from "next/link";
@@ -27,17 +28,22 @@ export default function CadastroPage() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [perfil, setPerfil] = useState<"comprador" | "artesao">("comprador");
+  const [aguardandoAprovacao, setAguardandoAprovacao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // Cria uma conta de COMPRADOR no banco e já entra com ela.
   async function handleCadastro(e: FormEvent) {
     e.preventDefault();
     if (enviando) return;
     setEnviando(true);
     setErro(null);
     try {
-      await cadastrar(nome, email, senha);
+      const usuario = await cadastrar(nome, email, senha, perfil);
+      if (usuario.tipo === "artesao") {
+        setAguardandoAprovacao(true);
+        return;
+      }
       toast({ title: "Conta criada!", status: "success", duration: 3000, isClosable: true, position: "top" });
       router.push("/");
       router.refresh();
@@ -58,45 +64,60 @@ export default function CadastroPage() {
           Junte-se à nossa rede de Economia Criativa
         </Text>
 
-        <VStack spacing={4} as="form" onSubmit={handleCadastro}>
-          {erro && (
-            <Alert status="error" borderRadius="8px" fontSize="0.86rem">
-              <AlertIcon />
-              {erro}
-            </Alert>
-          )}
+        {aguardandoAprovacao ? (
+          <Alert status="success" borderRadius="8px">
+            <AlertIcon />
+            Cadastro enviado. Aguarde a aprovação da curadoria para entrar como artesão.
+          </Alert>
+        ) : (
+          <VStack spacing={4} as="form" onSubmit={handleCadastro}>
+            {erro && (
+              <Alert status="error" borderRadius="8px" fontSize="0.86rem">
+                <AlertIcon />
+                {erro}
+              </Alert>
+            )}
 
-          <FormControl isRequired>
-            <FormLabel>Nome Completo</FormLabel>
-            <Input type="text" placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} />
-          </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Perfil</FormLabel>
+              <Select value={perfil} onChange={(e) => setPerfil(e.target.value === "artesao" ? "artesao" : "comprador")}>
+                <option value="comprador">Comprador</option>
+                <option value="artesao">Artesão</option>
+              </Select>
+            </FormControl>
 
-          <FormControl isRequired>
-            <FormLabel>E-mail</FormLabel>
-            <Input
-              type="email"
-              placeholder="email@exemplo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </FormControl>
+            <FormControl isRequired>
+              <FormLabel>Nome Completo</FormLabel>
+              <Input type="text" placeholder="Seu nome" value={nome} onChange={(e) => setNome(e.target.value)} />
+            </FormControl>
 
-          <FormControl isRequired>
-            <FormLabel>Senha</FormLabel>
-            <Input
-              type="password"
-              placeholder="********"
-              minLength={8}
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-            />
-            <FormHelperText>Mínimo de 8 caracteres.</FormHelperText>
-          </FormControl>
+            <FormControl isRequired>
+              <FormLabel>E-mail</FormLabel>
+              <Input
+                type="email"
+                placeholder="email@exemplo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </FormControl>
 
-          <Button type="submit" variant="solid" w="full" mt={4} isLoading={enviando} loadingText="Criando...">
-            Criar conta
-          </Button>
-        </VStack>
+            <FormControl isRequired>
+              <FormLabel>Senha</FormLabel>
+              <Input
+                type="password"
+                placeholder="********"
+                minLength={8}
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+              />
+              <FormHelperText>Mínimo de 8 caracteres.</FormHelperText>
+            </FormControl>
+
+            <Button type="submit" variant="solid" w="full" mt={4} isLoading={enviando} loadingText="Criando...">
+              Criar conta
+            </Button>
+          </VStack>
+        )}
 
         <Text textAlign="center" mt={4} fontSize="sm" color="mutedFg">
           Já possui conta?{" "}

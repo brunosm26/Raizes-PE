@@ -1,71 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Badge, Box, Button, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr } from "@chakra-ui/react";
+import { useState } from "react";
+import { Badge, Box, Button, Flex, Heading, Table, Tbody, Td, Text, Th, Thead, Tr, useToast } from "@chakra-ui/react";
 import NextLink from "next/link";
 import MensagemErro from "@/components/MensagemErro";
-import {
-  aprovarArtesao,
-  lerAprovacoes,
-  salvarAprovacoes,
-  statusArtesao,
-  type Aprovacoes,
-  type StatusArtesao,
-} from "@/lib/estadoAdmin";
+import { aprovarArtesaoAdmin } from "@/lib/apiAdminFiltros";
 import { useArtesaosAdmin } from "@/lib/useArtesaosAdmin";
-
-const ROTULO_STATUS: Record<StatusArtesao, string> = {
-  "com-login": "Aprovado (tem login)",
-  "aprovado-navegador": "Aprovado neste navegador",
-  pendente: "Pendente (sem login)",
-};
-
-const COR_STATUS: Record<StatusArtesao, { bg: string; color: string }> = {
-  "com-login": { bg: "accent", color: "accentFg" },
-  "aprovado-navegador": { bg: "muted", color: "fg" },
-  pendente: { bg: "secondary", color: "secondaryFg" },
-};
 
 export default function GestaoArtesaosPage() {
   const { artesaos, carregando, erro, tentarDeNovo } = useArtesaosAdmin();
-  // null até ler o localStorage (só existe no navegador).
-  const [aprovacoes, setAprovacoes] = useState<Aprovacoes | null>(null);
+  const [aprovando, setAprovando] = useState<string | null>(null);
+  const toast = useToast();
 
-  useEffect(() => {
+  async function aprovar(id: string) {
+    setAprovando(id);
     try {
-      setAprovacoes(lerAprovacoes(window.localStorage));
-    } catch {
-      setAprovacoes({});
+      await aprovarArtesaoAdmin(id);
+      tentarDeNovo();
+    } catch (erro) {
+      toast({
+        title: erro instanceof Error ? erro.message : "Não foi possível aprovar o artesão.",
+        status: "error",
+        isClosable: true,
+      });
+    } finally {
+      setAprovando(null);
     }
-  }, []);
-
-  function aprovar(artesaoId: string) {
-    setAprovacoes((atuais) => {
-      const novas = aprovarArtesao(atuais ?? {}, artesaoId);
-      try {
-        salvarAprovacoes(window.localStorage, novas);
-      } catch {
-        // sem localStorage: vale só enquanto a tela está aberta
-      }
-      return novas;
-    });
   }
 
-  const pronto = !carregando && aprovacoes !== null;
-  const pendentes = pronto ? artesaos.filter((artesao) => statusArtesao(artesao, aprovacoes) === "pendente").length : 0;
+  const pronto = !carregando;
+  const pendentes = artesaos.filter((artesao) => !artesao.aprovado).length;
 
   return (
     <Box>
       <Heading fontSize="1.9rem" mb={3}>
         Gestão de Artesãos
       </Heading>
-      <Text color="mutedFg" fontSize="sm" mb={1}>
-        Lista do banco. <strong>Pendente</strong> é o artesão que ainda não tem login (sem senha cadastrada).
-      </Text>
-      <Text color="mutedFg" fontSize="sm" mb={4}>
-        Aprovação de demonstração: fica só neste navegador e não altera o banco.
-        {pronto && !erro && ` ${pendentes} ${pendentes === 1 ? "pendente" : "pendentes"}.`}
-      </Text>
+      {pronto && !erro && (
+        <Text color="mutedFg" fontSize="sm" mb={4}>
+          {pendentes} {pendentes === 1 ? "cadastro aguarda" : "cadastros aguardam"} aprovação.
+        </Text>
+      )}
 
       {erro ? (
         <MensagemErro mensagem="Não foi possível carregar os artesãos." aoTentarNovamente={tentarDeNovo} />
@@ -95,55 +70,58 @@ export default function GestaoArtesaosPage() {
                 </Tr>
               )}
               {pronto &&
-                artesaos.map((artesao) => {
-                  const status = statusArtesao(artesao, aprovacoes);
-                  return (
-                    <Tr key={artesao.id}>
-                      <Td fontWeight={500}>{artesao.nome}</Td>
-                      <Td>{artesao.regiaoOrigem || "—"}</Td>
-                      <Td>
-                        {artesao.tecnicas.length === 0 ? (
-                          <Text as="span" color="mutedFg" fontSize="sm">
-                            Sem produtos
-                          </Text>
-                        ) : (
-                          <Flex wrap="wrap" gap={1}>
-                            {artesao.tecnicas.map((tecnica) => (
-                              <Badge key={tecnica} bg="muted" color="mutedFg" textTransform="none">
-                                {tecnica}
-                              </Badge>
-                            ))}
-                          </Flex>
-                        )}
-                      </Td>
-                      <Td isNumeric>{artesao.totalProdutos}</Td>
-                      <Td>{artesao.temLogin ? "Sim" : "Não"}</Td>
-                      <Td>
-                        <Badge
-                          bg={COR_STATUS[status].bg}
-                          color={COR_STATUS[status].color}
-                          borderRadius="full"
-                          px={3}
-                          textTransform="none"
-                        >
-                          {ROTULO_STATUS[status]}
-                        </Badge>
-                      </Td>
-                      <Td>
-                        <Flex gap={2}>
-                          <Button as={NextLink} href={`/artesao/${artesao.id}`} size="sm" variant="outline">
-                            Ver Perfil
-                          </Button>
-                          {status === "pendente" && (
-                            <Button size="sm" variant="solid" onClick={() => aprovar(artesao.id)}>
-                              Aprovar
-                            </Button>
-                          )}
+                artesaos.map((artesao) => (
+                  <Tr key={artesao.id}>
+                    <Td fontWeight={500}>{artesao.nome}</Td>
+                    <Td>{artesao.regiaoOrigem || "—"}</Td>
+                    <Td>
+                      {artesao.tecnicas.length === 0 ? (
+                        <Text as="span" color="mutedFg" fontSize="sm">
+                          Sem produtos
+                        </Text>
+                      ) : (
+                        <Flex wrap="wrap" gap={1}>
+                          {artesao.tecnicas.map((tecnica) => (
+                            <Badge key={tecnica} bg="muted" color="mutedFg" textTransform="none">
+                              {tecnica}
+                            </Badge>
+                          ))}
                         </Flex>
-                      </Td>
-                    </Tr>
-                  );
-                })}
+                      )}
+                    </Td>
+                    <Td isNumeric>{artesao.totalProdutos}</Td>
+                    <Td>{artesao.temLogin ? "Sim" : "Não"}</Td>
+                    <Td>
+                      <Badge
+                        bg={artesao.aprovado ? "accent" : "secondary"}
+                        color={artesao.aprovado ? "accentFg" : "secondaryFg"}
+                        borderRadius="full"
+                        px={3}
+                        textTransform="none"
+                      >
+                        {artesao.aprovado ? "Aprovado" : "Pendente"}
+                      </Badge>
+                    </Td>
+                    <Td>
+                      <Flex gap={2}>
+                        <Button as={NextLink} href={`/artesao/${artesao.id}`} size="sm" variant="outline">
+                          Ver Perfil
+                        </Button>
+                        {!artesao.aprovado && (
+                          <Button
+                            size="sm"
+                            variant="solid"
+                            onClick={() => aprovar(artesao.id)}
+                            isLoading={aprovando === artesao.id}
+                            isDisabled={aprovando !== null}
+                          >
+                            Aprovar
+                          </Button>
+                        )}
+                      </Flex>
+                    </Td>
+                  </Tr>
+                ))}
             </Tbody>
           </Table>
         </Box>

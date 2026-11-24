@@ -18,3 +18,11 @@ export function getArtesaosAdmin(): Promise<ArtesaoAdmin[]> {
 export function getOpcoesFiltros(): Promise<OpcoesFiltros> {
   return lerJson<OpcoesFiltros>("/api/filtros");
 }
+
+export async function aprovarArtesaoAdmin(id: string): Promise<void> {
+  const resposta = await apiFetch(`/api/artesaos/${encodeURIComponent(id)}/aprovacao`, { method: "PATCH" });
+  if (!resposta.ok) {
+    const corpo = (await resposta.json().catch(() => ({}))) as { erro?: string };
+    throw new Error(corpo.erro ?? "Não foi possível aprovar o artesão.");
+  }
+}

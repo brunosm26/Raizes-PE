@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { autenticar } from "@/lib/servidor/auth";
+import { autenticar, ErroAuth } from "@/lib/servidor/auth";
 import { COOKIE_SESSAO, criarToken, DURACAO_SESSAO_SEG } from "@/lib/sessao";
 
 export const dynamic = "force-dynamic";
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     });
     return resposta;
   } catch (erro) {
+    if (erro instanceof ErroAuth) return NextResponse.json({ erro: erro.message }, { status: erro.status });
     console.error("POST /api/auth/login", erro);
     return NextResponse.json({ erro: "Erro ao entrar. Tente novamente." }, { status: 500 });
   }

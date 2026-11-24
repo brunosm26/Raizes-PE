@@ -18,10 +18,12 @@ export async function ehComprador(id: string, tx: Executor = executorPadrao()): 
 
 export async function buscarPorEmail(
   email: string
-): Promise<(UsuarioAutenticado & { senhaHash: string | null }) | null> {
-  const { rows } = await executorPadrao().query<UsuarioAutenticado & { senhaHash: string | null }>(
-    `SELECT id, nome, tipo, senha_hash AS "senhaHash"
-       FROM origem.usuario WHERE lower(email) = lower($1)`,
+): Promise<(UsuarioAutenticado & { senhaHash: string | null; aprovado: boolean | null }) | null> {
+  const { rows } = await executorPadrao().query<UsuarioAutenticado & { senhaHash: string | null; aprovado: boolean | null }>(
+    `SELECT u.id, u.nome, u.tipo, u.senha_hash AS "senhaHash", a.aprovado
+       FROM origem.usuario u
+       LEFT JOIN origem.artesao a ON a.usuario_id = u.id
+      WHERE lower(u.email) = lower($1)`,
     [email]
   );
   return rows[0] ?? null;
@@ -30,13 +32,24 @@ export async function buscarPorEmail(
 // Lança ErroEmailDuplicado se o e-mail já existe (violação de unicidade).
 export class ErroEmailDuplicado extends Error {}
 
-export async function inserirComprador(nome: string, email: string, senhaHash: string): Promise<UsuarioAutenticado> {
+export async function inserirContaPublica(
+  nome: string,
+  email: string,
+  senhaHash: string,
+  perfil: "comprador" | "artesao"
+): Promise<UsuarioAutenticado> {
   try {
     const { rows } = await executorPadrao().query<UsuarioAutenticado>(
-      `INSERT INTO origem.usuario (nome, email, tipo, senha_hash)
-       VALUES ($1, $2, 'comprador', $3)
-       RETURNING id, nome, tipo`,
-      [nome, email, senhaHash]
+      `WITH conta AS (
+         INSERT INTO origem.usuario (nome, email, tipo, senha_hash)
+         VALUES ($1, $2, $4, $3)
+         RETURNING id, nome, tipo
+       ), perfil_artesao AS (
+         INSERT INTO origem.artesao (usuario_id, aprovado)
+         SELECT id, false FROM conta WHERE tipo = 'artesao'
+       )
+       SELECT id, nome, tipo FROM conta`,
+      [nome, email, senhaHash, perfil]
     );
     return rows[0]!;
   } catch (erro) {

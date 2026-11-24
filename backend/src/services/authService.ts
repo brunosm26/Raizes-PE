@@ -38,6 +38,9 @@ async function autenticar(email: string, senha: string): Promise<UsuarioAutentic
     return null;
   }
   if (!(await verificarSenha(senha, usuario.senhaHash))) return null;
+  if (usuario.tipo === "artesao" && usuario.aprovado !== true) {
+    throw new ErroHttp(403, "Seu cadastro de artesão aguarda aprovação.");
+  }
   return { id: usuario.id, nome: usuario.nome, tipo: usuario.tipo };
 }
 
@@ -71,13 +74,17 @@ export async function entrar(
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Cadastro público: sempre cria um COMPRADOR. Contas de artesão e admin são criadas
-// por quem administra a plataforma.
-export async function cadastrarComprador(entrada: {
+export async function cadastrarContaPublica(entrada: {
   nome?: unknown;
   email?: unknown;
   senha?: unknown;
+  perfil?: unknown;
+  tipo?: unknown;
 }): Promise<UsuarioAutenticado> {
+  const perfil = entrada.perfil === undefined ? "comprador" : entrada.perfil;
+  if ((perfil !== "comprador" && perfil !== "artesao") || entrada.tipo !== undefined) {
+    throw new ErroHttp(400, "Escolha o perfil Comprador ou Artesão.");
+  }
   const nome = (typeof entrada.nome === "string" ? entrada.nome : "").trim();
   const email = (typeof entrada.email === "string" ? entrada.email : "").trim().toLowerCase();
   const senha = typeof entrada.senha === "string" ? entrada.senha : "";
@@ -86,7 +93,7 @@ export async function cadastrarComprador(entrada: {
   if (senha.length < 8 || senha.length > 200) throw new ErroHttp(400, "A senha precisa ter de 8 a 200 caracteres.");
 
   try {
-    return await usuarioRepository.inserirComprador(nome, email, await hashSenha(senha));
+    return await usuarioRepository.inserirContaPublica(nome, email, await hashSenha(senha), perfil);
   } catch (erro) {
     if (erro instanceof usuarioRepository.ErroEmailDuplicado) {
       throw new ErroHttp(409, "Este e-mail já está cadastrado.");

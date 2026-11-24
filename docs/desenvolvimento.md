@@ -205,7 +205,7 @@ Os logins estão no [README](../README.md#logins-de-demonstração): comprador, 
 │   ├── apiUrl.ts         # apiFetch: ponto único das chamadas do front à API
 │   ├── apiCatalogo.ts    # Leituras do catálogo (vitrine, produto, perfil do artesão)
 │   ├── apiAdminFiltros.ts # GET /api/artesaos (admin) e GET /api/filtros (vitrine)
-│   ├── estadoAdmin.ts    # Aprovação e moderação de demonstração do admin (localStorage)
+│   ├── estadoAdmin.ts    # Moderação de produtos de demonstração do admin (localStorage)
 │   ├── servidor/         # Consultas SQL e regras das rotas app/api (só servidor)
 │   └── motorRecomendacao.ts # Baseline de IA das rotas app/api (lê o banco; só servidor)
 ├── tests/                # Testes do front (node --test), listados por scripts/rodar-testes.mjs

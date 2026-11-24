@@ -31,6 +31,7 @@ model Artesao {
   usuarioId    String    @unique(map: "uq_artesao_usuario") @map("usuario_id") @db.Uuid
   regiaoOrigem String?   @map("regiao_origem") @db.VarChar(100)
   biografia    String?
+  aprovado     Boolean   @default(false)
   usuario      Usuario   @relation(fields: [usuarioId], references: [id], map: "fk_artesao_usuario")
   produtos     Produto[]
 

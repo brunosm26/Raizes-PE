@@ -57,9 +57,11 @@ export interface UsuarioAutenticado {
 let hashFalso: Promise<string> | null = null;
 
 export async function autenticar(email: string, senha: string): Promise<UsuarioAutenticado | null> {
-  const { rows } = await pool.query<UsuarioAutenticado & { senhaHash: string | null }>(
-    `SELECT id, nome, tipo, senha_hash AS "senhaHash"
-       FROM origem.usuario WHERE lower(email) = lower($1)`,
+  const { rows } = await pool.query<UsuarioAutenticado & { senhaHash: string | null; aprovado: boolean | null }>(
+    `SELECT u.id, u.nome, u.tipo, u.senha_hash AS "senhaHash", a.aprovado
+       FROM origem.usuario u
+       LEFT JOIN origem.artesao a ON a.usuario_id = u.id
+      WHERE lower(u.email) = lower($1)`,
     [email.trim()]
   );
   const usuario = rows[0];
@@ -69,18 +71,24 @@ export async function autenticar(email: string, senha: string): Promise<UsuarioA
     return null;
   }
   if (!(await verificarSenha(senha, usuario.senhaHash))) return null;
+  if (usuario.tipo === "artesao" && usuario.aprovado !== true) {
+    throw new ErroAuth("Seu cadastro de artesão aguarda aprovação.", 403);
+  }
   return { id: usuario.id, nome: usuario.nome, tipo: usuario.tipo };
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Cadastro público: sempre cria um COMPRADOR. Contas de artesão e admin são criadas
-// por quem administra a plataforma.
-export async function cadastrarComprador(
+export async function cadastrarContaPublica(
   nome: string,
   email: string,
-  senha: string
+  senha: string,
+  perfil: unknown = "comprador",
+  tipo?: unknown
 ): Promise<UsuarioAutenticado> {
+  if ((perfil !== "comprador" && perfil !== "artesao") || tipo !== undefined) {
+    throw new ErroAuth("Escolha o perfil Comprador ou Artesão.", 400);
+  }
   const nomeLimpo = nome.trim();
   const emailLimpo = email.trim().toLowerCase();
   if (!nomeLimpo || nomeLimpo.length > 150) throw new ErroAuth("Informe seu nome (até 150 caracteres).", 400);
@@ -90,10 +98,16 @@ export async function cadastrarComprador(
   const hash = await hashSenha(senha);
   try {
     const { rows } = await pool.query<UsuarioAutenticado>(
-      `INSERT INTO origem.usuario (nome, email, tipo, senha_hash)
-       VALUES ($1, $2, 'comprador', $3)
-       RETURNING id, nome, tipo`,
-      [nomeLimpo, emailLimpo, hash]
+      `WITH conta AS (
+         INSERT INTO origem.usuario (nome, email, tipo, senha_hash)
+         VALUES ($1, $2, $4, $3)
+         RETURNING id, nome, tipo
+       ), perfil_artesao AS (
+         INSERT INTO origem.artesao (usuario_id, aprovado)
+         SELECT id, false FROM conta WHERE tipo = 'artesao'
+       )
+       SELECT id, nome, tipo FROM conta`,
+      [nomeLimpo, emailLimpo, hash, perfil]
     );
     return rows[0];
   } catch (erro) {

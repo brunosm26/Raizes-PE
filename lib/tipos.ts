@@ -185,6 +185,7 @@ export interface ArtesaoAdmin {
   tecnicas: string[];
   totalProdutos: number;
   temLogin: boolean;
+  aprovado: boolean;
   dataCadastro: string;
 }
 

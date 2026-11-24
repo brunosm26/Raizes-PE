@@ -6,3 +6,4 @@ export const artesaoRoutes = Router();
 
 artesaoRoutes.get("/", exigirSessao(["admin"]), artesaoController.listar);
 artesaoRoutes.get("/:id", artesaoController.buscarPerfil);
+artesaoRoutes.patch("/:id/aprovacao", exigirSessao(["admin"]), artesaoController.aprovar);

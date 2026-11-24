@@ -62,7 +62,7 @@ async function instalarDubleDoBanco(): Promise<void> {
   };
 }
 
-const CAMPOS_ARTESAO = ["id", "usuarioId", "nome", "regiaoOrigem", "tecnicas", "totalProdutos", "temLogin", "dataCadastro"];
+const CAMPOS_ARTESAO = ["id", "usuarioId", "nome", "regiaoOrigem", "tecnicas", "totalProdutos", "temLogin", "aprovado", "dataCadastro"];
 
 function linhaArtesao(n: number, nome: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const hex = n.toString(16).padStart(2, "0");
@@ -74,6 +74,7 @@ function linhaArtesao(n: number, nome: string, extra: Record<string, unknown> = 
     tecnicas: [],
     totalProdutos: 0,
     temLogin: false,
+    aprovado: false,
     dataCadastro: "2025-05-10",
     ...extra,
   };
@@ -122,7 +123,7 @@ describe("GET /artesaos: só admin", () => {
 });
 
 describe("GET /artesaos: formato e ordem", () => {
-  it("admin recebe só os 8 campos, em ordem de nome pt-BR, com técnicas ordenadas", async () => {
+  it("admin recebe só os campos do contrato, em ordem de nome pt-BR, com técnicas ordenadas", async () => {
     linhasArtesaos = [
       linhaArtesao(1, "Zé da Palha", { tecnicas: ["Palha"], totalProdutos: 1, temLogin: true }),
       linhaArtesao(2, "Ângela", { tecnicas: ["Têxtil", "Cerâmica", "Madeira"], totalProdutos: 4 }),
@@ -143,18 +144,18 @@ describe("GET /artesaos: formato e ordem", () => {
     assert.equal(JSON.stringify(lista).includes("nao-pode-sair"), false);
   });
 
-  it("temLogin é sempre booleano e totalProdutos, inteiro", async () => {
+  it("aprovação e senha cadastrada são independentes", async () => {
     linhasArtesaos = [
       linhaArtesao(1, "Com login", { temLogin: true, totalProdutos: 2 }),
-      linhaArtesao(2, "Sem login", { temLogin: false }),
+      linhaArtesao(2, "Sem login", { aprovado: true }),
     ];
     const r = await pedir("/artesaos", await api.cookie(USUARIOS.admin));
-    const lista = r.corpo as { nome: string; temLogin: unknown; totalProdutos: unknown }[];
+    const lista = r.corpo as { nome: string; temLogin: unknown; aprovado: unknown; totalProdutos: unknown }[];
     assert.deepEqual(
-      lista.map((a) => [a.nome, a.temLogin, a.totalProdutos]),
+      lista.map((a) => [a.nome, a.temLogin, a.aprovado, a.totalProdutos]),
       [
-        ["Com login", true, 2],
-        ["Sem login", false, 0],
+        ["Com login", true, false, 2],
+        ["Sem login", false, true, 0],
       ]
     );
   });
