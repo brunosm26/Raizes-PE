@@ -77,7 +77,7 @@ const escrita = async () => {
   if (falharEscrita) throw new ErroDados("Dados inválidos (dublê).");
   return { id: "x" };
 };
-dublar("lib/servidor/produtos.ts", { ErroProduto: ErroDados, criarProduto: escrita, editarProduto: escrita });
+dublar("lib/servidor/produtos.ts", { ErroProduto: ErroDados, criarProduto: escrita, editarProduto: escrita, arquivarProduto: escrita });
 dublar("lib/servidor/pedidos.ts", {
   ErroPedido: ErroDados,
   criarPedido: escrita,
@@ -166,16 +166,17 @@ describe("cache no fallback do Next", () => {
   const ESCRITAS = [
     ["POST /api/produtos", () => produtos.POST(corpo("POST"))],
     ["PATCH /api/produtos/:id", () => produto.PATCH(corpo("PATCH"), params)],
+    ["DELETE /api/produtos/:id", () => produto.DELETE(new NextRequest(url("/produtos/x"), { method: "DELETE" }), params), 204],
     ["POST /api/pedidos", () => pedidos.POST(corpo("POST"))],
     ["PATCH /api/pedidos/:id", () => pedido.PATCH(corpo("PATCH"), params)],
   ];
 
-  for (const [nome, escrever] of ESCRITAS) {
+  for (const [nome, escrever, status] of ESCRITAS) {
     it(`${nome} com sucesso apaga o cache`, async () => {
       await ler(filtros.GET);
       await ler(produtos.GET, "/produtos");
       sessaoAtual = ARTESAO;
-      assert.ok([200, 201].includes((await escrever()).status));
+      assert.ok((status ? [status] : [200, 201]).includes((await escrever()).status));
       assert.equal((await ler(filtros.GET)).xCache, "MISS");
       assert.equal((await ler(produtos.GET, "/produtos")).xCache, "MISS");
     });

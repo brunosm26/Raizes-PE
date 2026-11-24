@@ -47,7 +47,7 @@ export const SQL_ARTESAOS_ADMIN = `
          to_char(u.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro"
     FROM origem.artesao a
     JOIN origem.usuario u ON u.id = a.usuario_id
-    LEFT JOIN origem.produto p ON p.artesao_id = a.id
+    LEFT JOIN origem.produto p ON p.artesao_id = a.id AND p.arquivado_em IS NULL
    GROUP BY a.id, u.id`;
 
 export async function listarParaAdmin(): Promise<ArtesaoAdmin[]> {

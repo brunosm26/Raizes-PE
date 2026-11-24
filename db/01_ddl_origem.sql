@@ -66,6 +66,7 @@ CREATE TABLE produto (
     categoria     VARCHAR(100),
     preco         NUMERIC(10,2) NOT NULL,
     estoque_qtd   INTEGER       NOT NULL DEFAULT 0,
+    arquivado_em  TIMESTAMPTZ(3),
     data_cadastro DATE          NOT NULL DEFAULT CURRENT_DATE,
     CONSTRAINT pk_produto PRIMARY KEY (id),
     CONSTRAINT fk_produto_artesao FOREIGN KEY (artesao_id)

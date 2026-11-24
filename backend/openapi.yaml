@@ -404,6 +404,32 @@ paths:
         "500":
           $ref: "#/components/responses/ErroInterno"
 
+    delete:
+      tags: [Produtos]
+      summary: Remover produto do catálogo
+      description: |
+        **Perfis exigidos:** `artesao`. Sem sessão responde 401; com outro perfil, 403.
+
+        O artesão dono remove o produto da venda. A operação pode ser repetida e preserva os pedidos anteriores.
+      operationId: arquivarProduto
+      security:
+        - cookieSessao: []
+      x-perfis: [artesao]
+      responses:
+        "204":
+          description: Produto removido
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          description: Perfil sem permissão ou produto de outro artesão
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "404":
+          $ref: "#/components/responses/ProdutoNaoEncontrado"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
   /produtos/{id}/relacionados:
     get:
       tags: [Catálogo]
@@ -608,7 +634,7 @@ paths:
               schema: { $ref: "#/components/schemas/Erro" }
               example: { ok: false, erro: Produto não encontrado. }
         "409":
-          description: Estoque insuficiente
+          description: Estoque insuficiente ou produto retirado de venda
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Erro" }

@@ -1,8 +1,16 @@
-import { Flex, Box, Text, Button, Image } from "@chakra-ui/react";
+import { Flex, Box, Text, Button, Image, Stack } from "@chakra-ui/react";
 import { estiloFundoProduto } from "@/lib/arteProduto";
 import type { ProdutoComArtesao } from "@/lib/tipos";
 
-export default function LinhaProduto({ produto, aoEditar }: { produto: ProdutoComArtesao; aoEditar: (produto: ProdutoComArtesao) => void }) {
+export default function LinhaProduto({
+  produto,
+  aoEditar,
+  aoRemover,
+}: {
+  produto: ProdutoComArtesao;
+  aoEditar: (produto: ProdutoComArtesao) => void;
+  aoRemover: (produto: ProdutoComArtesao) => void;
+}) {
   return (
     <Flex
       align="center"
@@ -43,9 +51,14 @@ export default function LinhaProduto({ produto, aoEditar }: { produto: ProdutoCo
         </Text>
         <Text fontWeight={500}>R$ {produto.preco.toFixed(2).replace(".", ",")}</Text>
       </Box>
-      <Button variant="outline" size="sm" borderColor="border" color="primary" onClick={() => aoEditar(produto)}>
-        Editar
-      </Button>
+      <Stack direction={{ base: "column", sm: "row" }}>
+        <Button variant="outline" size="sm" borderColor="border" color="primary" onClick={() => aoEditar(produto)}>
+          Editar
+        </Button>
+        <Button variant="ghost" size="sm" colorScheme="red" onClick={() => aoRemover(produto)}>
+          Remover
+        </Button>
+      </Stack>
     </Flex>
   );
 }

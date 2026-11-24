@@ -52,6 +52,7 @@ export async function criarPedido(compradorIdBruto: string, itensEntrada: unknow
     let totalCentavos = 0;
     for (const p of produtos) {
       const qtd = quantidades.get(p.id) as number;
+      if (p.arquivado) throw new ErroHttp(409, `"${p.nome}" não está mais disponível.`);
       if (p.estoque < qtd) {
         throw new ErroHttp(
           409,

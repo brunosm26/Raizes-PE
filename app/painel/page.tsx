@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Flex, Box, Heading, Text, Button, SimpleGrid, useDisclosure, useToast } from "@chakra-ui/react";
+import { useEffect, useRef, useState } from "react";
+import {
+  AlertDialog, AlertDialogBody, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogOverlay,
+  Flex, Box, Heading, Text, Button, SimpleGrid, useDisclosure, useToast,
+} from "@chakra-ui/react";
 import BarraNavegacao from "@/components/BarraNavegacao";
 import CartaoEstatistica from "@/components/CartaoEstatistica";
 import GraficoVendas from "@/components/GraficoVendas";
@@ -22,11 +25,14 @@ export default function Pagina() {
   const usuarioId = usuario?.id ?? "";
   const [estatisticas, setEstatisticas] = useState<EstatisticasPainel | null>(null);
   const [produtoEmEdicao, setProdutoEmEdicao] = useState<ProdutoComArtesao | null>(null);
+  const [produtoEmRemocao, setProdutoEmRemocao] = useState<ProdutoComArtesao | null>(null);
+  const [removendo, setRemovendo] = useState(false);
+  const cancelarRemocaoRef = useRef<HTMLButtonElement>(null);
   const [erroEstatisticas, setErroEstatisticas] = useState(false);
   const [tentativaEstatisticas, setTentativaEstatisticas] = useState(0);
   const { pedidosDoArtesao, pedidosPendentesDoArtesao, marcarComoEnviado } =
     usePedidos();
-  const { produtosDoArtesao, criarProduto, editarProduto } = useProdutos();
+  const { produtosDoArtesao, criarProduto, editarProduto, removerProduto } = useProdutos();
   const { isOpen: modalAberto, onOpen: abrirModal, onClose: fecharModal } = useDisclosure();
   const toast = useToast();
 
@@ -115,6 +121,24 @@ export default function Pagina() {
       });
     } catch (erro) {
       avisarErro("Não foi possível atualizar o produto", erro);
+    }
+  }
+
+  function fecharRemocao() {
+    if (!removendo) setProdutoEmRemocao(null);
+  }
+
+  async function confirmarRemocao() {
+    if (!produtoEmRemocao || removendo) return;
+    setRemovendo(true);
+    try {
+      await removerProduto(produtoEmRemocao.id);
+      setProdutoEmRemocao(null);
+      toast({ title: "Produto removido", status: "success", isClosable: true, position: "top" });
+    } catch (erro) {
+      avisarErro("Não foi possível remover o produto", erro);
+    } finally {
+      setRemovendo(false);
     }
   }
 
@@ -229,11 +253,31 @@ export default function Pagina() {
               Nenhum produto cadastrado ainda.
             </Text>
           ) : (
-            produtos.map((p) => <LinhaProduto key={p.id} produto={p} aoEditar={setProdutoEmEdicao} />)
+            produtos.map((p) => <LinhaProduto key={p.id} produto={p} aoEditar={setProdutoEmEdicao} aoRemover={setProdutoEmRemocao} />)
           )}
         </Box>
       </Box>
 
+      <AlertDialog
+        isOpen={!!produtoEmRemocao}
+        leastDestructiveRef={cancelarRemocaoRef}
+        onClose={fecharRemocao}
+        closeOnEsc={!removendo}
+        closeOnOverlayClick={!removendo}
+      >
+        <AlertDialogOverlay>
+          <AlertDialogContent>
+            <AlertDialogHeader>Remover produto?</AlertDialogHeader>
+            <AlertDialogBody>
+              {produtoEmRemocao?.nome} deixará de aparecer na sua loja. Pedidos anteriores continuarão no histórico.
+            </AlertDialogBody>
+            <AlertDialogFooter gap={3}>
+              <Button ref={cancelarRemocaoRef} onClick={fecharRemocao} isDisabled={removendo}>Cancelar</Button>
+              <Button colorScheme="red" onClick={confirmarRemocao} isLoading={removendo}>Remover produto</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialogOverlay>
+      </AlertDialog>
       <ModalAdicionarProduto aberto={modalAberto} aoFechar={fecharModal} aoSalvar={salvarNovoProduto} />
       <ModalEditarProduto
         produto={produtoEmEdicao}

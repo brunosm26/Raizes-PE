@@ -74,3 +74,12 @@ export async function editarProduto(
   if (!atualizado) throw new ErroHttp(404, "Produto não encontrado.");
   return atualizado;
 }
+
+export async function arquivarProduto(idBruto: string, usuarioId: string): Promise<void> {
+  const id = resolverId(idBruto);
+  if (!ehUuid(id)) throw new ErroHttp(404, "Produto não encontrado.");
+  const dono = await produtoRepository.buscarUsuarioDono(id);
+  if (!dono) throw new ErroHttp(404, "Produto não encontrado.");
+  if (dono !== usuarioId) throw new ErroHttp(403, "Este produto pertence a outro artesão.");
+  await produtoRepository.arquivar(id);
+}
