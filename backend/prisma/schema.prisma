@@ -10,6 +10,7 @@ datasource db {
 }
 
 model Usuario {
+  ativo        Boolean     @default(true)
   id           String      @id(map: "pk_usuario") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nome         String      @db.VarChar(150)
   email        String      @unique(map: "uq_usuario_email") @db.VarChar(150)
@@ -120,6 +121,7 @@ model Pedido {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model Produto {
+  ativo         Boolean        @default(true)
   id            String         @id(map: "pk_produto") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   artesaoId     String         @map("artesao_id") @db.Uuid
   nome          String         @db.VarChar(150)

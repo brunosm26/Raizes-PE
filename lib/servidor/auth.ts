@@ -59,7 +59,7 @@ let hashFalso: Promise<string> | null = null;
 export async function autenticar(email: string, senha: string): Promise<UsuarioAutenticado | null> {
   const { rows } = await pool.query<UsuarioAutenticado & { senhaHash: string | null }>(
     `SELECT id, nome, tipo, senha_hash AS "senhaHash"
-       FROM origem.usuario WHERE lower(email) = lower($1)`,
+       FROM origem.usuario WHERE lower(email) = lower($1) AND ativo`,
     [email.trim()]
   );
   const usuario = rows[0];
@@ -109,7 +109,7 @@ export async function obterSessao(): Promise<DadosSessao | null> {
   const dados = await lerToken(jar.get(COOKIE_SESSAO)?.value);
   if (!dados) return null;
   const { rows } = await pool.query<{ nome: string; tipo: TipoUsuario }>(
-    `SELECT nome, tipo FROM origem.usuario WHERE id = $1`,
+    `SELECT nome, tipo FROM origem.usuario WHERE id = $1 AND ativo`,
     [dados.id]
   );
   if (!rows[0] || rows[0].tipo !== dados.tipo) return null;

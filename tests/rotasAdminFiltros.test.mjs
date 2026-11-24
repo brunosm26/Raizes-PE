@@ -68,9 +68,9 @@ function executor(lado) {
       rows = u ? [{ nome: u.nome, tipo: u.tipo }] : [];
     } else if (/GROUP BY a\.id, u\.id/.test(sql)) {
       rows = structuredClone(dados.artesaos);
-    } else if (/FROM origem\.artesao WHERE regiao_origem IS NOT NULL/.test(sql)) {
+    } else if (/SELECT DISTINCT a\.regiao_origem AS valor/.test(sql)) {
       rows = dados.regioes.map((valor) => ({ valor }));
-    } else if (/FROM origem\.produto WHERE categoria IS NOT NULL/.test(sql)) {
+    } else if (/SELECT DISTINCT p\.categoria AS valor/.test(sql)) {
       rows = dados.categorias.map((valor) => ({ valor }));
     } else {
       throw new Error(`SQL inesperado no dublê (${lado})`);
@@ -136,6 +136,7 @@ function linhaArtesao(n, nome, extra = {}) {
     tecnicas: [],
     totalProdutos: 0,
     temLogin: false,
+    ativo: true,
     dataCadastro: "2025-05-10",
     ...extra,
   };
@@ -254,7 +255,7 @@ describe("GET /api/filtros no Next (fallback)", () => {
       assert.deepEqual(await chamar(next.rotaFiltros, usuario), { status: 200, corpo: esperado });
     }
     assert.deepEqual(Object.keys(esperado).sort(), camposDoSchema("OpcoesFiltros"));
-    assert.equal(consultas.some((c) => c.lado === "next" && /origem\.usuario/.test(c.sql)), false, "filtros não lê sessão");
+    assert.equal(consultas.some((c) => c.lado === "next" && /FROM origem\.usuario WHERE id = \$1/.test(c.sql)), false, "filtros não lê sessão");
   });
 
   it("erro no banco responde 500 no formato do Express", async () => {

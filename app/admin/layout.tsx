@@ -9,6 +9,7 @@ const linksAdmin = [
   { nome: "Gestão de Artesãos", href: "/admin/artesaos" },
   { nome: "Produtos e Moderação", href: "/admin/produtos" },
   { nome: "Visão de Pedidos", href: "/admin/pedidos" },
+  { nome: "Atividade de Cadastros", href: "/admin/atividade" },
   { nome: "Categorias e Técnicas", href: "/admin/categorias" },
 ];
 

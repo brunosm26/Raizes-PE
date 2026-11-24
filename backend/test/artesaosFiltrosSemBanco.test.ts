@@ -62,7 +62,7 @@ async function instalarDubleDoBanco(): Promise<void> {
   };
 }
 
-const CAMPOS_ARTESAO = ["id", "usuarioId", "nome", "regiaoOrigem", "tecnicas", "totalProdutos", "temLogin", "dataCadastro"];
+const CAMPOS_ARTESAO = ["id", "usuarioId", "nome", "regiaoOrigem", "tecnicas", "totalProdutos", "temLogin", "ativo", "dataCadastro"];
 
 function linhaArtesao(n: number, nome: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const hex = n.toString(16).padStart(2, "0");
@@ -74,6 +74,7 @@ function linhaArtesao(n: number, nome: string, extra: Record<string, unknown> = 
     tecnicas: [],
     totalProdutos: 0,
     temLogin: false,
+    ativo: true,
     dataCadastro: "2025-05-10",
     ...extra,
   };

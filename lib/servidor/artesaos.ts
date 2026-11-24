@@ -10,6 +10,7 @@ export const SQL_ARTESAOS_ADMIN = `
   SELECT a.id,
          a.usuario_id                           AS "usuarioId",
          u.nome,
+         u.ativo,
          COALESCE(a.regiao_origem, '')          AS "regiaoOrigem",
          COALESCE(array_agg(DISTINCT p.tecnica)
                     FILTER (WHERE p.tecnica IS NOT NULL AND btrim(p.tecnica) <> ''), '{}') AS tecnicas,
@@ -25,6 +26,7 @@ export const SQL_ARTESAOS_ADMIN = `
 function paraItem(a: ArtesaoAdmin): ArtesaoAdmin {
   return {
     id: a.id,
+    ativo: a.ativo === true,
     usuarioId: a.usuarioId,
     nome: a.nome,
     regiaoOrigem: a.regiaoOrigem,

@@ -296,7 +296,7 @@ export async function conferir(
   // Rotas protegidas: sem cookie e sem corpo. Mesmo que uma perdesse o exigirSessao, sem corpo
   // a validação recusaria antes de gravar. As públicas de escrita (login, cadastro, logout) ficam de fora.
   for (const rota of rotas.filter((r) => !r.publica)) {
-    const resposta = await fetch(`${base}${rota.caminho.replace("{id}", ID_INEXISTENTE)}`, {
+    const resposta = await fetch(`${base}${rota.caminho.replace("{tipo}", "produtos").replace("{id}", ID_INEXISTENTE)}`, {
       method: rota.metodo.toUpperCase(),
       signal: AbortSignal.timeout(60_000),
     });
