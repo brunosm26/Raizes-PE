@@ -538,6 +538,17 @@ paths:
 
         Qualquer perfil logado. **Comprador** vê os próprios pedidos; **artesão** vê os pedidos que contêm
         produto dele; **admin** vê todos. Mais recentes primeiro, cada um já com seus itens.
+        Apenas administradores podem filtrar pela data do pedido. Os limites informados são inclusivos,
+        e cada limite pode ser usado separadamente.
+      parameters:
+        - in: query
+          name: inicio
+          description: Data inicial do período (AAAA-MM-DD).
+          schema: { type: string, format: date }
+        - in: query
+          name: fim
+          description: Data final do período (AAAA-MM-DD).
+          schema: { type: string, format: date }
       operationId: listarPedidos
       security:
         - cookieSessao: []
@@ -550,8 +561,12 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/PedidoComItens" }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
         "401":
           $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          $ref: "#/components/responses/SemPermissao"
         "500":
           $ref: "#/components/responses/ErroInterno"
     post:

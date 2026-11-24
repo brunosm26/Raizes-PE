@@ -123,7 +123,8 @@ describe("openapi.yaml: segurança x middleware", () => {
       const op = opDa(rota.chave);
       assert.ok(op.responses["401"], "sem 401");
       const limitaPerfis = rota.perfis.length < TODOS_OS_PERFIS.length;
-      assert.equal(Boolean(op.responses["403"]), limitaPerfis);
+      // O filtro administrativo de pedidos restringe o perfil só quando há um período.
+      assert.equal(Boolean(op.responses["403"]), limitaPerfis || rota.chave === "GET /pedidos");
     });
   }
 

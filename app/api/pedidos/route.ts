@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { lerPeriodoPedidos } from "@/lib/periodoPedidos";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
 import { invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
 import {
   criarPedido,
   ErroPedido,
   listarPedidos,
+  listarPedidosAdministrativos,
   listarPedidosDoArtesao,
 } from "@/lib/servidor/pedidos";
 import { enfileirarPedidoCriado } from "@/lib/servidor/processamentoAssincrono";
@@ -21,10 +23,19 @@ function falha(erro: unknown) {
 
 // GET /api/pedidos — cada perfil enxerga só o que é seu:
 //   comprador → os próprios pedidos; artesão → pedidos com produtos dele; admin → todos.
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const sessao = await exigirSessao();
-    if (sessao.tipo === "admin") return NextResponse.json(await listarPedidos());
+    const inicio = request.nextUrl.searchParams.getAll("inicio");
+    const fim = request.nextUrl.searchParams.getAll("fim");
+    if (inicio.length || fim.length) {
+      if (sessao.tipo !== "admin") throw new ErroAuth("Apenas administradores podem filtrar pedidos por período.", 403);
+      if (inicio.length > 1 || fim.length > 1) throw new ErroPedido("Informe um período válido.");
+      const periodo = lerPeriodoPedidos(inicio[0], fim[0]);
+      if (!periodo) throw new ErroPedido("Informe um período válido.");
+      return NextResponse.json(await listarPedidosAdministrativos(periodo));
+    }
+    if (sessao.tipo === "admin") return NextResponse.json(await listarPedidosAdministrativos());
     if (sessao.tipo === "artesao") return NextResponse.json(await listarPedidosDoArtesao(sessao.id));
     return NextResponse.json(await listarPedidos(sessao.id));
   } catch (erro) {

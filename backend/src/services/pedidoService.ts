@@ -3,6 +3,7 @@ import * as produtoRepository from "../repositories/produtoRepository";
 import { emTransacao } from "../repositories/transacao";
 import * as usuarioRepository from "../repositories/usuarioRepository";
 import { STATUS_PEDIDO, type DadosSessao, type PedidoComItens, type StatusPedido } from "../types/dominio";
+import type { PeriodoPedidos } from "../utils/periodoPedidos";
 import { ErroHttp } from "../utils/erroHttp";
 import { ehUuid, resolverId } from "../utils/ids";
 
@@ -11,8 +12,8 @@ import { ehUuid, resolverId } from "../utils/ids";
 
 // Cada perfil enxerga só o que é seu: comprador → os próprios pedidos;
 // artesão → pedidos com produtos dele; admin → todos.
-export function listarParaSessao(sessao: DadosSessao): Promise<PedidoComItens[]> {
-  if (sessao.tipo === "admin") return pedidoRepository.listarTodos();
+export function listarParaSessao(sessao: DadosSessao, periodo?: PeriodoPedidos): Promise<PedidoComItens[]> {
+  if (sessao.tipo === "admin") return pedidoRepository.listarTodos(periodo);
   if (sessao.tipo === "artesao") return pedidoRepository.listarDoArtesao(sessao.id);
   return pedidoRepository.listarDoComprador(sessao.id);
 }

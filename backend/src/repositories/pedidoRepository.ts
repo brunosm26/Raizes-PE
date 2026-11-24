@@ -1,4 +1,5 @@
 import type { ItemPedidoComProduto, PedidoComItens, StatusPedido } from "../types/dominio";
+import type { PeriodoPedidos } from "../utils/periodoPedidos";
 import { executorPadrao, type Executor } from "./transacao";
 
 // Acesso a origem.pedido e origem.item_pedido. Pedido e itens são gravados na MESMA
@@ -62,7 +63,10 @@ async function carregar(
   return pedidos.map((p) => ({ ...p, itens: porPedido.get(p.id) ?? [] }));
 }
 
-export function listarTodos(): Promise<PedidoComItens[]> {
+export function listarTodos({ inicio, fim }: PeriodoPedidos = {}): Promise<PedidoComItens[]> {
+  if (inicio && fim) return carregar("WHERE pe.data_pedido BETWEEN $1::date AND $2::date", [inicio, fim]);
+  if (inicio) return carregar("WHERE pe.data_pedido >= $1::date", [inicio]);
+  if (fim) return carregar("WHERE pe.data_pedido <= $1::date", [fim]);
   return carregar("", []);
 }
 
