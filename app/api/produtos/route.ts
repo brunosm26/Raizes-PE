@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listarProdutos } from "@/lib/servidor/catalogo";
+import { listarProdutos, listarProdutosParaGestao } from "@/lib/servidor/catalogo";
 import { ErroAuth, exigirSessao } from "@/lib/servidor/auth";
 import { cabecalhosCache, cacheCatalogo, chaveProdutos, invalidarCatalogo } from "@/lib/servidor/cacheCatalogo";
 import { criarProduto, ErroProduto } from "@/lib/servidor/produtos";
@@ -17,9 +17,17 @@ export async function GET(request: NextRequest) {
     categoria: p.get("categoria") ?? undefined,
   };
   try {
+    if (p.get("visao") === "gestao") {
+      const sessao = await exigirSessao(["artesao", "admin"]);
+      const produtos = await listarProdutosParaGestao(sessao.tipo === "artesao" ? sessao.id : undefined);
+      return NextResponse.json(produtos, { headers: { "Cache-Control": "private, no-store" } });
+    }
     const { valor, origem } = await cacheCatalogo.lerOuCalcular(chaveProdutos(filtros), () => listarProdutos(filtros));
     return NextResponse.json(valor, { headers: cabecalhosCache(origem) });
   } catch (erro) {
+    if (erro instanceof ErroAuth) {
+      return NextResponse.json({ erro: erro.message }, { status: erro.status });
+    }
     console.error("GET /api/produtos", erro);
     return NextResponse.json({ mensagem: "Erro ao consultar produtos" }, { status: 500 });
   }

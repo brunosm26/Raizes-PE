@@ -84,7 +84,10 @@ export interface ItemCarrinho {
 
 // Tipos de apresentação (join entre entidades), usados pela UI
 
+export type StatusCuradoriaProduto = "pendente" | "aprovado" | "rejeitado";
+
 export interface ProdutoComArtesao extends Produto {
+  statusCuradoria: StatusCuradoriaProduto;
   artesaoNome: string;
   artesaoRegiao: string;
   // Preenchido quando o produto vem do banco: usuário dono da loja (painel do artesão).

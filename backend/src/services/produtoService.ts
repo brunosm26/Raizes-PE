@@ -48,7 +48,7 @@ export async function criarProduto(
   if (!artesaoId) throw new ErroHttp(404, "Artesão não encontrado.");
 
   const id = await produtoRepository.inserir({ artesaoId, tecnica, categoria, ...campos });
-  const criado = await produtoRepository.buscarPorId(id);
+  const criado = await produtoRepository.buscarPorId(id, true);
   if (!criado) throw new ErroHttp(404, "Produto não encontrado.");
   return criado;
 }
@@ -70,7 +70,7 @@ export async function editarProduto(
   }
 
   if (!(await produtoRepository.atualizar(id, campos))) throw new ErroHttp(404, "Produto não encontrado.");
-  const atualizado = await produtoRepository.buscarPorId(id);
+  const atualizado = await produtoRepository.buscarPorId(id, true);
   if (!atualizado) throw new ErroHttp(404, "Produto não encontrado.");
   return atualizado;
 }

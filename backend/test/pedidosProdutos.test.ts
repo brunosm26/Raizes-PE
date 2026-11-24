@@ -190,6 +190,63 @@ describe("pedidos e produtos: com banco", () => {
     assert.equal(r.corpo.artesaoId, "20000000-0000-4000-8000-000000000002"); // loja do Tacaratu
   });
 
+  itComBanco("TC11: produto novo fica pendente e fora da vitrine e do checkout", async () => {
+    const artesao = await api.cookie(USUARIOS.artesao);
+    const comprador = await api.cookie(USUARIOS.comprador);
+    const outroArtesao = await api.cookie(USUARIOS.outroArtesao);
+    const admin = await api.cookie(USUARIOS.admin);
+    const novo = await criar("/produtos", {
+      nome: "Peça pendente de curadoria TC11",
+      descricao: "Descrição da peça",
+      tecnica: "Têxtil",
+      categoria: "Categoria pendente TC11",
+      preco: 100,
+      estoqueQtd: 2,
+      statusCuradoria: "aprovado", // Somente a decisão de curadoria pode publicar.
+    }, artesao);
+    assert.equal(novo.status, 201);
+    assert.equal(novo.corpo.statusCuradoria, "pendente");
+    const id = novo.corpo.id as string;
+
+    const get = (caminho: string, cookie?: string) =>
+      fetch(`${api.url}${caminho}`, { headers: cookie ? { cookie } : {} });
+
+    const busca = await get("/produtos?busca=Peça%20pendente%20de%20curadoria%20TC11", artesao);
+    assert.equal(busca.status, 200);
+    assert.deepEqual(await busca.json(), []);
+    assert.equal((await get(`/produtos/${id}`)).status, 404);
+
+    const perfil = await get(`/artesaos/${novo.corpo.artesaoId}`);
+    assert.equal(perfil.status, 200);
+    assert.ok(!(await perfil.json()).produtos.some((p: { id: string }) => p.id === id));
+
+    const relacionados = await get(`/produtos/${PRODUTO_DO_ARTESAO}/relacionados?limite=20`);
+    assert.equal(relacionados.status, 200);
+    assert.ok(!(await relacionados.json()).some((p: { id: string }) => p.id === id));
+
+    const recomendacoes = await get("/recomendacoes?limite=20");
+    assert.equal(recomendacoes.status, 200);
+    assert.ok(!(await recomendacoes.json()).dados.some((p: { id: string }) => p.id === id));
+
+    const gestao = "/produtos?visao=gestao";
+    assert.equal((await get(gestao)).status, 401);
+    assert.equal((await get(gestao, comprador)).status, 403);
+    for (const [cookie, podeVer] of [[artesao, true], [admin, true], [outroArtesao, false]] as const) {
+      const r = await get(gestao, cookie);
+      assert.equal(r.status, 200);
+      assert.equal(r.headers.get("cache-control"), "private, no-store");
+      assert.equal((await r.json()).some((p: { id: string }) => p.id === id), podeVer);
+    }
+
+    const pedido = await criar("/pedidos", { itens: [{ produtoId: id, quantidade: 1 }] }, comprador);
+    assert.equal(pedido.status, 409);
+    assert.match(pedido.corpo.erro, /não está disponível/);
+    const { rows } = await banco!.query<{ estoque_qtd: number }>(
+      "SELECT estoque_qtd FROM origem.produto WHERE id = $1", [id]
+    );
+    assert.equal(rows[0]?.estoque_qtd, 2);
+  });
+
   itComBanco("artesão cadastra produto (201) e não edita produto de outro (403)", async () => {
     const cookie = await api.cookie(USUARIOS.artesao);
     const r = await criar(

@@ -4,6 +4,12 @@ import { exigirSessao } from "../middlewares/sessao";
 
 export const produtoRoutes = Router();
 
+produtoRoutes.get(
+  "/",
+  (req, _res, next) => next(req.query.visao === "gestao" ? undefined : "route"),
+  exigirSessao(["artesao", "admin"]),
+  produtoController.listarParaGestao
+);
 produtoRoutes.get("/", produtoController.listar);
 produtoRoutes.post("/", exigirSessao(["artesao"]), produtoController.criar);
 produtoRoutes.get("/:id", produtoController.buscar);

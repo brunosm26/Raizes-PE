@@ -126,6 +126,7 @@ model Produto {
   tecnica       String?        @db.VarChar(100)
   categoria     String?        @db.VarChar(100)
   preco         Decimal        @db.Decimal(10, 2)
+  statusCuradoria StatusCuradoriaProduto @default(pendente) @map("status_curadoria")
   estoqueQtd    Int            @default(0) @map("estoque_qtd")
   dataCadastro  DateTime       @default(dbgenerated("CURRENT_DATE")) @map("data_cadastro") @db.Date
   descricao     String?
@@ -140,5 +141,14 @@ model Produto {
   @@index([dataCadastro(sort: Desc)], map: "idx_produto_data_cadastro")
   @@index([tecnica], map: "idx_produto_tecnica")
   @@map("produto")
+  @@schema("origem")
+}
+
+enum StatusCuradoriaProduto {
+  pendente
+  aprovado
+  rejeitado
+
+  @@map("status_curadoria_produto")
   @@schema("origem")
 }

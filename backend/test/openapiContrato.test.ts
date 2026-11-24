@@ -46,8 +46,8 @@ const TODOS_OS_PERFIS: TipoUsuario[] = ["comprador", "artesao", "admin"];
 const SO_COOKIE = [{ cookieSessao: [] }];
 const COOKIE_OPCIONAL = [{}, { cookieSessao: [] }];
 
-// Rotas cuja sessão é opcional e lida pelo próprio controller, sem middleware.
-const SESSAO_NO_CONTROLLER = new Set(["GET /auth/me"]);
+// Rotas em que a sessão é opcional ou exigida apenas para uma visão da consulta.
+const SESSAO_CONDICIONAL = new Set(["GET /auth/me", "GET /produtos"]);
 
 interface RotaExpress {
   chave: string;
@@ -111,7 +111,7 @@ describe("openapi.yaml: segurança x middleware", () => {
         assert.deepEqual(op.security, SO_COOKIE);
         assert.deepEqual(op["x-perfis"], rota.perfis);
       } else {
-        const esperado = rota.middleware === "carregarSessao" || SESSAO_NO_CONTROLLER.has(rota.chave) ? COOKIE_OPCIONAL : [];
+        const esperado = rota.middleware === "carregarSessao" || SESSAO_CONDICIONAL.has(rota.chave) ? COOKIE_OPCIONAL : [];
         assert.deepEqual(op.security, esperado);
         assert.equal(op["x-perfis"], undefined);
       }

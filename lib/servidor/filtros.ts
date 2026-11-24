@@ -7,7 +7,7 @@ import { normalizarOpcoes } from "@/lib/servidor/ordenacao";
 import { TECNICAS, type OpcoesFiltros } from "@/lib/tipos";
 
 export const SQL_REGIOES = `SELECT DISTINCT regiao_origem AS valor FROM origem.artesao WHERE regiao_origem IS NOT NULL`;
-export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL`;
+export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL AND status_curadoria = 'aprovado'`;
 
 async function valores(sql: string): Promise<string[]> {
   const { rows } = await pool.query<{ valor: string }>(sql);

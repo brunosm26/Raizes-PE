@@ -51,6 +51,9 @@ export async function criarPedido(compradorIdBruto: string, itensEntrada: unknow
 
     let totalCentavos = 0;
     for (const p of produtos) {
+      if (p.statusCuradoria !== "aprovado") {
+        throw new ErroHttp(409, "Um produto do pedido não está disponível para compra.");
+      }
       const qtd = quantidades.get(p.id) as number;
       if (p.estoque < qtd) {
         throw new ErroHttp(

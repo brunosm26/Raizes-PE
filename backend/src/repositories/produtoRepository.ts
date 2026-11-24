@@ -11,6 +11,7 @@ const SELECT_PRODUTO = `
          p.tecnica,
          COALESCE(p.categoria, '')           AS categoria,
          p.preco::float8                     AS preco,
+         p.status_curadoria                  AS "statusCuradoria",
          p.estoque_qtd                       AS "estoqueQtd",
          to_char(p.data_cadastro, 'YYYY-MM-DD') AS "dataCadastro",
          p.imagem_url                        AS "imagemUrl",
@@ -21,6 +22,8 @@ const SELECT_PRODUTO = `
     JOIN origem.artesao a ON a.id = p.artesao_id
     JOIN origem.usuario u ON u.id = a.usuario_id`;
 
+const PRODUTO_PUBLICADO = "p.status_curadoria = 'aprovado'";
+
 type LinhaProduto = Omit<ProdutoComArtesao, "imagemUrl"> & { imagemUrl: string | null };
 
 // O front trata imagemUrl como opcional (undefined), então null sai do objeto.
@@ -29,9 +32,20 @@ function paraProduto(linha: LinhaProduto): ProdutoComArtesao {
   return imagemUrl ? { ...resto, imagemUrl } : resto;
 }
 
-export async function buscarPorId(id: string): Promise<ProdutoComArtesao | null> {
-  const { rows } = await executorPadrao().query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1`, [id]);
+export async function buscarPorId(id: string, incluirNaoPublicados = false): Promise<ProdutoComArtesao | null> {
+  const filtro = incluirNaoPublicados ? "" : ` AND ${PRODUTO_PUBLICADO}`;
+  const { rows } = await executorPadrao().query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1${filtro}`, [id]);
   return rows[0] ? paraProduto(rows[0]) : null;
+}
+
+// O controller resolve o escopo de gestão a partir da sessão. Sem usuário, é admin.
+export async function listarParaGestao(usuarioId?: string): Promise<ProdutoComArtesao[]> {
+  const where = usuarioId ? "WHERE a.usuario_id = $1" : "";
+  const { rows } = await executorPadrao().query<LinhaProduto>(
+    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    usuarioId ? [usuarioId] : []
+  );
+  return rows.map(paraProduto);
 }
 
 // Usuário dono da loja do produto (null se o produto não existe).
@@ -94,13 +108,14 @@ export interface ProdutoParaCompra {
   nome: string;
   preco: string; // texto, para não perder centavos no float
   estoque: number;
+  statusCuradoria: ProdutoComArtesao["statusCuradoria"];
 }
 
 // Trava as linhas (FOR UPDATE) para duas compras simultâneas não estourarem o estoque.
 // Só faz sentido dentro de uma transação.
 export async function travarParaCompra(ids: string[], tx: Executor): Promise<ProdutoParaCompra[]> {
   const { rows } = await tx.query<ProdutoParaCompra>(
-    `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque
+    `SELECT id, nome, preco::text AS preco, estoque_qtd AS estoque, status_curadoria AS "statusCuradoria"
        FROM origem.produto
       WHERE id = ANY($1::uuid[])
       ORDER BY id
@@ -121,7 +136,7 @@ export interface FiltrosProduto {
 }
 
 export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao[]> {
-  const condicoes: string[] = [];
+  const condicoes: string[] = [PRODUTO_PUBLICADO];
   const valores: string[] = [];
   if (filtros.tecnica) {
     valores.push(filtros.tecnica);
@@ -135,7 +150,7 @@ export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao
     valores.push(filtros.regiao);
     condicoes.push(`a.regiao_origem = $${valores.length}`);
   }
-  const where = condicoes.length ? `WHERE ${condicoes.join(" AND ")}` : "";
+  const where = `WHERE ${condicoes.join(" AND ")}`;
 
   const { rows } = await executorPadrao().query<LinhaProduto>(
     `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
@@ -148,8 +163,11 @@ export async function listar(filtros: FiltrosProduto): Promise<ProdutoComArtesao
 export async function listarRelacionados(id: string, limite: number): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
     `${SELECT_PRODUTO}
-      WHERE p.id <> $1
-        AND p.tecnica = (SELECT tecnica FROM origem.produto WHERE id = $1)
+      WHERE ${PRODUTO_PUBLICADO}
+        AND p.id <> $1
+        AND p.tecnica = (
+          SELECT tecnica FROM origem.produto WHERE id = $1 AND status_curadoria = 'aprovado'
+        )
       ORDER BY p.data_cadastro DESC, p.nome
       LIMIT $2`,
     [id, limite]
@@ -159,7 +177,7 @@ export async function listarRelacionados(id: string, limite: number): Promise<Pr
 
 // Categorias cadastradas, cruas: o service tira espaços, vazias e repetidas e ordena (D1 da
 // PI4-143: as categorias vêm dos produtos, não de uma tabela própria).
-export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL`;
+export const SQL_CATEGORIAS = `SELECT DISTINCT categoria AS valor FROM origem.produto WHERE categoria IS NOT NULL AND status_curadoria = 'aprovado'`;
 
 export async function listarCategorias(): Promise<string[]> {
   const { rows } = await executorPadrao().query<{ valor: string }>(SQL_CATEGORIAS);
@@ -168,7 +186,7 @@ export async function listarCategorias(): Promise<string[]> {
 
 export async function listarDoArtesao(artesaoId: string): Promise<ProdutoComArtesao[]> {
   const { rows } = await executorPadrao().query<LinhaProduto>(
-    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 ORDER BY p.data_cadastro DESC, p.nome`,
+    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 AND ${PRODUTO_PUBLICADO} ORDER BY p.data_cadastro DESC, p.nome`,
     [artesaoId]
   );
   return rows.map(paraProduto);

@@ -8,7 +8,8 @@ export async function resumirDoProduto(produtoId: string): Promise<ResumoAvaliac
     `SELECT COALESCE(AVG(nota), 0)::float8 AS media,
             COUNT(*)::int                  AS quantidade
        FROM origem.avaliacao
-      WHERE produto_id = $1`,
+      WHERE produto_id = $1
+        AND EXISTS (SELECT 1 FROM origem.produto WHERE id = $1 AND status_curadoria = 'aprovado')`,
     [produtoId]
   );
   return rows[0] ?? { media: 0, quantidade: 0 };

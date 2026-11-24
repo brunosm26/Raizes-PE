@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { resolverId } from "./idsLegados";
+import { useSessao } from "./contextoSessao";
 import { apiFetch } from "./apiUrl";
 import type { Produto, ProdutoComArtesao, Tecnica } from "./tipos";
 
@@ -16,8 +17,11 @@ interface DadosNovoProduto {
 }
 
 interface ValorContextoProdutos {
-  // Lista de produtos do banco (GET /api/produtos), com o dono de cada loja.
+  // Visão de gestão do catálogo, limitada ao escopo de quem está autenticado.
   produtos: ProdutoComArtesao[];
+  carregandoProdutos: boolean;
+  erroProdutos: boolean;
+  recarregarProdutos: () => void;
   produtosDoArtesao: (usuarioId: string) => ProdutoComArtesao[];
   // Gravam no banco pela API. Rejeitam com a mensagem do servidor (validação, 404...).
   criarProduto: (usuarioId: string, dados: DadosNovoProduto) => Promise<ProdutoComArtesao>;
@@ -40,22 +44,34 @@ async function mensagemDeErro(res: Response): Promise<string> {
 }
 
 export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
-  const [produtos, setProdutos] = useState<ProdutoComArtesao[]>([]);
+  const { usuario } = useSessao();
+  const idGestor = usuario?.tipo === "admin" || usuario?.tipo === "artesao" ? usuario.id : undefined;
+  const [catalogo, setCatalogo] = useState<{ gestor: string; produtos: ProdutoComArtesao[]; erro?: boolean }>();
+  const [tentativa, setTentativa] = useState(0);
+  const recarregarProdutos = useCallback(() => {
+    setCatalogo(undefined);
+    setTentativa((atual) => atual + 1);
+  }, []);
+  const catalogoAtual = catalogo?.gestor === idGestor ? catalogo : undefined;
+  const produtos = catalogoAtual?.produtos;
+  const carregandoProdutos = idGestor !== undefined && !catalogoAtual;
+  const erroProdutos = Boolean(catalogoAtual?.erro);
 
   useEffect(() => {
+    if (!idGestor) return;
     let ativo = true;
-    apiFetch("/api/produtos")
+    apiFetch("/api/produtos?visao=gestao")
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((lista: ProdutoComArtesao[]) => {
-        if (ativo) setProdutos(lista);
+        if (ativo) setCatalogo({ gestor: idGestor, produtos: lista });
       })
       .catch(() => {
-        if (ativo) setProdutos([]);
+        if (ativo) setCatalogo({ gestor: idGestor, produtos: [], erro: true });
       });
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [idGestor, tentativa]);
 
   // Chamado ao salvar o formulário do popup "Adicionar Produto" no painel do artesão.
   const criarProduto = useCallback(
@@ -67,10 +83,15 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
       });
       if (!res.ok) throw new Error(await mensagemDeErro(res));
       const novo = (await res.json()) as ProdutoComArtesao;
-      setProdutos((atuais) => [novo, ...atuais.filter((p) => p.id !== novo.id)]);
+      if (idGestor) {
+        setCatalogo((atual) => ({
+          gestor: idGestor,
+          produtos: [novo, ...(atual?.gestor === idGestor ? atual.produtos : []).filter((p) => p.id !== novo.id)],
+        }));
+      }
       return novo;
     },
-    []
+    [idGestor]
   );
 
   const editarProduto = useCallback(
@@ -85,24 +106,35 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
       });
       if (!res.ok) throw new Error(await mensagemDeErro(res));
       const atualizado = (await res.json()) as ProdutoComArtesao;
-      setProdutos((atuais) => atuais.map((p) => (p.id === atualizado.id ? atualizado : p)));
+      setCatalogo((atual) => atual && atual.gestor === idGestor
+        ? { ...atual, produtos: atual.produtos.map((p) => (p.id === atualizado.id ? atualizado : p)) }
+        : atual
+      );
       return atualizado;
     },
-    []
+    [idGestor]
   );
 
   // O front usa ids do mock ("u2"); o banco usa UUID. resolverId faz a ponte.
   const produtosDoArtesao = useCallback(
     (usuarioId: string): ProdutoComArtesao[] => {
       const alvo = resolverId(usuarioId);
-      return produtos.filter((p) => p.artesaoUsuarioId === alvo);
+      return produtos?.filter((p) => p.artesaoUsuarioId === alvo) ?? [];
     },
     [produtos]
   );
 
   const valor = useMemo<ValorContextoProdutos>(
-    () => ({ produtos, produtosDoArtesao, criarProduto, editarProduto }),
-    [produtos, produtosDoArtesao, criarProduto, editarProduto]
+    () => ({
+      produtos: produtos ?? [],
+      carregandoProdutos,
+      erroProdutos,
+      recarregarProdutos,
+      produtosDoArtesao,
+      criarProduto,
+      editarProduto,
+    }),
+    [produtos, carregandoProdutos, erroProdutos, recarregarProdutos, produtosDoArtesao, criarProduto, editarProduto]
   );
 
   return <ContextoProdutos.Provider value={valor}>{children}</ContextoProdutos.Provider>;

@@ -19,6 +19,7 @@ const PRODUTO = {
   categoria: "Vasos",
   preco: 10,
   estoqueQtd: 1,
+  statusCuradoria: "aprovado",
   dataCadastro: "2025-05-10",
   artesaoNome: "Artesã",
   artesaoRegiao: "Caruaru",
