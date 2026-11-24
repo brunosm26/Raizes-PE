@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import NextLink from "next/link";
 import {
   Alert,
@@ -21,6 +22,14 @@ export default function Pagina() {
     usePedidos();
   const { usuario } = useSessao();
   const compradorId = usuario?.id ?? "";
+  const [avaliadosPorComprador, setAvaliadosPorComprador] = useState<Record<string, ReadonlySet<string>>>({});
+
+  function marcarAvaliado(produtoId: string) {
+    setAvaliadosPorComprador((atuais) => ({
+      ...atuais,
+      [compradorId]: new Set([...(atuais[compradorId] ?? []), produtoId]),
+    }));
+  }
 
   // O servidor já devolve só os pedidos do usuário logado; o filtro garante o mesmo aqui.
   // (O admin, que vê todos os pedidos no servidor, não tem pedidos próprios.)
@@ -74,7 +83,12 @@ export default function Pagina() {
         ) : (
           <Box bg="card" border="1px solid" borderColor="border" borderRadius="10px" overflow="hidden">
             {pedidos.map((pedido) => (
-              <LinhaPedido key={pedido.id} pedido={pedido} />
+              <LinhaPedido
+                key={pedido.id}
+                pedido={pedido}
+                aoAvaliar={usuario?.tipo === "comprador" ? marcarAvaliado : undefined}
+                produtosAvaliados={avaliadosPorComprador[compradorId]}
+              />
             ))}
           </Box>
         )}

@@ -446,6 +446,58 @@ paths:
         "500":
           $ref: "#/components/responses/ErroInterno"
 
+    post:
+      tags: [Catálogo]
+      summary: Registrar uma avaliação do produto
+      description: |
+        **Perfis exigidos:** `comprador`. Sem sessão responde 401; com outro perfil, 403.
+        O comprador é identificado pela sessão.
+        O produto precisa constar de um pedido próprio com status `entregue`.
+        Cada comprador pode avaliar o mesmo produto uma vez.
+      operationId: registrarAvaliacao
+      security:
+        - cookieSessao: []
+      x-perfis: [comprador]
+      parameters:
+        - $ref: "#/components/parameters/IdProduto"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nota]
+              properties:
+                nota: { type: integer, minimum: 1, maximum: 5, example: 5 }
+      responses:
+        "201":
+          description: Avaliação registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean, enum: [true] }
+        "400":
+          $ref: "#/components/responses/RequisicaoInvalida"
+        "401":
+          $ref: "#/components/responses/NaoAutenticado"
+        "403":
+          description: Perfil não permitido ou falta de pedido entregue que contenha o produto
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "409":
+          description: O comprador já avaliou o produto
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Erro" }
+        "413":
+          $ref: "#/components/responses/CorpoGrandeDemais"
+        "500":
+          $ref: "#/components/responses/ErroInterno"
+
   /filtros:
     get:
       tags: [Catálogo]
@@ -1060,6 +1112,11 @@ components:
         produtoTecnica: { $ref: "#/components/schemas/Tecnica" }
         artesaoUsuarioId: { type: string, format: uuid }
         artesaoNome: { type: string }
+        notaAvaliacao:
+          type: integer
+          minimum: 1
+          maximum: 5
+          description: Nota registrada pelo comprador autenticado, quando houver.
 
     PedidoComItens:
       type: object

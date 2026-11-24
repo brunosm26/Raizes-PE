@@ -1,6 +1,7 @@
 import type { RequestHandler } from "express";
 import { sessaoDe } from "../middlewares/sessao";
 import { cacheCatalogo, chaveProdutos, invalidarCatalogo } from "../services/cacheCatalogo";
+import { registrarAvaliacao } from "../services/avaliacaoService";
 import * as catalogoService from "../services/catalogoService";
 import * as produtoService from "../services/produtoService";
 import { ErroHttp } from "../utils/erroHttp";
@@ -37,6 +38,13 @@ export const relacionados: RequestHandler<{ id: string }> = async (req, res) => 
 // GET /api/produtos/:id/avaliacoes
 export const avaliacoes: RequestHandler<{ id: string }> = async (req, res) => {
   res.json(await catalogoService.resumirAvaliacoes(req.params.id));
+};
+
+// POST /api/produtos/:id/avaliacoes
+export const avaliar: RequestHandler<{ id: string }> = async (req, res) => {
+  await registrarAvaliacao(req.params.id, sessaoDe(req).id, req.body?.nota);
+  invalidarCatalogo();
+  res.status(201).json({ ok: true });
 };
 
 // POST /api/produtos  { nome, descricao, tecnica, categoria, preco, estoqueQtd, imagemUrl? }
