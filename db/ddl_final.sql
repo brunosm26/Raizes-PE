@@ -1,7 +1,7 @@
 -- =====================================================================
 -- ORIGEM | DDL FINAL (schema origem, sem dados)
 -- ARQUIVO GERADO: não edite. A fonte da verdade são as migrations do Prisma em
--- backend/prisma/migrations (0_init, 1_regras_sql, 20261124070000_curadoria_produto).
+-- backend/prisma/migrations (0_init, 1_regras_sql, 20261124070000_curadoria_produto, 20261124072000_rejeicao_curadoria).
 -- Para regenerar: cd backend && npm run db:ddl
 -- Para conferir se está atualizado: npm run db:ddl -- --conferir
 --
@@ -465,5 +465,17 @@ ALTER TABLE "origem"."produto"
   ALTER COLUMN "status_curadoria" SET DEFAULT 'pendente';
 
 -- <<< fim da migration 20261124070000_curadoria_produto
+
+-- >>> migration 20261124072000_rejeicao_curadoria
+
+-- AlterTable
+ALTER TABLE "origem"."produto" ADD COLUMN     "rejeicao_autor_id" UUID,
+ADD COLUMN     "rejeicao_em" TIMESTAMPTZ(3),
+ADD COLUMN     "rejeicao_justificativa" VARCHAR(500);
+
+-- AddForeignKey
+ALTER TABLE "origem"."produto" ADD CONSTRAINT "fk_produto_rejeicao_autor" FOREIGN KEY ("rejeicao_autor_id") REFERENCES "origem"."usuario"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- <<< fim da migration 20261124072000_rejeicao_curadoria
 
 COMMIT;

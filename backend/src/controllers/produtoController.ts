@@ -65,7 +65,9 @@ export const editar: RequestHandler<{ id: string }> = async (req, res) => {
 };
 
 export const moderar: RequestHandler<{ id: string }> = async (req, res) => {
-  const produto = await produtoService.moderarProduto(req.params.id, req.body?.status);
+  const produto = await produtoService.moderarProduto(
+    req.params.id, req.body?.status, req.body?.justificativa, sessaoDe(req).id
+  );
   invalidarCatalogo();
   res.json(produto);
 };

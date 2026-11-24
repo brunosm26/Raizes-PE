@@ -11,7 +11,7 @@ import type {
 
 export { ehUuid, resolverId };
 
-const SELECT_PRODUTO = `
+const selecionarProduto = (incluirRejeicao = false) => `
   SELECT p.id,
          p.artesao_id                        AS "artesaoId",
          p.nome,
@@ -25,19 +25,29 @@ const SELECT_PRODUTO = `
          p.imagem_url                        AS "imagemUrl",
          u.nome                              AS "artesaoNome",
          u.id                                AS "artesaoUsuarioId",
-         COALESCE(a.regiao_origem, '')       AS "artesaoRegiao"
+         COALESCE(a.regiao_origem, '')       AS "artesaoRegiao"${incluirRejeicao ? `,
+         CASE WHEN p.rejeicao_justificativa IS NOT NULL THEN jsonb_build_object(
+           'justificativa', p.rejeicao_justificativa, 'autorId', p.rejeicao_autor_id, 'data', p.rejeicao_em
+         ) END AS "rejeicaoCuradoria"` : ""}
     FROM origem.produto p
     JOIN origem.artesao a ON a.id = p.artesao_id
     JOIN origem.usuario u ON u.id = a.usuario_id`;
 
 const PRODUTO_PUBLICADO = "p.status_curadoria = 'aprovado'";
 
-type LinhaProduto = Omit<ProdutoComArtesao, "imagemUrl"> & { imagemUrl: string | null };
+type LinhaProduto = Omit<ProdutoComArtesao, "imagemUrl" | "rejeicaoCuradoria"> & {
+  imagemUrl: string | null;
+  rejeicaoCuradoria?: ProdutoComArtesao["rejeicaoCuradoria"] | null;
+};
 
 // O front trata imagemUrl como opcional (undefined), então null sai do objeto.
 function paraProduto(linha: LinhaProduto): ProdutoComArtesao {
-  const { imagemUrl, ...resto } = linha;
-  return imagemUrl ? { ...resto, imagemUrl } : resto;
+  const { imagemUrl, rejeicaoCuradoria, ...produto } = linha;
+  return {
+    ...produto,
+    ...(imagemUrl ? { imagemUrl } : {}),
+    ...(rejeicaoCuradoria ? { rejeicaoCuradoria } : {}),
+  };
 }
 
 // Remove acentos para permitir busca sem diferenciar "ceramica" de "cerâmica".
@@ -71,7 +81,7 @@ export async function listarProdutos(filtros: {
   const where = `WHERE ${condicoes.join(" AND ")}`;
 
   const { rows } = await pool.query<LinhaProduto>(
-    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    `${selecionarProduto()} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
     valores
   );
   let produtos = rows.map(paraProduto);
@@ -93,11 +103,11 @@ export async function listarProdutos(filtros: {
   return produtos;
 }
 
-export async function buscarProduto(idBruto: string, incluirNaoPublicados = false): Promise<ProdutoComArtesao | null> {
+export async function buscarProduto(idBruto: string, incluirNaoPublicados = false, incluirRejeicao = false): Promise<ProdutoComArtesao | null> {
   const id = resolverId(idBruto);
   if (!ehUuid(id)) return null;
   const filtro = incluirNaoPublicados ? "" : ` AND ${PRODUTO_PUBLICADO}`;
-  const { rows } = await pool.query<LinhaProduto>(`${SELECT_PRODUTO} WHERE p.id = $1${filtro}`, [id]);
+  const { rows } = await pool.query<LinhaProduto>(`${selecionarProduto(incluirRejeicao)} WHERE p.id = $1${filtro}`, [id]);
   return rows[0] ? paraProduto(rows[0]) : null;
 }
 
@@ -105,7 +115,7 @@ export async function buscarProduto(idBruto: string, incluirNaoPublicados = fals
 export async function listarProdutosParaGestao(usuarioId?: string): Promise<ProdutoComArtesao[]> {
   const where = usuarioId ? "WHERE a.usuario_id = $1" : "";
   const { rows } = await pool.query<LinhaProduto>(
-    `${SELECT_PRODUTO} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
+    `${selecionarProduto(!usuarioId)} ${where} ORDER BY p.data_cadastro DESC, p.nome`,
     usuarioId ? [usuarioId] : []
   );
   return rows.map(paraProduto);
@@ -116,7 +126,7 @@ export async function listarRelacionados(idBruto: string, limite: number): Promi
   const id = resolverId(idBruto);
   if (!ehUuid(id)) return [];
   const { rows } = await pool.query<LinhaProduto>(
-    `${SELECT_PRODUTO}
+    `${selecionarProduto()}
       WHERE ${PRODUTO_PUBLICADO}
         AND p.id <> $1
         AND p.tecnica = (
@@ -163,7 +173,7 @@ export async function buscarPerfilArtesao(idBruto: string): Promise<PerfilArtesa
   if (!rows[0]) return null;
 
   const { rows: produtos } = await pool.query<LinhaProduto>(
-    `${SELECT_PRODUTO} WHERE p.artesao_id = $1 AND ${PRODUTO_PUBLICADO} ORDER BY p.data_cadastro DESC, p.nome`,
+    `${selecionarProduto()} WHERE p.artesao_id = $1 AND ${PRODUTO_PUBLICADO} ORDER BY p.data_cadastro DESC, p.nome`,
     [id]
   );
   return { ...rows[0], produtos: produtos.map(paraProduto) };

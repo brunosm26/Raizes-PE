@@ -284,6 +284,62 @@ describe("pedidos e produtos: com banco", () => {
     assert.equal(rows[0]?.status_curadoria, "aprovado");
   });
 
+  itComBanco("TC17: rejeita produto pendente com justificativa persistida e mantém a vitrine protegida", async () => {
+    const artesao = await api.cookie(USUARIOS.artesao);
+    const comprador = await api.cookie(USUARIOS.comprador);
+    const admin = await api.cookie(USUARIOS.admin);
+    const novo = await criar("/produtos", {
+      nome: "Peça em avaliação TC17",
+      descricao: "Descrição da peça",
+      tecnica: "Têxtil",
+      categoria: "Categoria TC17",
+      preco: 95,
+      estoqueQtd: 2,
+    }, artesao);
+    assert.equal(novo.status, 201);
+    const id = novo.corpo.id as string;
+    const rejeitar = (justificativa: unknown, cookie?: string, produtoId = id) => fetch(
+      `${api.url}/produtos/${produtoId}/curadoria`,
+      { method: "PATCH", ...json({ status: "rejeitado", justificativa }, cookie) }
+    );
+    const motivo = "A descrição precisa indicar a origem da peça.";
+    assert.equal((await rejeitar(motivo)).status, 401);
+    assert.equal((await rejeitar(motivo, artesao)).status, 403);
+    assert.equal((await rejeitar(motivo, comprador)).status, 403);
+    assert.equal((await rejeitar(undefined, admin)).status, 400);
+    assert.equal((await rejeitar("   ", admin)).status, 400);
+    assert.equal((await rejeitar("x".repeat(501), admin)).status, 400);
+    assert.equal((await rejeitar(motivo, admin, PRODUTO_DO_ARTESAO)).status, 409);
+
+    const resposta = await rejeitar(`  ${motivo}  `, admin);
+    assert.equal(resposta.status, 200);
+    const rejeitado = await resposta.json();
+    assert.equal(rejeitado.statusCuradoria, "rejeitado");
+    assert.equal(rejeitado.rejeicaoCuradoria.justificativa, motivo);
+    assert.equal(rejeitado.rejeicaoCuradoria.autorId, USUARIOS.admin.id);
+    assert.ok(Number.isFinite(Date.parse(rejeitado.rejeicaoCuradoria.data)));
+    const repetido = await rejeitar(motivo, admin);
+    assert.equal(repetido.status, 200);
+    assert.deepEqual((await repetido.json()).rejeicaoCuradoria, rejeitado.rejeicaoCuradoria);
+    assert.equal((await rejeitar("Outra justificativa.", admin)).status, 409);
+    assert.equal((await fetch(`${api.url}/produtos/${id}/curadoria`, {
+      method: "PATCH", ...json({ status: "aprovado" }, admin),
+    })).status, 409);
+
+    const gestao = `${api.url}/produtos?visao=gestao`;
+    const listaAdmin: { id: string; rejeicaoCuradoria?: unknown }[] =
+      await (await fetch(gestao, { headers: { cookie: admin } })).json();
+    assert.deepEqual(listaAdmin.find((produto) => produto.id === id)?.rejeicaoCuradoria, rejeitado.rejeicaoCuradoria);
+    const listaArtesao: { id: string; statusCuradoria: string; rejeicaoCuradoria?: unknown }[] =
+      await (await fetch(gestao, { headers: { cookie: artesao } })).json();
+    const produtoDoArtesao = listaArtesao.find((produto) => produto.id === id);
+    assert.equal(produtoDoArtesao?.statusCuradoria, "rejeitado");
+    assert.equal(produtoDoArtesao?.rejeicaoCuradoria, undefined);
+    assert.equal((await fetch(`${api.url}/produtos/${id}`)).status, 404);
+    assert.deepEqual(await (await fetch(`${api.url}/produtos?busca=TC17`)).json(), []);
+    assert.equal((await criar("/pedidos", { itens: [{ produtoId: id, quantidade: 1 }] }, comprador)).status, 409);
+  });
+
   itComBanco("artesão cadastra produto (201) e não edita produto de outro (403)", async () => {
     const cookie = await api.cookie(USUARIOS.artesao);
     const r = await criar(

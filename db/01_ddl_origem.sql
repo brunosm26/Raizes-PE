@@ -68,9 +68,15 @@ CREATE TABLE produto (
     categoria     VARCHAR(100),
     preco         NUMERIC(10,2) NOT NULL,
     status_curadoria status_curadoria_produto NOT NULL DEFAULT 'pendente',
+    rejeicao_justificativa VARCHAR(500),
+    rejeicao_autor_id UUID,
+    rejeicao_em TIMESTAMPTZ(3),
     estoque_qtd   INTEGER       NOT NULL DEFAULT 0,
     data_cadastro DATE          NOT NULL DEFAULT CURRENT_DATE,
     CONSTRAINT pk_produto PRIMARY KEY (id),
+    CONSTRAINT fk_produto_rejeicao_autor FOREIGN KEY (rejeicao_autor_id)
+        REFERENCES usuario(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+
     CONSTRAINT fk_produto_artesao FOREIGN KEY (artesao_id)
         REFERENCES artesao (id) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT ck_produto_nome_preenchido CHECK (length(btrim(nome)) > 0),

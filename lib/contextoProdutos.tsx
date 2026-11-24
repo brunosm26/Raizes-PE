@@ -16,6 +16,8 @@ interface DadosNovoProduto {
   imagemUrl?: string;
 }
 
+type DecisaoCuradoria = { status: "aprovado" } | { status: "rejeitado"; justificativa: string };
+
 interface ValorContextoProdutos {
   // Visão de gestão do catálogo, limitada ao escopo de quem está autenticado.
   produtos: ProdutoComArtesao[];
@@ -24,7 +26,7 @@ interface ValorContextoProdutos {
   recarregarProdutos: () => void;
   produtosDoArtesao: (usuarioId: string) => ProdutoComArtesao[];
   // Gravam no banco pela API. Rejeitam com a mensagem do servidor (validação, 404...).
-  moderarProduto: (id: string, status: "aprovado") => Promise<ProdutoComArtesao>;
+  moderarProduto: (id: string, decisao: DecisaoCuradoria) => Promise<ProdutoComArtesao>;
   criarProduto: (usuarioId: string, dados: DadosNovoProduto) => Promise<ProdutoComArtesao>;
   editarProduto: (
     id: string,
@@ -117,11 +119,11 @@ export function ProvedorProdutos({ children }: { children: React.ReactNode }) {
   );
 
   const moderarProduto = useCallback(
-    async (id: string, status: "aprovado"): Promise<ProdutoComArtesao> => {
+    async (id: string, decisao: DecisaoCuradoria): Promise<ProdutoComArtesao> => {
       const res = await apiFetch(`/api/produtos/${encodeURIComponent(id)}/curadoria`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(decisao),
       });
       if (!res.ok) throw new Error(await mensagemDeErro(res));
       const atualizado = (await res.json()) as ProdutoComArtesao;

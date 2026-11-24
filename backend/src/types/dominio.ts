@@ -36,6 +36,7 @@ export type StatusCuradoriaProduto = "pendente" | "aprovado" | "rejeitado";
 
 export interface ProdutoComArtesao extends Produto {
   statusCuradoria: StatusCuradoriaProduto;
+  rejeicaoCuradoria?: { justificativa: string; autorId: string; data: string };
   artesaoNome: string;
   artesaoRegiao: string;
   artesaoUsuarioId?: string;
