@@ -8,26 +8,95 @@ A aplicação usa o motor do backend em TypeScript ([`backend/src/services/recom
 
 ## Instalação
 
-Pré-requisitos: Python 3.10 ou superior (testado com 3.11 e 3.13), `pip` e `curl`. Os comandos partem da raiz do repositório.
+Use Python 3.10 ou superior (recomendado 3.13), `pip` e `curl`. Execute na raiz do repositório.
 
 ```bash
-git clone https://github.com/brunosm26/Raizes-PE.git
-cd Raizes-PE
 python -m venv .venv
-source .venv/bin/activate        # no Windows: .venv\Scripts\activate
-pip install -r ia/requirements.txt
+./.venv/bin/python -m pip install -r ia/requirements.txt
+```
+
+No PowerShell, por exemplo com o Python 3.13 instalado:
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r ia/requirements.txt
 ```
 
 ## Como subir
 
 ```bash
 cd ia
-bentoml serve servico:Recomendador --port 3001
+../.venv/bin/bentoml serve servico:Recomendador --port 3001
+```
+
+No PowerShell, execute a partir da raiz:
+
+```powershell
+cd ia
+..\.venv\Scripts\bentoml.exe serve servico:Recomendador --port 3001
 ```
 
 Espere a linha `Service Recomendador initialized`. Deixe esse terminal aberto e rode os testes em outro. A porta é a 3001 para não colidir com o `npm run dev`, que usa a 3000.
 
 Documentação interativa (Swagger) do contrato `GET`: http://127.0.0.1:3001/api/docs
+
+## Mini dicionário de dados
+
+O arquivo [catálogo sintético](dados/catalogo_sintetico.json) contém 12 produtos, 7 artesãos, 20 linhas de vendas e 18 avaliações fictícias. O produto `p10` tem estoque zero de propósito. O ID `p999` é reservado para demonstrar a busca sem resultado.
+
+| Conjunto | Campo | Significado |
+|---|---|---|
+| Produto | `id` | Identifica a peça no catálogo e nas recomendações. |
+| Produto | `artesao_id` | Liga a peça ao artesão para obter a região de origem. |
+| Produto | `nome` | Nome comercial da peça, exibido na recomendação. |
+| Produto | `tecnica` | Técnica artesanal usada para encontrar peças semelhantes. |
+| Produto | `categoria` | Grupo comercial da peça, carregado como atributo do catálogo. |
+| Produto | `preco` | Preço de venda em reais, exibido na recomendação. |
+| Produto | `estoque_qtd` | Unidades disponíveis. A peça pode ser recomendada quando o estoque é maior que zero. |
+| Produto | `data_cadastro` | Data de entrada no catálogo. A peça mais recente tem prioridade em caso de empate na popularidade. |
+| Artesão | `id` | Identificador do artesão associado à peça. |
+| Artesão | `regiao_origem` | Local de origem do artesão, usado para aproximar peças da mesma região. |
+| Item de pedido | `produto_id` | Peça vendida. |
+| Item de pedido | `quantidade` | Unidades vendidas nessa linha. A soma por peça entra na popularidade. |
+| Avaliação | `produto_id` | Peça avaliada. |
+| Avaliação | `nota` | Nota de 1 a 5 dada à peça. A média por peça entra na popularidade. |
+
+## Funções de acesso
+
+- `buscar_produto_por_id(catalogo, produto_id)` retorna o produto de referência para obter sua técnica e região. Um ID ausente gera `produto_nao_encontrado`, convertido em HTTP 404.
+- `listar_produtos_disponiveis(catalogo, excluir_id=None)` retorna as peças com estoque que o motor pode ranquear, excluindo a referência quando informada. Se nenhuma peça estiver disponível, retorna uma lista vazia.
+
+`carregar_catalogo()` lê o JSON na inicialização. Durante as requisições, o motor usa as duas funções de consulta acima. O log registra uma linha por consulta nas rotas `GET /api/recomendacoes` e `POST /recomendar`.
+
+**Experimento com o estoque.** Execute a primeira chamada abaixo e veja `p8` entre as recomendações. Em `ia/dados/catalogo_sintetico.json`, mude o `estoque_qtd` de `p8` de `10` para `0`, reinicie o BentoML e repita a chamada. A peça sai da resposta e dos IDs retornados pela função que lista candidatos. Volte o estoque a `10` e reinicie para reproduzir o resumo do catálogo original.
+
+## Gerar o log com três chamadas
+
+Execute em outro terminal, a partir da raiz, com o serviço no ar. No PowerShell, use `curl.exe` no lugar de `curl`.
+
+```bash
+curl -i "http://127.0.0.1:3001/api/recomendacoes?produto_id=p1&limite=3"
+curl -i "http://127.0.0.1:3001/api/recomendacoes?tecnica=Palha&regiao=Pilar&limite=3"
+curl -i "http://127.0.0.1:3001/api/recomendacoes?produto_id=p999&limite=3"
+```
+
+As chamadas retornam HTTP 200, 200 e 404. Elas acrescentam quatro linhas a `ia/logs/acessos.jsonl`: duas para a primeira chamada (busca e listagem), uma para a segunda (listagem) e uma para a terceira (busca com erro). Cada linha tem data e hora em UTC, função, rota de origem, parâmetros resumidos, quantidade, IDs retornados e status. O log usa o marcador `desconhecido` para IDs ausentes no catálogo.
+
+Abra o arquivo em um editor ou use `tail -n 4 ia/logs/acessos.jsonl` no Bash e `Get-Content .\ia\logs\acessos.jsonl -Tail 4` no PowerShell. Para um resumo que conte apenas essas três chamadas quando já houver histórico, escolha um caminho absoluto para um arquivo novo na variável `RAIZES_IA_LOG` nos dois terminais antes de iniciar o serviço. Use esse mesmo caminho ao abrir o log.
+
+## Ver o resumo
+
+Na raiz, execute `./.venv/bin/python ia/resumir_acessos.py` no Bash ou `.\.venv\Scripts\python.exe ia\resumir_acessos.py` no PowerShell. O script conta chamadas por função, erros por código e frequência por produto retornado na consulta. Um candidato conta como consultado mesmo quando fica fora da resposta final.
+
+## O que o log da demonstração mostra
+
+**(a)** Com o catálogo original e só essas três chamadas, houve duas buscas por ID e duas listagens de candidatos. Os 11 produtos disponíveis empataram com duas consultas cada, e `p1` foi o único usado como referência.
+**(b)** O produto `p10` nunca foi retornado nessas consultas, o que é compatível com o estoque zero e com a ausência de uma busca por ele.
+**(c)** Houve um erro `produto_nao_encontrado` porque `p999` não existe no catálogo.
+
+## Declaração de uso de IA generativa
+
+O OpenAI Codex auxiliou na implementação das funções de acesso, do log e do resumo, na atualização deste README e na verificação da demonstração. O serviço gera recomendações por regras de estoque, similaridade e popularidade.
 
 ## Contrato do serviço (entrada e saída)
 

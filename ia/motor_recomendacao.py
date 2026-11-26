@@ -1,7 +1,8 @@
 """Motor de regras (baseline) do módulo de recomendação do Origem / Raízes PE.
 
-Este arquivo é a lógica pura: não conhece HTTP nem BentoML, só recebe um
-catálogo e devolve um dicionário no formato do contrato (design.md, seção 5).
+O motor recebe um catálogo e devolve um dicionário no formato do contrato
+(design.md, seção 5). Quando o serviço informa a origem da chamada, as
+funções de acesso registram as consultas.
 O servidor (servico.py) e o script de métricas (avaliar_baseline.py) usam
 exatamente esta mesma função, então o que se mede é o que se serve.
 
@@ -26,6 +27,8 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+
+from log_acessos import registrar_acesso
 
 CAMINHO_CATALOGO = Path(__file__).resolve().parent / "dados" / "catalogo_sintetico.json"
 
@@ -138,6 +141,38 @@ def carregar_catalogo(caminho: Path = CAMINHO_CATALOGO) -> Catalogo:
     return Catalogo(produtos=produtos)
 
 
+def buscar_produto_por_id(
+    catalogo: Catalogo, produto_id: str, origem: str | None = None
+) -> Produto:
+    """Busca a referência solicitada ou sinaliza que ela não existe."""
+    produto = catalogo.produtos.get(produto_id)
+    if produto is None:
+        if origem is not None:
+            registrar_acesso(
+                "buscar_produto_por_id", origem, {"produto_id": "desconhecido"}, [],
+                erro=ProdutoNaoEncontrado.codigo,
+            )
+        raise ProdutoNaoEncontrado("Nenhum produto com o id informado foi encontrado no catálogo.")
+
+    if origem is not None:
+        registrar_acesso("buscar_produto_por_id", origem, {"produto_id": produto.id}, [produto.id])
+    return produto
+
+
+def listar_produtos_disponiveis(
+    catalogo: Catalogo, excluir_id: str | None = None, origem: str | None = None
+) -> list[Produto]:
+    """Devolve os candidatos com estoque, excluindo a referência quando houver."""
+    produtos = [produto for produto in catalogo.elegiveis if produto.id != excluir_id]
+    if origem is not None:
+        registrar_acesso(
+            "listar_produtos_disponiveis", origem,
+            {"excluir_id": excluir_id if excluir_id in catalogo.produtos else None},
+            [produto.id for produto in produtos],
+        )
+    return produtos
+
+
 # ---------------------------------------------------------------------------
 # Funções auxiliares
 # ---------------------------------------------------------------------------
@@ -200,6 +235,8 @@ def recomendar(
     tecnica: str | None = None,
     regiao: str | None = None,
     limite: int | str | None = None,
+    *,
+    origem: str | None = None,
 ) -> dict:
     """Devolve a recomendação no formato do contrato (design.md, seção 5).
 
@@ -215,22 +252,18 @@ def recomendar(
         raise ParametrosInsuficientes("Informe produto_id, ou ao menos um dos campos tecnica/regiao.")
 
     # 0. Define o alvo da busca: produto de referência ou filtro explícito.
-    excluidos: set[str] = set()
     filtro_aplicado: dict | None = None
     if produto_id is not None:
-        referencia = catalogo.produtos.get(produto_id)
-        if referencia is None:
-            raise ProdutoNaoEncontrado("Nenhum produto com o id informado foi encontrado no catálogo.")
+        referencia = buscar_produto_por_id(catalogo, produto_id, origem)
         alvo_tecnica: str | None = referencia.tecnica
         alvo_regiao: str | None = referencia.regiao_origem
-        excluidos.add(referencia.id)
     else:
         alvo_tecnica, alvo_regiao = tecnica, regiao
         filtro_aplicado = {"tecnica": tecnica, "regiao": regiao}
 
     tecnica_norm = _normalizar(alvo_tecnica) if alvo_tecnica else None
     regiao_norm = _normalizar(alvo_regiao) if alvo_regiao else None
-    elegiveis = [p for p in catalogo.elegiveis if p.id not in excluidos]
+    elegiveis = listar_produtos_disponiveis(catalogo, excluir_id=produto_id, origem=origem)
 
     # 1. Pool de candidatos: mesma técnica OU mesma região (RF-01, RF-02).
     pool: list[tuple[Produto, str]] = []

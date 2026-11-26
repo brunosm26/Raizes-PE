@@ -67,11 +67,13 @@ def recomendacoes(
 ):
     inicio = time.perf_counter()
     try:
-        resposta = motor.recomendar(CATALOGO, produto_id, tecnica, regiao, limite)
+        resposta = motor.recomendar(
+            CATALOGO, produto_id, tecnica, regiao, limite, origem="GET /api/recomendacoes"
+        )
     except motor.ErroDeContrato as erro:
         logger.warning(
-            "recomendacoes recusada: status=%s erro=%s produto_id=%s tecnica=%s regiao=%s",
-            erro.status_http, erro.codigo, produto_id, tecnica, regiao,
+            "recomendacoes recusada: status=%s erro=%s",
+            erro.status_http, erro.codigo,
         )
         return RespostaJSON(
             status_code=erro.status_http,
@@ -81,7 +83,8 @@ def recomendacoes(
     tempo_ms = (time.perf_counter() - inicio) * 1000
     logger.info(
         "recomendacoes ok: produto_id=%s estrategia=%s itens=%d tempo_ms=%.2f",
-        produto_id, resposta["estrategia_aplicada"], len(resposta["recomendacoes"]), tempo_ms,
+        resposta["produto_referencia_id"], resposta["estrategia_aplicada"],
+        len(resposta["recomendacoes"]), tempo_ms,
     )
     return RespostaJSON(content=resposta)
 
@@ -103,7 +106,9 @@ class Recomendador:
         vier junto, ele tem prioridade e os filtros são ignorados.
         """
         try:
-            return motor.recomendar(CATALOGO, produto_id, tecnica, regiao, limite)
+            return motor.recomendar(
+                CATALOGO, produto_id, tecnica, regiao, limite, origem="POST /recomendar"
+            )
         except motor.ProdutoNaoEncontrado as erro:
             raise bentoml.exceptions.NotFound(erro.mensagem)
         except motor.ErroDeContrato as erro:
