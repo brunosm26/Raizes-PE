@@ -53,6 +53,7 @@ const pedidoFalso = (status = "pendente") => ({
 });
 
 let sessaoAtual = null;
+const consultasAdministrativas = [];
 const recomendacoes = { atrasoMs: 100, chamadas: [] };
 
 class ErroAuth extends Error {
@@ -79,6 +80,10 @@ dublar("lib/servidor/pedidos.ts", {
   criarPedido: async () => pedidoFalso(),
   atualizarStatus: async (_id, status) => pedidoFalso(status),
   listarPedidos: async () => [],
+  listarPedidosAdministrativos: async (periodo) => {
+    consultasAdministrativas.push(periodo);
+    return [];
+  },
   listarPedidosDoArtesao: async () => [],
 });
 dublar("lib/motorRecomendacao.ts", {
@@ -180,5 +185,24 @@ describe("fila assíncrona no fallback do Next", () => {
     const r = await ler.POST(requisicao("POST", { ids: "tudo" }));
     assert.equal(r.status, 400);
     assert.deepEqual(Object.keys(await r.json()), ["ok", "erro"]);
+  });
+});
+
+
+describe("período administrativo dos pedidos (fallback Next)", () => {
+  const consultar = (query) => pedidos.GET(new NextRequest("http://localhost:3000/api/pedidos" + query));
+
+  it("valida a sessão e encaminha apenas limites válidos para a consulta administrativa", async () => {
+    assert.equal((await consultar("?inicio=2025-07-02")).status, 401);
+    sessaoAtual = COMPRADOR;
+    assert.equal((await consultar("?inicio=2025-07-02")).status, 403);
+    sessaoAtual = ADMIN;
+    assert.equal((await consultar("?inicio=2025-02-29")).status, 400);
+    assert.equal((await consultar("?inicio=2025-07-02&inicio=2025-07-03")).status, 400);
+    assert.equal((await consultar("?inicio=2025-07-03&fim=2025-07-02")).status, 400);
+    const resposta = await consultar("?inicio=2025-07-02&fim=2025-07-02");
+    assert.equal(resposta.status, 200);
+    assert.deepEqual(await resposta.json(), []);
+    assert.deepEqual(consultasAdministrativas, [{ inicio: "2025-07-02", fim: "2025-07-02" }]);
   });
 });

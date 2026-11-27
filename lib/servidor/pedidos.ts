@@ -2,6 +2,7 @@
 // pedido + item_pedido são gravados na MESMA transação: o banco confere, ao final,
 // que valor_total = soma dos itens (constraint triggers deferidos do modelo físico).
 import type { PoolClient } from "pg";
+import type { PeriodoPedidos } from "@/lib/periodoPedidos";
 import { pool } from "@/lib/db";
 import { ehUuid, resolverId } from "@/lib/idsLegados";
 import type { DadosSessao } from "@/lib/sessao";
@@ -76,8 +77,15 @@ async function carregar(
   return pedidos.map((p) => ({ ...p, itens: porPedido.get(p.id) ?? [] }));
 }
 
+export function listarPedidosAdministrativos({ inicio, fim }: PeriodoPedidos = {}): Promise<PedidoComItens[]> {
+  if (inicio && fim) return carregar("WHERE pe.data_pedido BETWEEN $1::date AND $2::date", [inicio, fim]);
+  if (inicio) return carregar("WHERE pe.data_pedido >= $1::date", [inicio]);
+  if (fim) return carregar("WHERE pe.data_pedido <= $1::date", [fim]);
+  return carregar("", []);
+}
+
 export async function listarPedidos(compradorIdBruto?: string): Promise<PedidoComItens[]> {
-  if (!compradorIdBruto) return carregar("", []);
+  if (!compradorIdBruto) return listarPedidosAdministrativos();
   const compradorId = resolverId(compradorIdBruto);
   if (!ehUuid(compradorId)) return [];
   return carregar("WHERE pe.comprador_id = $1", [compradorId]);

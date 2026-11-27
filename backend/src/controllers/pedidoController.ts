@@ -1,4 +1,6 @@
 import type { RequestHandler } from "express";
+import { lerPeriodoPedidos } from "../utils/periodoPedidos";
+import { ErroHttp } from "../utils/erroHttp";
 import { sessaoDe } from "../middlewares/sessao";
 import { invalidarCatalogo } from "../services/cacheCatalogo";
 import { enfileirarPedidoCriado, enfileirarStatusAtualizado } from "../services/filaAssincronaService";
@@ -6,7 +8,16 @@ import * as pedidoService from "../services/pedidoService";
 
 // GET /api/pedidos
 export const listar: RequestHandler = async (req, res) => {
-  res.json(await pedidoService.listarParaSessao(sessaoDe(req)));
+  const sessao = sessaoDe(req);
+  const { inicio, fim } = req.query;
+  if (inicio === undefined && fim === undefined) {
+    res.json(await pedidoService.listarParaSessao(sessao));
+    return;
+  }
+  if (sessao.tipo !== "admin") throw new ErroHttp(403, "Apenas administradores podem filtrar pedidos por período.");
+  const periodo = lerPeriodoPedidos(inicio, fim);
+  if (!periodo) throw new ErroHttp(400, "Informe um período válido.");
+  res.json(await pedidoService.listarParaSessao(sessao, periodo));
 };
 
 // POST /api/pedidos  { itens: [{ produtoId, quantidade }] } — o comprador é o usuário logado
